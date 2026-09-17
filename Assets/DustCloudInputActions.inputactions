@@ -1,0 +1,55 @@
+{
+    "version": 1,
+    "name": "DustCloudInputActions",
+    "maps": [
+        {
+            "name": "Menu",
+            "id": "0574f9e1-1057-4ab8-8fb2-50112d927eee",
+            "actions": [
+                {
+                    "name": "ToggleMenu",
+                    "type": "Button",
+                    "id": "982091c2-0642-4703-895d-4a59cb26b30c",
+                    "expectedControlType": "",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false
+                },
+                {
+                    "name": "SelectMenu",
+                    "type": "Button",
+                    "id": "467857a7-2524-4543-b8ef-e051e8956aeb",
+                    "expectedControlType": "",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false
+                }
+            ],
+            "bindings": [
+                {
+                    "name": "",
+                    "id": "e63068d7-3831-4ee7-bfef-3f3a1e2cb8f1",
+                    "path": "<XRController>{LeftHand}/{SecondaryButton}",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "ToggleMenu",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "37f602c9-cdaa-44be-8ac7-293f0eba6077",
+                    "path": "<XRController>{LeftHand}/{PrimaryButton}",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "SelectMenu",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                }
+            ]
+        }
+    ],
+    "controlSchemes": []
+}
