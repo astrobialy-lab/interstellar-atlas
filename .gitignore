@@ -1,10 +1,19 @@
+## custom
 
+# ignore Gaia data while processing, the final product moves to Assets
+Data/Gaia/raw/
+Data/Gaia/processed/
 
-
+# pernosnal
 .vscode/
+
+# these are only for testing while coding
 *_BackUpThisFolder_ButDontShipItWithYourGame/
 *_BurstDebugInformation_DoNotShip/
 
+
+
+## Default for unity project
 
 
 # This .gitignore file should be placed at the root of your Unity project directory

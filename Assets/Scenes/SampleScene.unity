@@ -1013,6 +1013,11 @@ MonoBehaviour:
   titleText: {fileID: 2043047226}
   shortText: {fileID: 372617058}
   paragraphText: {fileID: 1965531990}
+  headsetCamera: {fileID: 0}
+  distanceFromViewer: 2
+  verticalOffset: -0.15
+  reverseFacingDirection: 1
+  dustVisibility: {fileID: 0}
 --- !u!224 &383082163
 RectTransform:
   m_ObjectHideFlags: 0
@@ -1397,6 +1402,9 @@ MonoBehaviour:
   moveSpeed: 3
   turnSpeed: 90
   dustCloudGenerator: {fileID: 1085639424}
+  landmarkMarkerGenerator: {fileID: 0}
+  performanceParticleCount: 16000
+  qualityParticleCount: 20000
 --- !u!114 &475100220
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1411,7 +1419,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::QuestTankControls
   dustCloudGenerator: {fileID: 1085639424}
   landmarkPopup: {fileID: 383082162}
+  landmarkMarkerGenerator: {fileID: 0}
   headsetCamera: {fileID: 330585546}
+  rightControllerTransform: {fileID: 0}
   moveSpeed: 2
   verticalSpeed: 1.25
   strafeSpeed: 1.25
@@ -1444,6 +1454,10 @@ MonoBehaviour:
   bodyText: {fileID: 1208685993}
   bodyRect: {fileID: 0}
   tankControls: {fileID: 475100220}
+  dustVisibility: {fileID: 0}
+  menuToggleAction: {fileID: 0}
+  menuSelectAction: {fileID: 0}
+  logLeftButtonPresses: 0
   moreUrl: https://star-formation.com/
   mainBodyPosition: {x: 0, y: -280}
   pageBodyPosition: {x: 0, y: -80}
@@ -1513,6 +1527,52 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 8270855663187062767, guid: 1392f805216c47742996d4742c80721c, type: 3}
   m_PrefabInstance: {fileID: 558202148}
   m_PrefabAsset: {fileID: 0}
+--- !u!1 &586631262
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 586631264}
+  - component: {fileID: 586631263}
+  m_Layer: 0
+  m_Name: GaiaIndex
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &586631263
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 586631262}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ec20d591e27cba54faa2ffc9410d2497, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::GaiaIndexReader
+  debugDepth: 0
+  drawOctree: 1
+--- !u!4 &586631264
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 586631262}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: -0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &686256526
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -7017,6 +7077,7 @@ MonoBehaviour:
   defaultParticleCount: 16000
   minSizeMultiplier: 0.4
   maxSizeMultiplier: 3
+  sizeMultiplierStep: 0.4
   initialSizeMultiplier: 2
   colorScheme: 0
   alphaMin: 0.03
@@ -13219,6 +13280,7 @@ MonoBehaviour:
   startupDelay: 3
   splashDuration: 3
   sunMarker: {fileID: 999081167}
+  localBubble: {fileID: 0}
 --- !u!1 &2038413927
 GameObject:
   m_ObjectHideFlags: 0
@@ -13524,8 +13586,17 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::NewMonoBehaviourScript
   landmarkCsv: {fileID: 4900000, guid: 5fb0f109443e149abbe3e4684d1c99f2, type: 3}
   cloudMarkerPrefab: {fileID: 6192945478437891419, guid: 1e8811a9db66247d7a868d0cf781c385, type: 3}
+  starMarkerPrefab: {fileID: 0}
+  nebulaMarkerPrefab: {fileID: 0}
+  clusterMarkerPrefab: {fileID: 0}
+  associationMarkerPrefab: {fileID: 0}
   landmarkPopup: {fileID: 383082162}
+  coordinateSystemRoot: {fileID: 0}
+  orientationCompassRoot: {fileID: 0}
   markerScale: 0.1
+  markerColliderSize: {x: 5, y: 5, z: 5}
+  nearbyStarThreshold: 0.5
+  nearbyStarOffset: 0.35
 --- !u!4 &2109148597
 Transform:
   m_ObjectHideFlags: 0
@@ -13557,3 +13628,4 @@ SceneRoots:
   - {fileID: 818081910}
   - {fileID: 1455809629}
   - {fileID: 2002098411}
+  - {fileID: 586631264}

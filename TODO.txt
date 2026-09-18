@@ -1,3 +1,0 @@
-- add stars
-- he mentioned that he loads only random 20% of the data. optimize and load all
-- make clouds beautiful if needed
