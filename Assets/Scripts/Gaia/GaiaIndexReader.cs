@@ -1,177 +1,244 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Text;
 using UnityEngine;
 
 public class GaiaIndexReader : MonoBehaviour
 {
-    [Header("Debug Visualization")]
-    [SerializeField] private int debugDepth = 0;
-    [SerializeField] private bool drawOctree = true;
+    [Header("Index")]
+    [SerializeField]
+    private string indexRelativePath =
+        "Data/Gaia/processed/index.bin";
 
-    private string IndexPath
-    {
-        get
-        {
-            string projectRoot =
-                Directory.GetParent(Application.dataPath).FullName;
+    public uint Version { get; private set; }
+    public uint HealpixLevel { get; private set; }
+    public uint ShellCount { get; private set; }
+    public uint ChunkCount { get; private set; }
 
-            return Path.Combine(
-                projectRoot,
-                "Data",
-                "Gaia",
-                "processed",
-                "index.bin"
-            );
-        }
-    }
+    public GaiaChunk[] Chunks { get; private set; }
 
-    // Must match Python:
-    // <QIIIIdddd
-    //
-    // uint64 node_id
-    // uint32 parent_id
-    // uint32 first_child
-    // uint32 child_count
-    // uint32 star_count
-    // double center_x
-    // double center_y
-    // double center_z
-    // double half_size
-    private const int NODE_SIZE = 52;
+    private Dictionary<ulong, GaiaChunk> chunkLookup;
 
-    [Serializable]
-    public struct GaiaNode
-    {
-        public ulong nodeId;
-        public uint parentId;
-        public uint firstChild;
-        public uint childCount;
-        public uint starCount;
+    private byte[] stringTable;
 
-        public double centerX;
-        public double centerY;
-        public double centerZ;
-        public double halfSize;
-    }
-
-    private GaiaNode[] nodes;
-
-    void Start()
+    private void Awake()
     {
         LoadIndex();
     }
 
-    void LoadIndex()
+    private void LoadIndex()
     {
-        Debug.Log("Loading Gaia index:");
-        Debug.Log(IndexPath);
+        string projectRoot =
+            Directory.GetParent(Application.dataPath).FullName;
 
-        if (!File.Exists(IndexPath))
+        string path = Path.Combine(
+            projectRoot,
+            indexRelativePath
+        );
+
+        Debug.Log($"Loading Gaia index:\n{path}");
+
+        if (!File.Exists(path))
         {
-            Debug.LogError("Gaia index.bin does not exist!");
+            Debug.LogError(
+                $"Gaia index not found:\n{path}"
+            );
             return;
         }
 
-        using (BinaryReader reader =
-               new BinaryReader(File.OpenRead(IndexPath)))
+        using FileStream stream = File.OpenRead(path);
+        using BinaryReader reader =
+            new BinaryReader(stream);
+
+        uint magic = reader.ReadUInt32();
+
+        if (magic != 0x47414941)
         {
-            // Header
-            uint magic = reader.ReadUInt32();
-            uint version = reader.ReadUInt32();
-            uint nodeCount = reader.ReadUInt32();
-
-            Debug.Log($"Magic: 0x{magic:X8}");
-            Debug.Log($"Version: {version}");
-            Debug.Log($"Node count: {nodeCount}");
-
-            if (magic != 0x47414941)
-            {
-                Debug.LogError("Invalid Gaia index magic!");
-                return;
-            }
-
-            if (version != 1)
-            {
-                Debug.LogError($"Unsupported Gaia index version: {version}");
-                return;
-            }
-
-            nodes = new GaiaNode[nodeCount];
-
-            for (int i = 0; i < nodeCount; i++)
-            {
-                GaiaNode node = new GaiaNode();
-
-                node.nodeId = reader.ReadUInt64();
-                node.parentId = reader.ReadUInt32();
-                node.firstChild = reader.ReadUInt32();
-                node.childCount = reader.ReadUInt32();
-                node.starCount = reader.ReadUInt32();
-
-                node.centerX = reader.ReadDouble();
-                node.centerY = reader.ReadDouble();
-                node.centerZ = reader.ReadDouble();
-                node.halfSize = reader.ReadDouble();
-
-                nodes[i] = node;
-            }
+            Debug.LogError(
+                $"Invalid Gaia index magic: 0x{magic:X8}"
+            );
+            return;
         }
 
-        Debug.Log($"Loaded {nodes.Length} Gaia nodes.");
+        Version = reader.ReadUInt32();
+        HealpixLevel = reader.ReadUInt32();
+        ShellCount = reader.ReadUInt32();
+        ChunkCount = reader.ReadUInt32();
 
-        // Print the first few nodes so we can verify the data.
-        int samples = Mathf.Min(10, nodes.Length);
+        Debug.Log(
+            $"Gaia index:\n" +
+            $"  Version: {Version}\n" +
+            $"  HEALPix level: {HealpixLevel}\n" +
+            $"  Shell count: {ShellCount}\n" +
+            $"  Chunk count: {ChunkCount}"
+        );
 
-        for (int i = 0; i < samples; i++)
+        Chunks =
+            new GaiaChunk[ChunkCount];
+
+        chunkLookup =
+            new Dictionary<ulong, GaiaChunk>(
+                (int)ChunkCount
+            );
+
+        for (int i = 0; i < ChunkCount; i++)
         {
-            GaiaNode n = nodes[i];
+            GaiaChunk chunk =
+                new GaiaChunk();
+
+            chunk.chunkId =
+                reader.ReadUInt32();
+
+            chunk.healpixId =
+                reader.ReadUInt32();
+
+            chunk.shellId =
+                reader.ReadUInt16();
+
+            reader.ReadUInt16();
+
+            chunk.starCount =
+                reader.ReadUInt32();
+
+            chunk.distanceMin =
+                reader.ReadDouble();
+
+            chunk.distanceMax =
+                reader.ReadDouble();
+
+            chunk.pathOffset =
+                reader.ReadUInt64();
+
+            chunk.pathLength =
+                reader.ReadUInt32();
+
+            reader.ReadUInt32();
+
+            Chunks[i] = chunk;
+
+            ulong key =
+                MakeKey(
+                    chunk.healpixId,
+                    chunk.shellId
+                );
+
+            chunkLookup[key] = chunk;
+        }
+
+        // The rest of the file is the string table.
+        long remaining =
+            stream.Length - stream.Position;
+
+        stringTable =
+            reader.ReadBytes((int)remaining);
+
+        Debug.Log(
+            $"String table: " +
+            $"{stringTable.Length:N0} bytes"
+        );
+
+        Debug.Log(
+            $"Loaded {Chunks.Length:N0} Gaia chunks."
+        );
+
+        for (
+            int i = 0;
+            i < Mathf.Min(5, Chunks.Length);
+            i++
+        )
+        {
+            GaiaChunk chunk = Chunks[i];
 
             Debug.Log(
-                $"Node {i}: " +
-                $"id={n.nodeId}, " +
-                $"firstChild={n.firstChild}, " +
-                $"children={n.childCount}, " +
-                $"stars={n.starCount}, " +
-                $"center=({n.centerX:F2}, {n.centerY:F2}, {n.centerZ:F2}), " +
-                $"halfSize={n.halfSize:F2}"
+                $"Chunk {chunk.chunkId}: " +
+                $"HEALPix={chunk.healpixId}, " +
+                $"shell={chunk.shellId}, " +
+                $"stars={chunk.starCount}, " +
+                $"distance={chunk.distanceMin}-" +
+                $"{chunk.distanceMax} pc, " +
+                $"path={GetChunkPath(chunk)}"
             );
         }
     }
 
-    private void OnDrawGizmosSelected()
+    public bool TryGetChunk(
+        uint healpixId,
+        ushort shellId,
+        out GaiaChunk chunk
+    )
     {
-        if (!drawOctree || nodes == null)
-            return;
+        chunk = null;
 
-        Gizmos.DrawWireCube(Vector3.zero, Vector3.one * 10f);
+        if (chunkLookup == null)
+            return false;
+
+        ulong key =
+            MakeKey(
+                healpixId,
+                shellId
+            );
+
+        return chunkLookup.TryGetValue(
+            key,
+            out chunk
+        );
     }
 
-    private int GetDepth(int nodeIndex)
+    public string GetChunkPath(
+        GaiaChunk chunk
+    )
     {
-        int depth = 0;
-
-        for (int i = 0; i < nodes.Length; i++)
+        if (chunk == null ||
+            stringTable == null)
         {
-            if (nodeIndex == 0)
-                return depth;
-
-            for (int j = 0; j < nodes.Length; j++)
-            {
-                GaiaNode parent = nodes[j];
-
-                if (parent.childCount == 0)
-                    continue;
-
-                if (nodeIndex >= parent.firstChild &&
-                    nodeIndex < parent.firstChild + parent.childCount)
-                {
-                    nodeIndex = j;
-                    depth++;
-                    break;
-                }
-            }
+            return null;
         }
 
-        return depth;
+        int start =
+            checked((int)chunk.pathOffset);
+
+        int length =
+            checked((int)chunk.pathLength);
+
+        if (
+            start < 0 ||
+            length < 0 ||
+            start + length > stringTable.Length
+        )
+        {
+            return null;
+        }
+
+        return Encoding.UTF8.GetString(
+            stringTable,
+            start,
+            length
+        );
     }
+
+    private static ulong MakeKey(
+        uint healpixId,
+        ushort shellId
+    )
+    {
+        return ((ulong)healpixId << 16)
+             | shellId;
+    }
+}
+
+[Serializable]
+public class GaiaChunk
+{
+    public uint chunkId;
+    public uint healpixId;
+    public ushort shellId;
+
+    public uint starCount;
+
+    public double distanceMin;
+    public double distanceMax;
+
+    public ulong pathOffset;
+    public uint pathLength;
 }

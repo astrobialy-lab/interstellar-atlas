@@ -2,6 +2,7 @@ from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from astroquery.gaia import Gaia
 
+import time
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
@@ -10,11 +11,13 @@ RAW_DIR.mkdir(parents=True, exist_ok=True)
 
 CREDENTIALS_FILE = PROJECT_ROOT.parent / "gaia_credentials.txt"
 
-LEVEL = 3
+# HEALPix partition level used to split the Gaia data into manageable files.
+# Level 6 gives ~0.84 deg² per partition, balancing file size and file count.
+LEVEL = 6 # their storage is with 8, so maybe i should try it instead
 NPIXELS = 12 * 4**LEVEL
 DIVISOR = 2 ** (59 - 2 * LEVEL)
 
-MAX_WORKERS = 5
+MAX_WORKERS = 20
 
 
 def download_healpix(healpix):
@@ -105,6 +108,18 @@ def download_healpix(healpix):
         output_format="csv",
         output_file=str(output_file),
     )
+
+    # start_time = time.perf_counter()
+    # print('a', round((time.perf_counter() - start_time) / 60, 2))
+    # job = Gaia.launch_job_async(
+    #     query,
+    #     dump_to_file=False,  # Keeps data in memory instead of streaming to disk
+    # )
+    # print('b', round((time.perf_counter() - start_time) / 60, 2))
+    # table = job.get_results()
+    # print('c', round((time.perf_counter() - start_time) / 60, 2))
+    # table.write(str(output_file), format="csv", overwrite=True)
+    # print('d', round((time.perf_counter() - start_time) / 60, 2))
 
     return f"Downloaded {healpix}/{NPIXELS - 1}"
 

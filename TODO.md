@@ -1,3 +1,5 @@
+- get his script that converts to csv of data. and check the units of x,y,z. make sure i use same scales for the stars
+
 - add stars
 - he mentioned that he loads only random 20% of the data. optimize and load all
 - make clouds beautiful if needed
@@ -14,6 +16,11 @@
 
 - processing so many csv files is heavy, is there a way for me from the start to download the data appropriately for the LOD? ik it has 10,000 stars limit
 
+- their storage is with 8, so maybe its better to download data with level 8?
+
+- his data located at Assets/data, mine is at Data. place properly
+
+Later: move the actual star data into GPU StructuredBuffers for rendering.
 
 Gaia provides both the observed star data (after extintion + scaterring) and the estimated real star color and properties.
 We use the estimated real properties + apply our own extintion + scaterring in the simulation.
