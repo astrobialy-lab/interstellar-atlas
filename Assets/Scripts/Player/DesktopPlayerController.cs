@@ -12,6 +12,9 @@ public class DesktopPlayerController : MonoBehaviour
     public float mouseSensitivity = 0.1f;
     public float maxLookAngle = 89.0f;
 
+    [Header("Camera Roll")]
+    public float rollSpeed = 60.0f;
+
     [Header("Dust")]
     public DustCloudGenerator dustCloudGenerator;
     public int performanceParticleCount = 16000;
@@ -25,11 +28,12 @@ public class DesktopPlayerController : MonoBehaviour
 
     private bool usingQualityParticleCount = true;
 
+    // Camera pitch and roll are stored independently.
     private float cameraPitch = 0f;
+    private float cameraRoll = 0f;
 
     private void Start()
     {
-        // Use the Main Camera automatically if no camera was assigned.
         if (cameraTransform == null && Camera.main != null)
         {
             cameraTransform = Camera.main.transform;
@@ -52,11 +56,15 @@ public class DesktopPlayerController : MonoBehaviour
 
         HandleMovement();
         HandleMouseLook();
+        HandleRoll();
         HandleControls();
     }
 
     private void HandleMovement()
     {
+        if (cameraTransform == null)
+            return;
+
         float move = 0f;
 
         if (Keyboard.current.wKey.isPressed)
@@ -64,12 +72,6 @@ public class DesktopPlayerController : MonoBehaviour
 
         if (Keyboard.current.sKey.isPressed)
             move -= 1f;
-
-        transform.position +=
-            transform.forward *
-            move *
-            moveSpeed *
-            Time.deltaTime;
 
         float strafe = 0f;
 
@@ -79,32 +81,33 @@ public class DesktopPlayerController : MonoBehaviour
         if (Keyboard.current.dKey.isPressed)
             strafe += 1f;
 
-        transform.position +=
-            transform.right *
-            strafe *
-            moveSpeed *
-            Time.deltaTime;
-
-        if (Keyboard.current.leftShiftKey.isPressed)
-        {
-            transform.position +=
-                Vector3.down *
-                verticalSpeed *
-                Time.deltaTime;
-        }
+        float vertical = 0f;
 
         if (Keyboard.current.spaceKey.isPressed)
-        {
-            transform.position +=
-                Vector3.up *
-                verticalSpeed *
-                Time.deltaTime;
-        }
+            vertical += 1f;
+
+        if (Keyboard.current.leftShiftKey.isPressed)
+            vertical -= 1f;
+
+        // Movement follows the camera, including camera roll.
+        Vector3 movement =
+            cameraTransform.forward * move +
+            cameraTransform.right * strafe +
+            cameraTransform.up * vertical;
+
+        // Prevent diagonal movement from being faster.
+        if (movement.sqrMagnitude > 1f)
+            movement.Normalize();
+
+        transform.position +=
+            movement *
+            moveSpeed *
+            Time.deltaTime;
     }
 
     private void HandleMouseLook()
     {
-        if (Mouse.current == null)
+        if (Mouse.current == null || cameraTransform == null)
             return;
 
         Vector2 mouseDelta =
@@ -116,52 +119,116 @@ public class DesktopPlayerController : MonoBehaviour
         float mouseY =
             mouseDelta.y * mouseSensitivity;
 
-        // Horizontal look: rotate the player.
-        transform.Rotate(
-            Vector3.up,
-            mouseX,
-            Space.World
+        // Rotation caused by the current roll,
+        // but WITHOUT the current pitch.
+        Quaternion rollRotation =
+            Quaternion.AngleAxis(
+                cameraRoll,
+                Vector3.forward
+            );
+
+        // "Up" after applying roll, but before pitch.
+        Vector3 rolledUp =
+            transform.TransformDirection(
+                rollRotation * Vector3.up
+            );
+
+        // "Right" after applying roll, but before pitch.
+        Vector3 rolledRight =
+            transform.TransformDirection(
+                rollRotation * Vector3.right
+            );
+
+        // LEFT / RIGHT
+        // Rotate around the current rolled-up axis.
+        if (mouseX != 0f)
+        {
+            transform.Rotate(
+                rolledUp,
+                mouseX,
+                Space.World
+            );
+        }
+
+        // UP / DOWN
+        // Rotate around the current rolled-right axis.
+        cameraPitch -= mouseY;
+
+        cameraPitch = Mathf.Clamp(
+            cameraPitch,
+            -maxLookAngle,
+            maxLookAngle
         );
 
-        // Vertical look: rotate only the camera.
-        if (cameraTransform != null)
-        {
-            cameraPitch -= mouseY;
+        ApplyCameraRotation();
+    }
 
-            cameraPitch =
-                Mathf.Clamp(
-                    cameraPitch,
-                    -maxLookAngle,
-                    maxLookAngle
-                );
+    private void HandleRoll()
+    {
+        if (cameraTransform == null)
+            return;
 
-            cameraTransform.localRotation =
-                Quaternion.Euler(
-                    cameraPitch,
-                    0f,
-                    0f
-                );
-        }
+        float roll = 0f;
+
+        // E = clockwise
+        if (Keyboard.current.eKey.isPressed)
+            roll += 1f;
+
+        // Q = counter-clockwise
+        if (Keyboard.current.qKey.isPressed)
+            roll -= 1f;
+
+        if (roll == 0f)
+            return;
+
+        // Roll around the ZERO-PITCH forward axis.
+        // This axis does not include the current pitch.
+        cameraRoll -=
+            roll *
+            rollSpeed *
+            Time.deltaTime;
+
+        ApplyCameraRotation();
+    }
+
+    private void ApplyCameraRotation()
+    {
+        Quaternion rollRotation =
+            Quaternion.AngleAxis(
+                cameraRoll,
+                Vector3.forward
+            );
+
+        Quaternion pitchRotation =
+            Quaternion.AngleAxis(
+                cameraPitch,
+                Vector3.right
+            );
+
+        // Pitch is applied first, then the rolled reference frame
+        // is applied around it.
+        cameraTransform.localRotation =
+            rollRotation * pitchRotation;
     }
 
     private void HandleControls()
     {
         if (dustCloudGenerator != null)
         {
-            // R = next color scheme
-            if (Keyboard.current.rKey.wasPressedThisFrame)
+            // 1 = next color scheme
+            if (Keyboard.current.digit1Key.wasPressedThisFrame)
             {
                 dustCloudGenerator.NextColorScheme();
             }
 
-            // T = cycle particle size
-            if (Keyboard.current.tKey.wasPressedThisFrame)
+            // 2 = cycle particle size
+            if (Keyboard.current.digit2Key.wasPressedThisFrame)
             {
                 dustCloudGenerator.CycleParticleSizeMultiplier();
             }
 
-            // Y = toggle particle count
-            if (Keyboard.current.yKey.wasPressedThisFrame)
+            // 3 = toggle particle count
+            if (Keyboard.current.digit3Key.wasPressedThisFrame)
             {
                 usingQualityParticleCount =
                     !usingQualityParticleCount;
@@ -176,16 +243,16 @@ public class DesktopPlayerController : MonoBehaviour
                 );
             }
 
-            // [ = decrease particle size
-            if (Keyboard.current.leftBracketKey.wasPressedThisFrame)
+            // 4 = decrease particle size
+            if (Keyboard.current.digit4Key.wasPressedThisFrame)
             {
                 dustCloudGenerator.AdjustParticleSizeMultiplier(
                     -0.2f
                 );
             }
 
-            // ] = increase particle size
-            if (Keyboard.current.rightBracketKey.wasPressedThisFrame)
+            // 5 = increase particle size
+            if (Keyboard.current.digit5Key.wasPressedThisFrame)
             {
                 dustCloudGenerator.AdjustParticleSizeMultiplier(
                     0.2f
@@ -193,25 +260,25 @@ public class DesktopPlayerController : MonoBehaviour
             }
         }
 
-        // Tab = toggle landmark markers
+        // 6 = toggle landmark markers
         if (
             landmarkMarkerGenerator != null &&
-            Keyboard.current.tabKey.wasPressedThisFrame
+            Keyboard.current.digit6Key.wasPressedThisFrame
         )
         {
             landmarkMarkerGenerator.ToggleMarkers();
         }
 
-        // E = select landmark
-        if (Keyboard.current.eKey.wasPressedThisFrame)
+        // 7 = select landmark
+        if (Keyboard.current.digit7Key.wasPressedThisFrame)
         {
             TrySelectLandmark();
         }
 
-        // Q = close landmark popup
+        // 8 = close landmark popup
         if (
             landmarkPopup != null &&
-            Keyboard.current.qKey.wasPressedThisFrame
+            Keyboard.current.digit8Key.wasPressedThisFrame
         )
         {
             landmarkPopup.Hide();

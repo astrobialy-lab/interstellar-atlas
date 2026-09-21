@@ -24,6 +24,12 @@
 
 - the Level is used in download but also in the calculating player location for LOD.
 
+- move the sun marker to standard land markers (add to csv? but he has some script)
+
+- ask about the galactic compass (they have script)
+
+- button 2 cycles particle size, buttons 4,5 decrease and increase the size. whats the point? ask him
+
 Later: move the actual star data into GPU StructuredBuffers for rendering.
 
 Gaia provides both the observed star data (after extintion + scaterring) and the estimated real star color and properties.

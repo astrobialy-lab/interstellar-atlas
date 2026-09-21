@@ -3,7 +3,6 @@ using UnityEngine;
 
 public class SplashScreen : MonoBehaviour
 {
-    public float startupDelay = 1.5f;
     public float splashDuration = 3.0f;
 
     public GameObject sunMarker;
@@ -22,7 +21,6 @@ public class SplashScreen : MonoBehaviour
 
     IEnumerator SplashRoutine()
     {
-        yield return new WaitForSeconds(startupDelay);
         yield return new WaitForSeconds(splashDuration);
 
         if (sunMarker != null)
