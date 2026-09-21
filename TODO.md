@@ -1,5 +1,7 @@
 - get his script that converts to csv of data. and check the units of x,y,z. make sure i use same scales for the stars
 
+- ask for his scripts that process dust and pull + process landmarks
+
 - add stars
 - he mentioned that he loads only random 20% of the data. optimize and load all
 - make clouds beautiful if needed
@@ -19,6 +21,8 @@
 - their storage is with 8, so maybe its better to download data with level 8?
 
 - his data located at Assets/data, mine is at Data. place properly
+
+- the Level is used in download but also in the calculating player location for LOD.
 
 Later: move the actual star data into GPU StructuredBuffers for rendering.
 

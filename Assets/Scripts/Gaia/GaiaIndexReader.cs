@@ -9,7 +9,7 @@ public class GaiaIndexReader : MonoBehaviour
     [Header("Index")]
     [SerializeField]
     private string indexRelativePath =
-        "Data/Gaia/processed/index.bin";
+        "Data/Gaia/index.bin";
 
     public uint Version { get; private set; }
     public uint HealpixLevel { get; private set; }

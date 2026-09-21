@@ -6,18 +6,18 @@ import time
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
-RAW_DIR = PROJECT_ROOT / "Data" / "Gaia" / "raw"
+RAW_DIR = PROJECT_ROOT / "DataRaw" / "Gaia"
 RAW_DIR.mkdir(parents=True, exist_ok=True)
 
 CREDENTIALS_FILE = PROJECT_ROOT.parent / "gaia_credentials.txt"
 
 # HEALPix partition level used to split the Gaia data into manageable files.
 # Level 6 gives ~0.84 deg² per partition, balancing file size and file count.
-LEVEL = 6 # their storage is with 8, so maybe i should try it instead
+LEVEL = 6
 NPIXELS = 12 * 4**LEVEL
 DIVISOR = 2 ** (59 - 2 * LEVEL)
 
-MAX_WORKERS = 20
+MAX_WORKERS = 10
 
 
 def download_healpix(healpix):

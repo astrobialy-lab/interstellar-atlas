@@ -1,8 +1,9 @@
 ## custom
 
 # ignore Gaia data while processing, the final product moves to Assets
-Data/Gaia/raw/
-Data/Gaia/processed/
+DataRaw/
+Data/Gaia/
+trash/
 
 # pernosnal
 .vscode/

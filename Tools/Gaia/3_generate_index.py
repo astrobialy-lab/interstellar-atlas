@@ -8,7 +8,7 @@ import struct
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
-PROCESSED_DIR = PROJECT_ROOT / "Data" / "Gaia" / "processed"
+PROCESSED_DIR = PROJECT_ROOT / "Data" / "Gaia"
 CHUNKS_DIR = PROCESSED_DIR / "chunks"
 
 INDEX_FILE = PROCESSED_DIR / "index.bin"

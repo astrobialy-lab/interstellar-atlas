@@ -95,7 +95,6 @@ public class GaiaStarLoader : MonoBehaviour
                 projectRoot,
                 "Data",
                 "Gaia",
-                "processed",
                 relativePath
             );
 
@@ -138,6 +137,14 @@ public class GaiaStarLoader : MonoBehaviour
         {
             GaiaStar star =
                 ReadStar(reader);
+
+            Debug.Log(
+                $"Star {i}: " +
+                $"ID={star.sourceId}, " +
+                $"pos=({star.x:F3}, {star.y:F3}, {star.z:F3}), " +
+                $"G={star.gMagnitude:F2}, " +
+                $"BP-RP={star.bpRp:F2}"
+            );
 
             CreateTestStar(
                 star,
@@ -272,9 +279,9 @@ public class GaiaStarLoader : MonoBehaviour
     }
 
     private int GetHealpixNested(
-        double x,
-        double y,
-        double z)
+    double x,
+    double y,
+    double z)
     {
         double r =
             System.Math.Sqrt(
@@ -301,24 +308,25 @@ public class GaiaStarLoader : MonoBehaviour
             phi / (0.5 * System.Math.PI);
 
         int face;
-        double ix;
-        double iy;
+        int ix;
+        int iy;
 
+        // Equatorial region
         if (za <= 2.0 / 3.0)
         {
             double temp1 =
                 HEALPIX_NSIDE *
-                (0.5 + tt - 0.75 * zNorm);
+                (0.5 + tt);
 
             double temp2 =
                 HEALPIX_NSIDE *
-                (0.5 + tt + 0.75 * zNorm);
+                (0.75 * zNorm);
 
             int jp =
-                FloorToInt(temp1);
+                FloorToInt(temp1 - temp2);
 
             int jm =
-                FloorToInt(temp2);
+                FloorToInt(temp1 + temp2);
 
             int ifp =
                 jp / HEALPIX_NSIDE;
@@ -327,11 +335,17 @@ public class GaiaStarLoader : MonoBehaviour
                 jm / HEALPIX_NSIDE;
 
             if (ifp == ifm)
-                face = ifp;
+            {
+                face = ifp | 4;
+            }
             else if (ifp < ifm)
-                face = ifp + 4;
+            {
+                face = ifp;
+            }
             else
+            {
                 face = ifm + 8;
+            }
 
             ix =
                 Mod(
@@ -339,17 +353,27 @@ public class GaiaStarLoader : MonoBehaviour
                     HEALPIX_NSIDE
                 );
 
+            // IMPORTANT:
+            // HEALPix NESTED uses this inverted Y coordinate.
             iy =
+                HEALPIX_NSIDE -
                 Mod(
                     jp,
                     HEALPIX_NSIDE
-                );
+                ) -
+                1;
         }
+        // Polar region
         else
         {
+            int ntt =
+                FloorToInt(tt);
+
+            if (ntt >= 4)
+                ntt = 3;
+
             double tp =
-                tt -
-                System.Math.Floor(tt);
+                tt - ntt;
 
             double tmp =
                 HEALPIX_NSIDE *
@@ -358,57 +382,50 @@ public class GaiaStarLoader : MonoBehaviour
                 );
 
             int jp =
-                FloorToInt(
-                    tp * tmp
-                );
+                FloorToInt(tp * tmp);
 
             int jm =
-                FloorToInt(
-                    (1.0 - tp) * tmp
+                FloorToInt((1.0 - tp) * tmp);
+
+            jp =
+                Mathf.Min(
+                    jp,
+                    HEALPIX_NSIDE - 1
+                );
+
+            jm =
+                Mathf.Min(
+                    jm,
+                    HEALPIX_NSIDE - 1
                 );
 
             if (zNorm >= 0)
             {
-                face =
-                    (int)System.Math.Floor(tt);
+                face = ntt;
 
-                face %= 4;
+                ix =
+                    HEALPIX_NSIDE -
+                    jm -
+                    1;
 
-                ix = jm;
-                iy = jp;
+                iy =
+                    HEALPIX_NSIDE -
+                    jp -
+                    1;
             }
             else
             {
-                face =
-                    8 +
-                    (
-                        (int)System.Math.Floor(tt)
-                        % 4
-                    );
+                face = ntt + 8;
 
                 ix = jp;
                 iy = jm;
             }
         }
 
-        int xPixel =
-            Mathf.Clamp(
-                FloorToInt(ix),
-                0,
-                HEALPIX_NSIDE - 1
-            );
-
-        int yPixel =
-            Mathf.Clamp(
-                FloorToInt(iy),
-                0,
-                HEALPIX_NSIDE - 1
-            );
-
         return XYToNested(
             face,
-            xPixel,
-            yPixel
+            ix,
+            iy
         );
     }
 

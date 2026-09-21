@@ -10,8 +10,8 @@ import struct
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
-RAW_DIR = PROJECT_ROOT / "Data" / "Gaia" / "raw"
-PROCESSED_DIR = PROJECT_ROOT / "Data" / "Gaia" / "processed"
+RAW_DIR = PROJECT_ROOT / "DataRaw" / "Gaia"
+PROCESSED_DIR = PROJECT_ROOT / "Data" / "Gaia"
 CHUNKS_DIR = PROCESSED_DIR / "chunks"
 
 CHUNKS_DIR.mkdir(parents=True, exist_ok=True)
