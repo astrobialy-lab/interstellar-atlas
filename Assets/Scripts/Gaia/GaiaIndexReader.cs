@@ -2,14 +2,16 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using Unity.VisualScripting;
 using UnityEngine;
 
 public class GaiaIndexReader : MonoBehaviour
 {
     [Header("Index")]
     [SerializeField]
-    private string indexRelativePath =
-        "Data/Gaia/index.bin";
+    private string indexRelativePath = "Data/Gaia/index.bin";
+
+    private List<GaiaChunk>[] chunksByShell;
 
     public uint Version { get; private set; }
     public uint HealpixLevel { get; private set; }
@@ -19,7 +21,6 @@ public class GaiaIndexReader : MonoBehaviour
     public GaiaChunk[] Chunks { get; private set; }
 
     private Dictionary<ulong, GaiaChunk> chunkLookup;
-
     private byte[] stringTable;
 
     private void Awake()
@@ -32,47 +33,75 @@ public class GaiaIndexReader : MonoBehaviour
         string projectRoot =
             Directory.GetParent(Application.dataPath).FullName;
 
-        string path = Path.Combine(
-            projectRoot,
-            indexRelativePath
-        );
-
-        Debug.Log($"Loading Gaia index:\n{path}");
+        string path =
+            Path.Combine(
+                projectRoot,
+                indexRelativePath
+            );
 
         if (!File.Exists(path))
         {
             Debug.LogError(
                 $"Gaia index not found:\n{path}"
             );
+
             return;
         }
 
-        using FileStream stream = File.OpenRead(path);
+        using FileStream stream =
+            File.OpenRead(path);
+
         using BinaryReader reader =
             new BinaryReader(stream);
 
-        uint magic = reader.ReadUInt32();
+        // ------------------------------------------------------------
+        // Header
+        // ------------------------------------------------------------
+
+        uint magic =
+            reader.ReadUInt32();
 
         if (magic != 0x47414941)
         {
             Debug.LogError(
                 $"Invalid Gaia index magic: 0x{magic:X8}"
             );
+
             return;
         }
 
-        Version = reader.ReadUInt32();
-        HealpixLevel = reader.ReadUInt32();
-        ShellCount = reader.ReadUInt32();
-        ChunkCount = reader.ReadUInt32();
+        Version =
+            reader.ReadUInt32();
+
+        HealpixLevel =
+            reader.ReadUInt32();
+
+        ShellCount =
+            reader.ReadUInt32();
+
+        ChunkCount =
+            reader.ReadUInt32();
 
         Debug.Log(
             $"Gaia index:\n" +
             $"  Version: {Version}\n" +
             $"  HEALPix level: {HealpixLevel}\n" +
             $"  Shell count: {ShellCount}\n" +
-            $"  Chunk count: {ChunkCount}"
+            $"  Chunk count: {ChunkCount:N0}"
         );
+
+        if (Version != 2)
+        {
+            Debug.LogError(
+                $"Expected Gaia index version 2, but found version {Version}."
+            );
+
+            return;
+        }
+
+        // ------------------------------------------------------------
+        // Chunks
+        // ------------------------------------------------------------
 
         Chunks =
             new GaiaChunk[ChunkCount];
@@ -82,7 +111,9 @@ public class GaiaIndexReader : MonoBehaviour
                 (int)ChunkCount
             );
 
-        for (int i = 0; i < ChunkCount; i++)
+        for (int i = 0;
+             i < ChunkCount;
+             i++)
         {
             GaiaChunk chunk =
                 new GaiaChunk();
@@ -96,6 +127,7 @@ public class GaiaIndexReader : MonoBehaviour
             chunk.shellId =
                 reader.ReadUInt16();
 
+            // Padding
             reader.ReadUInt16();
 
             chunk.starCount =
@@ -107,15 +139,37 @@ public class GaiaIndexReader : MonoBehaviour
             chunk.distanceMax =
                 reader.ReadDouble();
 
+            // AABB
+            chunk.minX =
+                reader.ReadSingle();
+
+            chunk.minY =
+                reader.ReadSingle();
+
+            chunk.minZ =
+                reader.ReadSingle();
+
+            chunk.maxX =
+                reader.ReadSingle();
+
+            chunk.maxY =
+                reader.ReadSingle();
+
+            chunk.maxZ =
+                reader.ReadSingle();
+
+            // String table information
             chunk.pathOffset =
                 reader.ReadUInt64();
 
             chunk.pathLength =
                 reader.ReadUInt32();
 
+            // Reserved
             reader.ReadUInt32();
 
-            Chunks[i] = chunk;
+            Chunks[i] =
+                chunk;
 
             ulong key =
                 MakeKey(
@@ -123,50 +177,70 @@ public class GaiaIndexReader : MonoBehaviour
                     chunk.shellId
                 );
 
-            chunkLookup[key] = chunk;
+            chunkLookup[key] =
+                chunk;
         }
 
-        // The rest of the file is the string table.
+        // ------------------------------------------------------------
+        // String table
+        // ------------------------------------------------------------
+
         long remaining =
-            stream.Length - stream.Position;
+            stream.Length -
+            stream.Position;
 
         stringTable =
-            reader.ReadBytes((int)remaining);
+            reader.ReadBytes(
+                (int)remaining
+            );
 
-        Debug.Log(
-            $"String table: " +
-            $"{stringTable.Length:N0} bytes"
-        );
+        // ------------------------------------------------------------
+        // Organize chunks by shell
+        // ------------------------------------------------------------
 
-        Debug.Log(
-            $"Loaded {Chunks.Length:N0} Gaia chunks."
-        );
+        chunksByShell =
+            new List<GaiaChunk>[
+                (int)ShellCount
+            ];
 
-        for (
-            int i = 0;
-            i < Mathf.Min(5, Chunks.Length);
-            i++
-        )
+        for (int i = 0;
+             i < (int)ShellCount;
+             i++)
+        {
+            chunksByShell[i] =
+                new List<GaiaChunk>();
+        }
+
+        foreach (GaiaChunk chunk in Chunks)
+        {
+            if (chunk.shellId < ShellCount)
+            {
+                chunksByShell[
+                    chunk.shellId
+                ].Add(chunk);
+            }
+        }
+
+        // ------------------------------------------------------------
+        // Debug: first few chunks
+        // ------------------------------------------------------------
+
+        for (int i = 0;
+             i < Mathf.Min(5, Chunks.Length);
+             i++)
         {
             GaiaChunk chunk = Chunks[i];
-
-            Debug.Log(
-                $"Chunk {chunk.chunkId}: " +
-                $"HEALPix={chunk.healpixId}, " +
-                $"shell={chunk.shellId}, " +
-                $"stars={chunk.starCount}, " +
-                $"distance={chunk.distanceMin}-" +
-                $"{chunk.distanceMax} pc, " +
-                $"path={GetChunkPath(chunk)}"
-            );
         }
     }
+
+    // ------------------------------------------------------------
+    // HEALPix lookup
+    // ------------------------------------------------------------
 
     public bool TryGetChunk(
         uint healpixId,
         ushort shellId,
-        out GaiaChunk chunk
-    )
+        out GaiaChunk chunk)
     {
         chunk = null;
 
@@ -185,9 +259,98 @@ public class GaiaIndexReader : MonoBehaviour
         );
     }
 
+    // ------------------------------------------------------------
+    // Spatial lookup
+    //
+    // Finds all chunks whose AABB intersects a sphere around
+    // the player's position.
+    //
+    // We first use the distance shells to avoid testing chunks
+    // that cannot possibly intersect the sphere.
+    // ------------------------------------------------------------
+
+    public GaiaChunk[] GetChunksInSphere(
+        Vector3 center,
+        float radius)
+    {
+        if (Chunks == null ||
+            chunksByShell == null)
+        {
+            return Array.Empty<GaiaChunk>();
+        }
+
+        float centerDistance =
+            center.magnitude;
+
+        float minDistance =
+            Mathf.Max(
+                0.0f,
+                centerDistance - radius
+            );
+
+        float maxDistance =
+            centerDistance + radius;
+
+        float radiusSquared =
+            radius * radius;
+
+        List<GaiaChunk> result =
+            new List<GaiaChunk>();
+
+        // ------------------------------------------------------------
+        // Only inspect shells whose radial distance can overlap
+        // the player's search sphere.
+        // ------------------------------------------------------------
+
+        for (int shell = 0;
+             shell < chunksByShell.Length;
+             shell++)
+        {
+            List<GaiaChunk> shellChunks =
+                chunksByShell[shell];
+
+            if (shellChunks == null ||
+                shellChunks.Count == 0)
+            {
+                continue;
+            }
+
+            GaiaChunk firstChunk =
+                shellChunks[0];
+
+            // Shell is completely farther away.
+            if (firstChunk.distanceMin > maxDistance)
+                continue;
+
+            // Shell is completely closer.
+            if (firstChunk.distanceMax < minDistance)
+                continue;
+
+
+            // --------------------------------------------------------
+            // Test every chunk in the relevant shell.
+            // --------------------------------------------------------
+
+            foreach (GaiaChunk chunk in shellChunks)
+            {
+                if (chunk.IntersectsSphere(
+                        center,
+                        radiusSquared))
+                {
+                    result.Add(chunk);
+                }
+            }
+        }
+
+        return result.ToArray();
+    }
+
+    // ------------------------------------------------------------
+    // Get chunk path from string table
+    // ------------------------------------------------------------
+
     public string GetChunkPath(
-        GaiaChunk chunk
-    )
+        GaiaChunk chunk)
     {
         if (chunk == null ||
             stringTable == null)
@@ -196,10 +359,14 @@ public class GaiaIndexReader : MonoBehaviour
         }
 
         int start =
-            checked((int)chunk.pathOffset);
+            checked(
+                (int)chunk.pathOffset
+            );
 
         int length =
-            checked((int)chunk.pathLength);
+            checked(
+                (int)chunk.pathLength
+            );
 
         if (
             start < 0 ||
@@ -217,28 +384,102 @@ public class GaiaIndexReader : MonoBehaviour
         );
     }
 
+    // ------------------------------------------------------------
+    // Key for HEALPix + shell lookup
+    // ------------------------------------------------------------
+
     private static ulong MakeKey(
         uint healpixId,
-        ushort shellId
-    )
+        ushort shellId)
     {
-        return ((ulong)healpixId << 16)
-             | shellId;
+        return
+            ((ulong)healpixId << 16) |
+            shellId;
     }
 }
+
+
+// ====================================================================
+// Gaia chunk metadata
+// ====================================================================
 
 [Serializable]
 public class GaiaChunk
 {
     public uint chunkId;
+
     public uint healpixId;
+
     public ushort shellId;
 
     public uint starCount;
 
     public double distanceMin;
+
     public double distanceMax;
 
+    // AABB
+    public float minX;
+    public float minY;
+    public float minZ;
+
+    public float maxX;
+    public float maxY;
+    public float maxZ;
+
+    // Path in the index string table
     public ulong pathOffset;
+
     public uint pathLength;
+
+
+    // ------------------------------------------------------------
+    // AABB vs sphere intersection
+    // ------------------------------------------------------------
+
+    public bool IntersectsSphere(
+        Vector3 center,
+        float radiusSquared)
+    {
+        float closestX =
+            Mathf.Clamp(
+                center.x,
+                minX,
+                maxX
+            );
+
+        float closestY =
+            Mathf.Clamp(
+                center.y,
+                minY,
+                maxY
+            );
+
+        float closestZ =
+            Mathf.Clamp(
+                center.z,
+                minZ,
+                maxZ
+            );
+
+        float dx =
+            center.x -
+            closestX;
+
+        float dy =
+            center.y -
+            closestY;
+
+        float dz =
+            center.z -
+            closestZ;
+
+        float distanceSquared =
+            dx * dx +
+            dy * dy +
+            dz * dz;
+
+        return
+            distanceSquared <= radiusSquared;
+    }
 }

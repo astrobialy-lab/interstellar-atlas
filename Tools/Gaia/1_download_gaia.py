@@ -1,8 +1,8 @@
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from astroquery.gaia import Gaia
-
 import time
+import os
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
@@ -17,7 +17,7 @@ LEVEL = 6
 NPIXELS = 12 * 4**LEVEL
 DIVISOR = 2 ** (59 - 2 * LEVEL)
 
-MAX_WORKERS = 10
+MAX_WORKERS = 3
 
 
 def download_healpix(healpix):
@@ -25,10 +25,42 @@ def download_healpix(healpix):
     source_id_min = healpix * DIVISOR
     source_id_max = (healpix + 1) * DIVISOR
 
+    # Final file: exists ONLY when the download completed successfully.
     output_file = RAW_DIR / f"healpix_{healpix:05d}.csv"
 
+    # Temporary file: exists while a download is in progress.
+    temp_file = RAW_DIR / f"healpix_{healpix:05d}.csv.part"
+
+    # ---------------------------------------------------------
+    # Already completed
+    # ---------------------------------------------------------
+
     if output_file.exists():
-        return f"Skipping {healpix}: already downloaded"
+
+        # Basic sanity check: file must not be empty.
+        if output_file.stat().st_size > 0:
+            return
+
+        # Empty final file is not considered valid.
+        print(f"WARNING {healpix}: final file is empty, deleting it")
+        output_file.unlink()
+
+    # ---------------------------------------------------------
+    # Previous interrupted/failed download
+    # ---------------------------------------------------------
+
+    if temp_file.exists():
+
+        print(
+            f"RETRY {healpix}: removing incomplete "
+            f"{temp_file.name}"
+        )
+
+        temp_file.unlink()
+
+    # ---------------------------------------------------------
+    # Query
+    # ---------------------------------------------------------
 
     query = f"""
     SELECT
@@ -102,30 +134,87 @@ def download_healpix(healpix):
         AND g.bp_rp IS NOT NULL
     """
 
-    Gaia.launch_job_async(
-        query,
-        dump_to_file=True,
-        output_format="csv",
-        output_file=str(output_file),
-    )
+    # ---------------------------------------------------------
+    # Download to temporary file
+    # ---------------------------------------------------------
 
-    # start_time = time.perf_counter()
-    # print('a', round((time.perf_counter() - start_time) / 60, 2))
-    # job = Gaia.launch_job_async(
-    #     query,
-    #     dump_to_file=False,  # Keeps data in memory instead of streaming to disk
-    # )
-    # print('b', round((time.perf_counter() - start_time) / 60, 2))
-    # table = job.get_results()
-    # print('c', round((time.perf_counter() - start_time) / 60, 2))
-    # table.write(str(output_file), format="csv", overwrite=True)
-    # print('d', round((time.perf_counter() - start_time) / 60, 2))
+    start_time = time.perf_counter()
 
-    return f"Downloaded {healpix}/{NPIXELS - 1}"
+    try:
 
+        Gaia.launch_job_async(
+            query,
+            dump_to_file=True,
+            output_format="csv",
+            output_file=str(temp_file),
+        )
+
+        # -----------------------------------------------------
+        # Basic validation
+        # -----------------------------------------------------
+
+        if not temp_file.exists():
+            raise RuntimeError(
+                "Gaia query finished but temporary file was not created"
+            )
+
+        file_size = temp_file.stat().st_size
+
+        if file_size == 0:
+            raise RuntimeError(
+                "Gaia query finished but temporary file is empty"
+            )
+
+        # Check that the CSV actually contains a header.
+        with open(temp_file, "r", encoding="utf-8") as f:
+            header = f.readline().strip()
+
+        if not header:
+            raise RuntimeError(
+                "Temporary file contains no CSV header"
+            )
+
+        # -----------------------------------------------------
+        # Mark as COMPLETED
+        #
+        # os.replace() is atomic on the same filesystem.
+        # Therefore the final .csv appears only after the
+        # temporary file has been completely written.
+        # -----------------------------------------------------
+
+        os.replace(temp_file, output_file)
+
+        elapsed = (time.perf_counter() - start_time) / 60
+
+        print(
+            f"OK {healpix}/{NPIXELS - 1} | "
+            f"{file_size / (1024**2):.1f} MB | "
+            f"{elapsed:.1f} min"
+        )
+
+        return
+
+    except Exception:
+
+        # Keep the .part file so you can see that this partition
+        # did NOT finish successfully.
+        #
+        # It will be deleted automatically at the beginning of
+        # the next attempt.
+
+        raise
+
+
+# -------------------------------------------------------------
+# Login
+# -------------------------------------------------------------
 
 Gaia.login(credentials_file=str(CREDENTIALS_FILE))
 
+
+# -------------------------------------------------------------
+# Download
+# -------------------------------------------------------------
 
 with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
 
@@ -133,12 +222,5 @@ with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
         executor.submit(download_healpix, healpix)
         for healpix in range(NPIXELS)
     ]
-
-    for future in as_completed(futures):
-        try:
-            print(future.result())
-        except Exception as e:
-            print(f"ERROR: {e}")
-
 
 print("Done.")

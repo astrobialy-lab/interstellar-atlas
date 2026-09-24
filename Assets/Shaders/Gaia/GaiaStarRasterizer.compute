@@ -1,0 +1,123 @@
+#pragma kernel ClearKernel
+#pragma kernel RasterizeKernel
+
+#pragma target 4.5
+
+struct StarData
+{
+    float3 position;
+    float magnitude;
+    float bpRp;
+};
+
+StructuredBuffer<StarData> _Stars;
+
+RWStructuredBuffer<uint> _StarLuminance;
+RWStructuredBuffer<uint> _StarColorLuminance;
+
+float4x4 _ViewProj0;
+float4x4 _ViewProj1;
+
+uint _Width;
+uint _Height;
+uint _EyeCount;
+uint _StarCount;
+
+float _BrightnessMultiplier;
+float _StorageScale;
+
+float _ColorMin;
+float _ColorMax;
+
+int _FixedScale;
+
+uint PixelIndex(uint2 pixel, uint eye)
+{
+    return (eye * _Height + pixel.y) * _Width + pixel.x;
+}
+
+void AddContribution(int2 pixel, uint eye, float luminance, float bpRpNormalized)
+{
+    if (pixel.x < 0 || pixel.y < 0 || pixel.x >= (int)_Width || pixel.y >= (int)_Height)
+        return;
+
+    if (luminance <= 0.0)
+        return;
+
+    uint index = PixelIndex(uint2(pixel), eye);
+
+    float scaledLuminance = luminance * (float)_FixedScale;
+    float scaledColor = luminance * bpRpNormalized * (float)_FixedScale;
+
+    uint luminanceInteger = (uint)max(scaledLuminance + 0.5, 0.0);
+    uint colorInteger = (uint)max(scaledColor + 0.5, 0.0);
+
+    if (luminanceInteger > 0)
+        InterlockedAdd(_StarLuminance[index], luminanceInteger);
+
+    if (colorInteger > 0)
+        InterlockedAdd(_StarColorLuminance[index], colorInteger);
+}
+
+[numthreads(8, 8, 1)]
+void ClearKernel(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= _Width || id.y >= _Height || id.z >= _EyeCount)
+        return;
+
+    uint index = (id.z * _Height + id.y) * _Width + id.x;
+
+    _StarLuminance[index] = 0;
+    _StarColorLuminance[index] = 0;
+}
+
+[numthreads(8, 1, 1)]
+void RasterizeKernel(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= _StarCount)
+        return;
+
+    StarData star = _Stars[id.x];
+
+    float luminance = pow(10.0, -0.4 * star.magnitude);
+    luminance *= _BrightnessMultiplier;
+
+    float bpRpNormalized = saturate((star.bpRp - _ColorMin) / (_ColorMax - _ColorMin));
+
+    float4 clip0 = mul(_ViewProj0, float4(star.position, 1.0));
+
+    if (clip0.w > 0.0)
+    {
+        float2 ndc0 = clip0.xy / clip0.w;
+
+        if (ndc0.x >= -1.0 && ndc0.x <= 1.0 && ndc0.y >= -1.0 && ndc0.y <= 1.0)
+        {
+            int2 pixel0 = int2(
+                (ndc0.x * 0.5 + 0.5) * _Width,
+                (-ndc0.y * 0.5 + 0.5) * _Height
+            );
+
+            AddContribution(pixel0, 0, luminance, bpRpNormalized);
+        }
+    }
+
+    if (_EyeCount > 1)
+    {
+        float4 clip1 = mul(_ViewProj1, float4(star.position, 1.0));
+
+        if (clip1.w > 0.0)
+        {
+            float2 ndc1 = clip1.xy / clip1.w;
+
+            if (ndc1.x >= -1.0 && ndc1.x <= 1.0 && ndc1.y >= -1.0 && ndc1.y <= 1.0)
+            {
+                int2 pixel1 = int2(
+                    (ndc1.x * 0.5 + 0.5) * _Width,
+                    (-ndc1.y * 0.5 + 0.5) * _Height
+                );
+
+                AddContribution(pixel1, 1, luminance, bpRpNormalized);
+            }
+        }
+    }
+}

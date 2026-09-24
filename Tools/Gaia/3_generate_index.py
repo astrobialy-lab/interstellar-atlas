@@ -1,5 +1,6 @@
 from pathlib import Path
 import struct
+import math
 
 
 # ============================================================
@@ -65,18 +66,64 @@ HEADER_STRUCT = struct.Struct(
 # float64 distance_min
 # float64 distance_max
 #
-# uint64 file_offset
-# uint32 file_size
+# float32 min_x
+# float32 min_y
+# float32 min_z
+#
+# float32 max_x
+# float32 max_y
+# float32 max_z
+#
+# uint64 path_offset
+# uint32 path_length
 #
 # uint32 reserved
 #
 CHUNK_STRUCT = struct.Struct(
-    "<IIHHIddQII"
+    "<IIHHIddffffffQII"
 )
 
 
+# Gaia star record:
+#
+# uint64 source_id
+#
+# float32 x
+# float32 y
+# float32 z
+#
+# float32 G magnitude
+# float32 BP-RP
+#
+# float32 Teff
+# float32 logg
+# float32 metallicity
+# float32 radius
+#
+# float32 A0
+# float32 AG
+# float32 ABP
+# float32 ARP
+# float32 E(BP-RP)
+#
+# uint8 flags
+#
+STAR_STRUCT = struct.Struct(
+    "<QffffffffffffffB"
+)
+
+STAR_SIZE = STAR_STRUCT.size
+
+
+# Read this much data from each file at once.
+#
+# 8 MB is large enough to greatly reduce disk I/O calls
+# while keeping memory usage tiny.
+READ_BLOCK_SIZE = 8 * 1024 * 1024
+
+
 MAGIC = 0x47414941  # "GAIA"
-VERSION = 1
+VERSION = 2
 
 
 # ============================================================
@@ -84,13 +131,6 @@ VERSION = 1
 # ============================================================
 
 def count_stars(file_path):
-    """
-    Determine the number of stars in a binary chunk.
-
-    The star record size is 65 bytes.
-    """
-
-    STAR_SIZE = 65
 
     size = file_path.stat().st_size
 
@@ -111,6 +151,112 @@ def parse_healpix_id(directory_name):
 
     return int(
         directory_name.split("_")[1]
+    )
+
+
+def calculate_bounds(file_path, star_count):
+
+    """
+    Calculate the axis-aligned bounding box of a chunk.
+
+    The file is read in large blocks instead of one star
+    at a time to reduce disk I/O overhead.
+    """
+
+    min_x = math.inf
+    min_y = math.inf
+    min_z = math.inf
+
+    max_x = -math.inf
+    max_y = -math.inf
+    max_z = -math.inf
+
+    remaining_stars = star_count
+
+    with file_path.open("rb") as f:
+
+        while remaining_stars > 0:
+
+            # Number of stars that fit into this block.
+            stars_in_block = min(
+                remaining_stars,
+                READ_BLOCK_SIZE // STAR_SIZE
+            )
+
+            bytes_to_read = (
+                stars_in_block * STAR_SIZE
+            )
+
+            data = f.read(bytes_to_read)
+
+            if len(data) != bytes_to_read:
+
+                raise RuntimeError(
+                    f"Unexpected end of file: "
+                    f"{file_path}"
+                )
+
+            # Iterate over every complete star record
+            # without creating individual byte slices.
+            for values in STAR_STRUCT.iter_unpack(data):
+
+                # Layout:
+                #
+                # 0 = source_id
+                # 1 = x
+                # 2 = y
+                # 3 = z
+
+                x = values[1]
+                y = values[2]
+                z = values[3]
+
+                if not (
+                    math.isfinite(x)
+                    and math.isfinite(y)
+                    and math.isfinite(z)
+                ):
+                    continue
+
+                if x < min_x:
+                    min_x = x
+
+                if y < min_y:
+                    min_y = y
+
+                if z < min_z:
+                    min_z = z
+
+                if x > max_x:
+                    max_x = x
+
+                if y > max_y:
+                    max_y = y
+
+                if z > max_z:
+                    max_z = z
+
+            remaining_stars -= stars_in_block
+
+    if not (
+        math.isfinite(min_x)
+        and math.isfinite(min_y)
+        and math.isfinite(min_z)
+        and math.isfinite(max_x)
+        and math.isfinite(max_y)
+        and math.isfinite(max_z)
+    ):
+        raise RuntimeError(
+            f"No valid positions found in {file_path}"
+        )
+
+    return (
+        min_x,
+        min_y,
+        min_z,
+        max_x,
+        max_y,
+        max_z,
     )
 
 
@@ -140,6 +286,15 @@ if __name__ == "__main__":
 
     print(
         f"Found {len(healpix_dirs):,} HEALPix directories."
+    )
+
+    print(
+        f"Star record size: {STAR_SIZE} bytes"
+    )
+
+    print(
+        f"Read block size: "
+        f"{READ_BLOCK_SIZE / (1024 * 1024):.0f} MB"
     )
 
     print()
@@ -181,6 +336,18 @@ if __name__ == "__main__":
             if star_count == 0:
                 continue
 
+            (
+                min_x,
+                min_y,
+                min_z,
+                max_x,
+                max_y,
+                max_z,
+            ) = calculate_bounds(
+                file_path,
+                star_count
+            )
+
             distance_min = (
                 DISTANCE_BINS[shell_id]
             )
@@ -200,14 +367,25 @@ if __name__ == "__main__":
                     "healpix_id": healpix_id,
                     "shell_id": shell_id,
                     "star_count": star_count,
+
                     "distance_min": distance_min,
                     "distance_max": distance_max,
+
+                    "min_x": min_x,
+                    "min_y": min_y,
+                    "min_z": min_z,
+
+                    "max_x": max_x,
+                    "max_y": max_y,
+                    "max_z": max_z,
+
                     "file_path": str(relative_path),
                 }
             )
 
             chunk_id += 1
 
+        # Progress only once per 100 HEALPix directories.
         if (
             i % 100 == 0
             or i == len(healpix_dirs)
@@ -216,7 +394,8 @@ if __name__ == "__main__":
             print(
                 f"Scanned "
                 f"{i:,}/{len(healpix_dirs):,} "
-                f"HEALPix directories"
+                f"HEALPix directories | "
+                f"chunks: {len(chunks):,}"
             )
 
     print()
@@ -227,16 +406,6 @@ if __name__ == "__main__":
     # --------------------------------------------------------
     # Build string table
     # --------------------------------------------------------
-
-    # We don't want variable-length strings inside each
-    # chunk record.
-    #
-    # Instead:
-    #
-    # chunk record -> path offset
-    # string table -> actual path
-    #
-    # For now we use a simple UTF-8 string table.
 
     string_table = bytearray()
 
@@ -295,6 +464,14 @@ if __name__ == "__main__":
 
                     chunk["distance_max"],
 
+                    chunk["min_x"],
+                    chunk["min_y"],
+                    chunk["min_z"],
+
+                    chunk["max_x"],
+                    chunk["max_y"],
+                    chunk["max_z"],
+
                     path_offset,
 
                     len(
@@ -313,7 +490,7 @@ if __name__ == "__main__":
 
     print()
     print(
-        f"Wrote index:"
+        "Wrote index:"
     )
 
     print(

@@ -1,3 +1,11 @@
+- clean shader after downloading all of the gaia data
+- clean star loader
+- and verify no trash in the index loader
+
+
+
+
+
 - get his script that converts to csv of data. and check the units of x,y,z. make sure i use same scales for the stars
 
 - ask for his scripts that process dust and pull + process landmarks
@@ -30,6 +38,8 @@
 
 - button 2 cycles particle size, buttons 4,5 decrease and increase the size. whats the point? ask him
 
+- they want me to add options to teleport between landmarks. i think i will do it with zoom out - zoom in effect.
+
 Later: move the actual star data into GPU StructuredBuffers for rendering.
 
 Gaia provides both the observed star data (after extintion + scaterring) and the estimated real star color and properties.
@@ -42,3 +52,14 @@ we have:
 6,530,732 without 3D position
 4,266,696 with 3D position
 so 6.5 mil of them dont have GSP-Phot distances thus not used. fix the prob and use the data
+
+
+- group the stars by clusters in order to filter for young/old clusters (a db/csv file they gave)
+
+
+- add to references the method thats used to display stars: https://elib.dlr.de/215930/1/egs20251029.pdf
+
+- fix the photometry like in the paper for displaying stars
+
+
+- Replace shared camera projection with proper per-eye XR view/projection matrices.
