@@ -57,7 +57,7 @@ so 6.5 mil of them dont have GSP-Phot distances thus not used. fix the prob and 
 - group the stars by clusters in order to filter for young/old clusters (a db/csv file they gave)
 
 
-- add to references the method thats used to display stars: https://elib.dlr.de/215930/1/egs20251029.pdf
+- add to references the method thats used to display stars from CosmoScout VR: https://elib.dlr.de/215930/1/egs20251029.pdf
 
 - fix the photometry like in the paper for displaying stars
 
