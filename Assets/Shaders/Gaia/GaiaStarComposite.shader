@@ -2,29 +2,33 @@ Shader "Hidden/GaiaStarComposite"
 {
     SubShader
     {
-        Tags { "RenderPipeline" = "UniversalPipeline" }
+        Tags
+        {
+            "RenderPipeline" = "UniversalPipeline"
+        }
 
         Pass
         {
-            ZWrite Off
+            Name "GaiaStarBufferToHDR"
+
+            Blend One Zero
             ZTest Always
+            ZWrite Off
             Cull Off
-            Blend One One
 
             HLSLPROGRAM
 
+            #pragma target 4.5
             #pragma vertex Vert
             #pragma fragment Frag
-            #pragma target 4.5
-            #pragma multi_compile_instancing
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 
             StructuredBuffer<uint> _StarLuminance;
             StructuredBuffer<uint> _StarColorLuminance;
 
-            uint _Width;
-            uint _Height;
+            int _Width;
+            int _Height;
 
             float _StorageScaleInv;
             float _FixedScale;
@@ -32,83 +36,182 @@ Shader "Hidden/GaiaStarComposite"
             float _ColorMin;
             float _ColorMax;
 
+
             struct Attributes
             {
                 uint vertexID : SV_VertexID;
+
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
+
 
             struct Varyings
             {
                 float4 positionCS : SV_POSITION;
+
                 UNITY_VERTEX_OUTPUT_STEREO
             };
 
-            Varyings Vert(Attributes input)
+
+            Varyings Vert(
+                Attributes input
+            )
             {
                 Varyings output;
 
                 UNITY_SETUP_INSTANCE_ID(input);
                 UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
 
-                float2 position;
+                float2 uv;
 
-                position.x = input.vertexID == 2 ? 3.0 : -1.0;
-                position.y = input.vertexID == 1 ? 3.0 : -1.0;
+                uv.x =
+                    input.vertexID == 1
+                    ? 2.0
+                    : 0.0;
 
-                output.positionCS = float4(position, 0.0, 1.0);
+                uv.y =
+                    input.vertexID == 2
+                    ? 2.0
+                    : 0.0;
+
+                output.positionCS =
+                    float4(
+                        uv * 2.0 - 1.0,
+                        0.0,
+                        1.0
+                    );
 
                 return output;
             }
 
-            float3 GetStarColor(float bpRp)
+
+            uint GetPixelIndex(
+                uint2 pixel,
+                uint eye
+            )
             {
-                float3 blue = float3(0.55, 0.70, 1.00);
-                float3 white = float3(1.00, 1.00, 1.00);
-                float3 orange = float3(1.00, 0.55, 0.25);
+                return
+                    (eye * (uint)_Height + pixel.y)
+                    * (uint)_Width
+                    + pixel.x;
+            }
+
+
+            float3 GetStarColor(
+                float bpRp
+            )
+            {
+                float3 blue =
+                    float3(
+                        0.55,
+                        0.70,
+                        1.00
+                    );
+
+                float3 white =
+                    float3(
+                        1.00,
+                        1.00,
+                        1.00
+                    );
+
+                float3 orange =
+                    float3(
+                        1.00,
+                        0.55,
+                        0.25
+                    );
 
                 if (bpRp < 0.8)
                 {
-                    float t = saturate((bpRp + 0.5) / 1.3);
-                    return lerp(blue, white, t);
+                    float t =
+                        saturate(
+                            (bpRp + 0.5) / 1.3
+                        );
+
+                    return lerp(
+                        blue,
+                        white,
+                        t
+                    );
                 }
 
-                float t = saturate((bpRp - 0.8) / 2.0);
-                return lerp(white, orange, t);
+                float t =
+                    saturate(
+                        (bpRp - 0.8) / 2.0
+                    );
+
+                return lerp(
+                    white,
+                    orange,
+                    t
+                );
             }
 
-            half4 Frag(Varyings input) : SV_Target
+
+            half4 Frag(
+                Varyings input
+            ) : SV_Target
             {
                 UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
 
-                uint eye = unity_StereoEyeIndex;
-                uint2 pixel = uint2(input.positionCS.xy);
+                uint eye =
+                    (uint)unity_StereoEyeIndex;
 
-                if (pixel.x >= _Width || pixel.y >= _Height)
+                uint2 pixel =
+                    uint2(
+                        input.positionCS.xy
+                    );
+
+                if (pixel.x >= (uint)_Width ||
+                    pixel.y >= (uint)_Height)
+                {
                     return 0;
+                }
 
-                uint pixelIndex = (eye * _Height + pixel.y) * _Width + pixel.x;
+                uint index =
+                    GetPixelIndex(
+                        pixel,
+                        eye
+                    );
 
-                uint luminanceInteger = _StarLuminance[pixelIndex];
+                uint luminanceInteger =
+                    _StarLuminance[index];
 
                 if (luminanceInteger == 0)
+                {
                     return 0;
+                }
 
-                uint colorInteger = _StarColorLuminance[pixelIndex];
+                uint colorInteger =
+                    _StarColorLuminance[index];
 
-                if (colorInteger == 0)
-                    return 0;
+                float luminance =
+                    (
+                        (float)luminanceInteger /
+                        _FixedScale
+                    )
+                    *
+                    _StorageScaleInv;
 
-                float storedLuminance = (float)luminanceInteger / _FixedScale;
-                float luminance = storedLuminance * _StorageScaleInv;
+                float bpRpNormalized =
+                    (float)colorInteger /
+                    (float)luminanceInteger;
 
-                float bpRpNormalized = (float)colorInteger / (float)luminanceInteger;
+                float bpRp =
+                    lerp(
+                        _ColorMin,
+                        _ColorMax,
+                        saturate(bpRpNormalized)
+                    );
 
-                float bpRp = lerp(_ColorMin, _ColorMax, saturate(bpRpNormalized));
+                float3 starColor =
+                    GetStarColor(bpRp);
 
-                float3 starColor = GetStarColor(bpRp);
-
-                return half4(starColor * luminance, 0.0);
+                return half4(
+                    starColor * luminance,
+                    1.0
+                );
             }
 
             ENDHLSL

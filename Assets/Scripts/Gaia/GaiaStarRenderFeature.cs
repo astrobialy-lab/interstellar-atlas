@@ -2,7 +2,9 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.RenderGraphModule;
+using UnityEngine.Rendering.RenderGraphModule.Util;
 using UnityEngine.Rendering.Universal;
+
 
 public class GaiaStarRenderFeature :
     ScriptableRendererFeature
@@ -11,9 +13,17 @@ public class GaiaStarRenderFeature :
     private Shader compositeShader;
 
     [SerializeField]
+    private Shader glareShader;
+
+    [SerializeField]
+    private Shader finalCompositeShader;
+
+    [SerializeField]
     private GaiaStarRasterizer rasterizer;
 
+
     private GaiaStarRenderPass renderPass;
+
 
     public override void Create()
     {
@@ -25,15 +35,35 @@ public class GaiaStarRenderFeature :
                 );
         }
 
+        if (glareShader == null)
+        {
+            glareShader =
+                Shader.Find(
+                    "Custom/GaiaStarGlare"
+                );
+        }
+
+        if (finalCompositeShader == null)
+        {
+            finalCompositeShader =
+                Shader.Find(
+                    "Hidden/GaiaStarFinalComposite"
+                );
+        }
+
+
         renderPass =
             new GaiaStarRenderPass(
                 compositeShader,
+                glareShader,
+                finalCompositeShader,
                 rasterizer
             );
 
         renderPass.renderPassEvent =
             RenderPassEvent.AfterRenderingTransparents;
     }
+
 
     public override void AddRenderPasses(
         ScriptableRenderer renderer,
@@ -43,17 +73,20 @@ public class GaiaStarRenderFeature :
         CameraData cameraData =
             renderingData.cameraData;
 
+
         if (cameraData.cameraType !=
             CameraType.Game)
         {
             return;
         }
 
+
         if (cameraData.renderType ==
             CameraRenderType.Overlay)
         {
             return;
         }
+
 
         if (rasterizer == null)
         {
@@ -67,16 +100,20 @@ public class GaiaStarRenderFeature :
             );
         }
 
+
         if (rasterizer == null)
             return;
 
+
         if (!rasterizer.enabled)
             return;
+
 
         renderer.EnqueuePass(
             renderPass
         );
     }
+
 
     protected override void Dispose(
         bool disposing
@@ -89,19 +126,29 @@ public class GaiaStarRenderFeature :
         }
     }
 
+
     private class GaiaStarRenderPass :
         ScriptableRenderPass
     {
-        private Material compositeMaterial;
+        private const int PYRAMID_LEVELS = 5;
+
+
+        private Material starCompositeMaterial;
+        private Material glareMaterial;
+        private Material finalCompositeMaterial;
+
 
         private GaiaStarRasterizer rasterizer;
+
 
         private GraphicsBuffer starLuminance;
         private GraphicsBuffer starColorLuminance;
 
+
         private int bufferWidth;
         private int bufferHeight;
         private int bufferEyeCount;
+
 
         private readonly List<GraphicsBuffer> starBuffers =
             new List<GraphicsBuffer>();
@@ -109,14 +156,13 @@ public class GaiaStarRenderFeature :
         private readonly List<int> starCounts =
             new List<int>();
 
+
         private readonly List<BufferHandle> starBufferHandles =
             new List<BufferHandle>();
 
-        private readonly List<GraphicsBuffer> starBufferArray =
-            new List<GraphicsBuffer>();
-
         private readonly List<int> starCountArray =
             new List<int>();
+
 
         private static readonly int WidthID =
             Shader.PropertyToID("_Width");
@@ -169,22 +215,89 @@ public class GaiaStarRenderFeature :
         private static readonly int ColorMaxCompositeID =
             Shader.PropertyToID("_ColorMax");
 
+
+        private static readonly int GlareThresholdID =
+            Shader.PropertyToID("_GlareThreshold");
+
+        private static readonly int GlareSoftnessID =
+            Shader.PropertyToID("_GlareSoftness");
+
+        private static readonly int GlareStrengthID =
+            Shader.PropertyToID("_GlareStrength");
+
+
+        private static readonly int StarHDRID =
+            Shader.PropertyToID("_StarHDR");
+
+        private static readonly int Glare0ID =
+            Shader.PropertyToID("_Glare0");
+
+        private static readonly int Glare1ID =
+            Shader.PropertyToID("_Glare1");
+
+        private static readonly int Glare2ID =
+            Shader.PropertyToID("_Glare2");
+
+        private static readonly int Glare3ID =
+            Shader.PropertyToID("_Glare3");
+
+        private static readonly int Glare4ID =
+            Shader.PropertyToID("_Glare4");
+
+
         public GaiaStarRenderPass(
-            Shader shader,
+            Shader compositeShader,
+            Shader glareShader,
+            Shader finalCompositeShader,
             GaiaStarRasterizer rasterizer
         )
         {
             this.rasterizer =
                 rasterizer;
 
-            if (shader != null)
+
+            if (compositeShader != null)
             {
-                compositeMaterial =
+                starCompositeMaterial =
                     CoreUtils.CreateEngineMaterial(
-                        shader
+                        compositeShader
                     );
             }
+
+
+            if (glareShader != null)
+            {
+                glareMaterial =
+                    CoreUtils.CreateEngineMaterial(
+                        glareShader
+                    );
+
+                glareMaterial.SetFloat(
+                    GlareThresholdID,
+                    1.0f
+                );
+
+                glareMaterial.SetFloat(
+                    GlareSoftnessID,
+                    2.0f
+                );
+            }
+
+
+            if (finalCompositeShader != null)
+            {
+                finalCompositeMaterial =
+                    CoreUtils.CreateEngineMaterial(
+                        finalCompositeShader
+                    );
+
+                finalCompositeMaterial.SetFloat(
+                    GlareStrengthID,
+                    1.0f
+                );
+            }
         }
+
 
         public void SetRasterizer(
             GaiaStarRasterizer value
@@ -193,6 +306,7 @@ public class GaiaStarRenderFeature :
             rasterizer =
                 value;
         }
+
 
         public override void RecordRenderGraph(
             RenderGraph renderGraph,
@@ -203,32 +317,41 @@ public class GaiaStarRenderFeature :
                 !rasterizer.enabled ||
                 rasterizer.RasterizerCompute == null ||
                 rasterizer.StarLoader == null ||
-                compositeMaterial == null)
+                starCompositeMaterial == null ||
+                glareMaterial == null ||
+                finalCompositeMaterial == null)
             {
                 return;
             }
+
 
             UniversalResourceData resourceData =
                 frameData.Get<
                     UniversalResourceData
                 >();
 
+
             UniversalCameraData cameraData =
                 frameData.Get<
                     UniversalCameraData
                 >();
 
+
             TextureHandle colorTarget =
                 resourceData.activeColorTexture;
+
 
             if (!colorTarget.IsValid())
                 return;
 
+
             Camera camera =
                 cameraData.camera;
 
+
             if (camera == null)
                 return;
+
 
             int width =
                 cameraData
@@ -240,10 +363,12 @@ public class GaiaStarRenderFeature :
                     .cameraTargetDescriptor
                     .height;
 
+
             int eyeCount =
                 camera.stereoEnabled
                 ? 2
                 : 1;
+
 
             if (!EnsureBuffers(
                     width,
@@ -254,6 +379,11 @@ public class GaiaStarRenderFeature :
                 return;
             }
 
+
+            // ============================================================
+            // Get currently loaded Gaia star buffers
+            // ============================================================
+
             starBuffers.Clear();
             starCounts.Clear();
 
@@ -262,9 +392,10 @@ public class GaiaStarRenderFeature :
                 starCounts
             );
 
+
             starBufferHandles.Clear();
-            starBufferArray.Clear();
             starCountArray.Clear();
+
 
             for (int i = 0;
                  i < starBuffers.Count;
@@ -276,23 +407,22 @@ public class GaiaStarRenderFeature :
                 int count =
                     starCounts[i];
 
+
                 if (buffer == null ||
                     count <= 0)
                 {
                     continue;
                 }
 
+
                 BufferHandle handle =
                     renderGraph.ImportBuffer(
                         buffer
                     );
 
+
                 starBufferHandles.Add(
                     handle
-                );
-
-                starBufferArray.Add(
-                    buffer
                 );
 
                 starCountArray.Add(
@@ -300,27 +430,78 @@ public class GaiaStarRenderFeature :
                 );
             }
 
+
             BufferHandle luminanceHandle =
                 renderGraph.ImportBuffer(
                     starLuminance
                 );
+
 
             BufferHandle colorLuminanceHandle =
                 renderGraph.ImportBuffer(
                     starColorLuminance
                 );
 
-            Matrix4x4 view =
-                camera.worldToCameraMatrix;
 
-            Matrix4x4 proj =
-                GL.GetGPUProjectionMatrix(
-                    camera.projectionMatrix,
-                    true
-                );
+            // ============================================================
+            // Camera matrices
+            //
+            // For now this keeps the existing single-camera behavior.
+            // Proper separate XR eye matrices come later.
+            // ============================================================
 
-            Matrix4x4 viewProj =
-                proj * view;
+            Matrix4x4 viewProjLeft;
+            Matrix4x4 viewProjRight;
+
+            if (cameraData.xr.enabled && cameraData.xr.viewCount >= 2)
+            {
+                Matrix4x4 viewLeft =
+                    cameraData.xr.GetViewMatrix(0);
+
+                Matrix4x4 projLeft =
+                    GL.GetGPUProjectionMatrix(
+                        cameraData.xr.GetProjMatrix(0),
+                        true
+                    );
+
+                Matrix4x4 viewRight =
+                    cameraData.xr.GetViewMatrix(1);
+
+                Matrix4x4 projRight =
+                    GL.GetGPUProjectionMatrix(
+                        cameraData.xr.GetProjMatrix(1),
+                        true
+                    );
+
+                viewProjLeft =
+                    projLeft * viewLeft;
+
+                viewProjRight =
+                    projRight * viewRight;
+            }
+            else
+            {
+                // Non-XR / editor fallback
+                Matrix4x4 view =
+                    camera.worldToCameraMatrix;
+
+                Matrix4x4 proj =
+                    GL.GetGPUProjectionMatrix(
+                        camera.projectionMatrix,
+                        true
+                    );
+
+                Matrix4x4 viewProj =
+                    proj * view;
+
+                viewProjLeft = viewProj;
+                viewProjRight = viewProj;
+            }
+
+
+            // ============================================================
+            // Gaia star rasterization
+            // ============================================================
 
             using (
                 var builder =
@@ -332,56 +513,39 @@ public class GaiaStarRenderFeature :
                     )
             )
             {
-                computeData.computeShader =
-                    rasterizer.RasterizerCompute;
+                computeData.computeShader = rasterizer.RasterizerCompute;
 
-                computeData.clearKernel =
-                    rasterizer.ClearKernel;
+                computeData.clearKernel = rasterizer.ClearKernel;
 
-                computeData.rasterizeKernel =
-                    rasterizer.RasterizeKernel;
+                computeData.rasterizeKernel = rasterizer.RasterizeKernel;
 
-                computeData.luminance =
-                    luminanceHandle;
+                computeData.luminance = luminanceHandle;
 
-                computeData.colorLuminance =
-                    colorLuminanceHandle;
+                computeData.colorLuminance = colorLuminanceHandle;
 
-                computeData.starBuffers =
-                    starBufferHandles.ToArray();
+                computeData.starBuffers = starBufferHandles.ToArray();
 
-                computeData.starCounts =
-                    starCountArray.ToArray();
+                computeData.starCounts = starCountArray.ToArray();
 
-                computeData.width =
-                    width;
+                computeData.width = width;
 
-                computeData.height =
-                    height;
+                computeData.height = height;
 
-                computeData.eyeCount =
-                    eyeCount;
+                computeData.eyeCount = eyeCount;
 
-                computeData.brightnessMultiplier =
-                    rasterizer.BrightnessMultiplier;
+                computeData.brightnessMultiplier = rasterizer.BrightnessMultiplier;
 
-                computeData.storageScale =
-                    rasterizer.StorageScale;
+                computeData.storageScale = rasterizer.StorageScale;
 
-                computeData.fixedScale =
-                    rasterizer.FixedScale;
+                computeData.fixedScale = rasterizer.FixedScale;
 
-                computeData.colorMin =
-                    rasterizer.ColorMin;
+                computeData.colorMin = rasterizer.ColorMin;
 
-                computeData.colorMax =
-                    rasterizer.ColorMax;
+                computeData.colorMax = rasterizer.ColorMax;
 
-                computeData.viewProj0 =
-                    viewProj;
+                computeData.viewProj0 = viewProjLeft;
 
-                computeData.viewProj1 =
-                    viewProj;
+                computeData.viewProj1 = viewProjRight;
 
                 builder.UseBuffer(
                     computeData.luminance,
@@ -393,9 +557,11 @@ public class GaiaStarRenderFeature :
                     AccessFlags.Write
                 );
 
-                for (int i = 0;
-                     i < computeData.starBuffers.Length;
-                     i++)
+                for (
+                    int i = 0;
+                    i < computeData.starBuffers.Length;
+                    i++
+                )
                 {
                     builder.UseBuffer(
                         computeData.starBuffers[i],
@@ -406,78 +572,535 @@ public class GaiaStarRenderFeature :
                 builder.AllowPassCulling(false);
 
                 builder.SetRenderFunc(
-                    (ComputePassData data, ComputeGraphContext context) =>
-                        ExecuteComputePass(data, context)
+                    (
+                        ComputePassData data,
+                        ComputeGraphContext context
+                    ) =>
+                        ExecuteComputePass(
+                            data,
+                            context
+                        )
                 );
             }
+
+
+            // ============================================================
+            // 1. Full-resolution HDR star texture
+            // ============================================================
+
+            TextureHandle starHDR =
+                CreateHDRTexture(
+                    renderGraph,
+                    cameraData.cameraTargetDescriptor,
+                    width,
+                    height,
+                    "Gaia Star HDR"
+                );
+
 
             using (
                 var builder =
                     renderGraph.AddRasterRenderPass<
-                        CompositePassData
+                        StarBufferPassData
                     >(
-                        "Gaia Star Composite",
-                        out CompositePassData compositeData
+                        "Gaia Star Buffer To HDR",
+                        out StarBufferPassData data
                     )
             )
             {
-                compositeData.compositeMaterial =
-                    compositeMaterial;
+                data.material =
+                    starCompositeMaterial;
 
-                compositeData.luminanceBuffer =
+                data.luminanceBuffer =
                     starLuminance;
 
-                compositeData.colorLuminanceBuffer =
+                data.colorLuminanceBuffer =
                     starColorLuminance;
 
-                compositeData.luminanceHandle =
-                    luminanceHandle;
+                data.output =
+                    starHDR;
 
-                compositeData.colorLuminanceHandle =
-                    colorLuminanceHandle;
-
-                compositeData.width =
+                data.width =
                     width;
 
-                compositeData.height =
+                data.height =
                     height;
 
-                compositeData.storageScaleInverse =
+                data.eyeCount =
+                    eyeCount;
+
+                data.storageScaleInverse =
                     rasterizer.StorageScaleInverse;
 
-                compositeData.fixedScale =
+                data.fixedScale =
                     rasterizer.FixedScale;
 
-                compositeData.colorMin =
+                data.colorMin =
                     rasterizer.ColorMin;
 
-                compositeData.colorMax =
+                data.colorMax =
                     rasterizer.ColorMax;
 
+
                 builder.UseBuffer(
-                    compositeData.luminanceHandle,
+                    luminanceHandle,
                     AccessFlags.Read
                 );
 
                 builder.UseBuffer(
-                    compositeData.colorLuminanceHandle,
+                    colorLuminanceHandle,
                     AccessFlags.Read
                 );
+
+
+                for (int i = 0;
+                     i < starBufferHandles.Count;
+                     i++)
+                {
+                    builder.UseBuffer(
+                        starBufferHandles[i],
+                        AccessFlags.Read
+                    );
+                }
+
 
                 builder.SetRenderAttachment(
-                    colorTarget,
+                    starHDR,
                     0,
                     AccessFlags.Write
                 );
 
+
+                // Export the generated texture through
+                // RenderGraph's global-texture mechanism.
+                builder.SetGlobalTextureAfterPass(
+                    starHDR,
+                    StarHDRID
+                );
+
+
                 builder.AllowPassCulling(false);
 
+
                 builder.SetRenderFunc(
-                    (CompositePassData data, RasterGraphContext context) =>
-                        ExecuteCompositePass(data, context)
+                    (
+                        StarBufferPassData passData,
+                        RasterGraphContext context
+                    ) =>
+                        ExecuteStarBufferPass(
+                            passData,
+                            context
+                        )
+                );
+            }
+
+
+            // ============================================================
+            // 2. Bright-star prefilter
+            //
+            // Full resolution:
+            //
+            // starHDR
+            //    ↓
+            // brightStars
+            //
+            // Only sufficiently bright pixels survive.
+            // ============================================================
+
+            TextureHandle brightStars =
+                CreateHDRTexture(
+                    renderGraph,
+                    cameraData.cameraTargetDescriptor,
+                    width,
+                    height,
+                    "Gaia Bright Stars"
+                );
+
+
+            AddBlitPass(
+                renderGraph,
+                glareMaterial,
+                starHDR,
+                brightStars,
+                0,
+                "Gaia Glare Prefilter"
+            );
+
+
+            // ============================================================
+            // 3. Glare pyramid
+            //
+            // Level 0 = 1/2 resolution
+            // Level 1 = 1/4
+            // Level 2 = 1/8
+            // Level 3 = 1/16
+            // Level 4 = 1/32
+            //
+            // Each level:
+            //
+            //       downsample
+            //            ↓
+            //      horizontal blur
+            //            ↓
+            //       vertical blur
+            // ============================================================
+
+            TextureHandle currentSource =
+                brightStars;
+
+
+            for (int level = 0;
+                 level < PYRAMID_LEVELS;
+                 level++)
+            {
+                int levelScale =
+                    1 << (level + 1);
+
+
+                int levelWidth =
+                    Mathf.Max(
+                        1,
+                        width / levelScale
+                    );
+
+
+                int levelHeight =
+                    Mathf.Max(
+                        1,
+                        height / levelScale
+                    );
+
+
+                TextureHandle levelTexture =
+                    CreateHDRTexture(
+                        renderGraph,
+                        cameraData.cameraTargetDescriptor,
+                        levelWidth,
+                        levelHeight,
+                        $"Gaia Glare Level {level}"
+                    );
+
+
+                TextureHandle horizontalTexture =
+                    CreateHDRTexture(
+                        renderGraph,
+                        cameraData.cameraTargetDescriptor,
+                        levelWidth,
+                        levelHeight,
+                        $"Gaia Glare Horizontal {level}"
+                    );
+
+
+                // Downsample
+                AddBlitPass(
+                    renderGraph,
+                    glareMaterial,
+                    currentSource,
+                    levelTexture,
+                    1,
+                    $"Gaia Glare Downsample {level}"
+                );
+
+
+                // Horizontal blur
+                AddBlitPass(
+                    renderGraph,
+                    glareMaterial,
+                    levelTexture,
+                    horizontalTexture,
+                    2,
+                    $"Gaia Glare Horizontal {level}"
+                );
+
+
+                // Vertical blur
+                AddBlitPass(
+                    renderGraph,
+                    glareMaterial,
+                    horizontalTexture,
+                    levelTexture,
+                    3,
+                    $"Gaia Glare Vertical {level}"
+                );
+
+
+                int glareID =
+                    level == 0 ? Glare0ID :
+                    level == 1 ? Glare1ID :
+                    level == 2 ? Glare2ID :
+                    level == 3 ? Glare3ID :
+                    Glare4ID;
+
+
+                ExportGlobalTexture(
+                    renderGraph,
+                    levelTexture,
+                    glareID,
+                    $"Gaia Export Glare Level {level}"
+                );
+
+
+                currentSource =
+                    levelTexture;
+            }
+
+
+            // ============================================================
+            // 4. Final composite
+            //
+            // camera
+            //   +
+            // star HDR
+            //   +
+            // glare pyramid
+            // ============================================================
+
+            TextureHandle finalTarget =
+                CreateSameTexture(
+                    renderGraph,
+                    cameraData.cameraTargetDescriptor,
+                    "Gaia Final Color"
+                );
+
+
+            using (
+                var builder =
+                    renderGraph.AddRasterRenderPass<
+                        FinalCompositePassData
+                    >(
+                        "Gaia Stars Final Composite",
+                        out FinalCompositePassData data
+                    )
+            )
+            {
+                data.material =
+                    finalCompositeMaterial;
+
+                data.cameraColor =
+                    colorTarget;
+
+                data.destination =
+                    finalTarget;
+
+
+                // Camera input.
+                builder.UseTexture(
+                    data.cameraColor,
+                    AccessFlags.Read
+                );
+
+
+                // These are consumed as global textures.
+                builder.UseGlobalTexture(
+                    StarHDRID,
+                    AccessFlags.Read
+                );
+
+                builder.UseGlobalTexture(
+                    Glare0ID,
+                    AccessFlags.Read
+                );
+
+                builder.UseGlobalTexture(
+                    Glare1ID,
+                    AccessFlags.Read
+                );
+
+                builder.UseGlobalTexture(
+                    Glare2ID,
+                    AccessFlags.Read
+                );
+
+                builder.UseGlobalTexture(
+                    Glare3ID,
+                    AccessFlags.Read
+                );
+
+                builder.UseGlobalTexture(
+                    Glare4ID,
+                    AccessFlags.Read
+                );
+
+
+                builder.SetRenderAttachment(
+                    finalTarget,
+                    0,
+                    AccessFlags.Write
+                );
+
+
+                builder.AllowPassCulling(false);
+
+
+                builder.SetRenderFunc(
+                    (
+                        FinalCompositePassData passData,
+                        RasterGraphContext context
+                    ) =>
+                        ExecuteFinalCompositePass(
+                            passData,
+                            context
+                        )
+                );
+            }
+
+
+            // Avoid an additional blit back into the camera target.
+            resourceData.cameraColor =
+                finalTarget;
+        }
+
+
+        // ================================================================
+        // AddBlitPass
+        // ================================================================
+
+        private static void AddBlitPass(
+            RenderGraph renderGraph,
+            Material material,
+            TextureHandle source,
+            TextureHandle destination,
+            int shaderPass,
+            string passName
+        )
+        {
+            RenderGraphUtils.BlitMaterialParameters parameters =
+                new RenderGraphUtils.BlitMaterialParameters(
+                    source,
+                    destination,
+                    material,
+                    shaderPass
+                );
+
+
+            renderGraph.AddBlitPass(
+                parameters,
+                passName
+            );
+        }
+
+
+        // ================================================================
+        // Global texture export
+        // ================================================================
+
+        private static void ExportGlobalTexture(
+            RenderGraph renderGraph,
+            TextureHandle texture,
+            int textureID,
+            string passName
+        )
+        {
+            using (
+                var builder =
+                    renderGraph.AddRasterRenderPass<
+                        GlobalTexturePassData
+                    >(
+                        passName,
+                        out GlobalTexturePassData data
+                    )
+            )
+            {
+                builder.SetGlobalTextureAfterPass(
+                    texture,
+                    textureID
+                );
+
+
+                builder.AllowPassCulling(false);
+
+
+                builder.SetRenderFunc(
+                    static (
+                        GlobalTexturePassData passData,
+                        RasterGraphContext context
+                    ) =>
+                    {
+                        // Nothing to execute.
+                        //
+                        // SetGlobalTextureAfterPass() tells
+                        // RenderGraph how to expose the resource.
+                    }
                 );
             }
         }
+
+
+        // ================================================================
+        // HDR texture creation
+        // ================================================================
+
+        private static TextureHandle CreateHDRTexture(
+            RenderGraph renderGraph,
+            RenderTextureDescriptor cameraDescriptor,
+            int width,
+            int height,
+            string name
+        )
+        {
+            RenderTextureDescriptor descriptor =
+                cameraDescriptor;
+
+
+            descriptor.width =
+                width;
+
+            descriptor.height =
+                height;
+
+            descriptor.depthBufferBits =
+                0;
+
+            descriptor.msaaSamples =
+                1;
+
+            descriptor.graphicsFormat =
+                UnityEngine.Experimental.Rendering.GraphicsFormat.R16G16B16A16_SFloat;
+
+            descriptor.sRGB =
+                false;
+
+
+            return
+                UniversalRenderer.CreateRenderGraphTexture(
+                    renderGraph,
+                    descriptor,
+                    name,
+                    false
+                );
+        }
+
+
+        // ================================================================
+        // Final texture
+        // ================================================================
+
+        private static TextureHandle CreateSameTexture(
+            RenderGraph renderGraph,
+            RenderTextureDescriptor cameraDescriptor,
+            string name
+        )
+        {
+            RenderTextureDescriptor descriptor =
+                cameraDescriptor;
+
+
+            descriptor.depthBufferBits =
+                0;
+
+            descriptor.msaaSamples =
+                1;
+
+
+            return
+                UniversalRenderer.CreateRenderGraphTexture(
+                    renderGraph,
+                    descriptor,
+                    name,
+                    false
+                );
+        }
+
 
         private static void ExecuteComputePass(
             ComputePassData data,
@@ -576,9 +1199,11 @@ public class GaiaStarRenderFeature :
                 data.viewProj1
             );
 
-            for (int i = 0;
-                 i < data.starBuffers.Length;
-                 i++)
+            for (
+                int i = 0;
+                i < data.starBuffers.Length;
+                i++
+            )
             {
                 BufferHandle starBuffer =
                     data.starBuffers[i];
@@ -615,7 +1240,7 @@ public class GaiaStarRenderFeature :
 
                 int rasterGroupsX =
                     Mathf.CeilToInt(
-                        count / 8.0f
+                        count / 64.0f
                     );
 
                 context.cmd.DispatchCompute(
@@ -628,56 +1253,97 @@ public class GaiaStarRenderFeature :
             }
         }
 
-        private static void ExecuteCompositePass(
-            CompositePassData data,
+        // ================================================================
+        // Star buffer → HDR
+        // ================================================================
+
+        private static void ExecuteStarBufferPass(
+            StarBufferPassData data,
             RasterGraphContext context
         )
         {
-            data.compositeMaterial.SetBuffer(
+            data.material.SetBuffer(
                 StarLuminanceID,
                 data.luminanceBuffer
             );
 
-            data.compositeMaterial.SetBuffer(
+
+            data.material.SetBuffer(
                 StarColorLuminanceID,
                 data.colorLuminanceBuffer
             );
 
-            data.compositeMaterial.SetFloat(
+
+            data.material.SetFloat(
                 StorageScaleInvID,
                 data.storageScaleInverse
             );
 
-            data.compositeMaterial.SetFloat(
+
+            data.material.SetFloat(
                 FixedScaleID,
                 data.fixedScale
             );
 
-            data.compositeMaterial.SetInt(
+
+            data.material.SetInt(
                 WidthID,
                 data.width
             );
 
-            data.compositeMaterial.SetInt(
+
+            data.material.SetInt(
                 HeightID,
                 data.height
             );
 
-            data.compositeMaterial.SetFloat(
+
+            data.material.SetFloat(
                 ColorMinCompositeID,
                 data.colorMin
             );
 
-            data.compositeMaterial.SetFloat(
+
+            data.material.SetFloat(
                 ColorMaxCompositeID,
                 data.colorMax
             );
 
+
             CoreUtils.DrawFullScreen(
                 context.cmd,
-                data.compositeMaterial
+                data.material
             );
         }
+
+
+        // ================================================================
+        // Final composite
+        // ================================================================
+
+        private static void ExecuteFinalCompositePass(
+            FinalCompositePassData data,
+            RasterGraphContext context
+        )
+        {
+            Blitter.BlitTexture(
+                context.cmd,
+                data.cameraColor,
+                new Vector4(
+                    1.0f,
+                    1.0f,
+                    0.0f,
+                    0.0f
+                ),
+                data.material,
+                0
+            );
+        }
+
+
+        // ================================================================
+        // GPU accumulation buffers
+        // ================================================================
 
         private bool EnsureBuffers(
             int width,
@@ -692,6 +1358,7 @@ public class GaiaStarRenderFeature :
                 return false;
             }
 
+
             if (starLuminance != null &&
                 starColorLuminance != null &&
                 bufferWidth == width &&
@@ -701,12 +1368,15 @@ public class GaiaStarRenderFeature :
                 return true;
             }
 
+
             ReleaseBuffers();
+
 
             long pixelCountLong =
                 (long)width *
                 height *
                 eyeCount;
+
 
             if (pixelCountLong <= 0 ||
                 pixelCountLong > int.MaxValue)
@@ -718,8 +1388,10 @@ public class GaiaStarRenderFeature :
                 return false;
             }
 
+
             int pixelCount =
                 (int)pixelCountLong;
+
 
             try
             {
@@ -729,6 +1401,7 @@ public class GaiaStarRenderFeature :
                         pixelCount,
                         sizeof(uint)
                     );
+
 
                 starColorLuminance =
                     new GraphicsBuffer(
@@ -748,6 +1421,7 @@ public class GaiaStarRenderFeature :
                 return false;
             }
 
+
             bufferWidth =
                 width;
 
@@ -757,8 +1431,10 @@ public class GaiaStarRenderFeature :
             bufferEyeCount =
                 eyeCount;
 
+
             return true;
         }
+
 
         private void ReleaseBuffers()
         {
@@ -768,29 +1444,87 @@ public class GaiaStarRenderFeature :
                 starLuminance = null;
             }
 
+
             if (starColorLuminance != null)
             {
                 starColorLuminance.Release();
                 starColorLuminance = null;
             }
 
+
             bufferWidth = 0;
             bufferHeight = 0;
             bufferEyeCount = 0;
         }
 
+
         public void Dispose()
         {
             ReleaseBuffers();
 
-            if (compositeMaterial != null)
+
+            if (starCompositeMaterial != null)
             {
                 CoreUtils.Destroy(
-                    compositeMaterial
+                    starCompositeMaterial
                 );
 
-                compositeMaterial = null;
+                starCompositeMaterial = null;
             }
+
+
+            if (glareMaterial != null)
+            {
+                CoreUtils.Destroy(
+                    glareMaterial
+                );
+
+                glareMaterial = null;
+            }
+
+
+            if (finalCompositeMaterial != null)
+            {
+                CoreUtils.Destroy(
+                    finalCompositeMaterial
+                );
+
+                finalCompositeMaterial = null;
+            }
+        }
+
+
+        // ================================================================
+        // Pass data
+        // ================================================================
+
+        private class StarBufferPassData
+        {
+            public Material material;
+
+            public GraphicsBuffer luminanceBuffer;
+            public GraphicsBuffer colorLuminanceBuffer;
+
+            public TextureHandle output;
+
+            public int width;
+            public int height;
+            public int eyeCount;
+
+            public float storageScaleInverse;
+            public int fixedScale;
+
+            public float colorMin;
+            public float colorMax;
+        }
+
+
+        private class FinalCompositePassData
+        {
+            public Material material;
+
+            public TextureHandle cameraColor;
+            public TextureHandle destination;
         }
 
         private class ComputePassData
@@ -821,24 +1555,9 @@ public class GaiaStarRenderFeature :
             public Matrix4x4 viewProj1;
         }
 
-        private class CompositePassData
+
+        private class GlobalTexturePassData
         {
-            public Material compositeMaterial;
-
-            public GraphicsBuffer luminanceBuffer;
-            public GraphicsBuffer colorLuminanceBuffer;
-
-            public BufferHandle luminanceHandle;
-            public BufferHandle colorLuminanceHandle;
-
-            public int width;
-            public int height;
-
-            public float storageScaleInverse;
-            public int fixedScale;
-
-            public float colorMin;
-            public float colorMax;
         }
     }
 }

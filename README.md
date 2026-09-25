@@ -1,0 +1,1 @@
+for gaia stars loading structure check GAIA_README.md, for its data download and processing check Tools/Gaia/README.md

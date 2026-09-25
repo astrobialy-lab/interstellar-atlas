@@ -7,6 +7,8 @@ public class VRPlayerController : MonoBehaviour
     public LandmarkPopup landmarkPopup;
     public LandmarkMarkerGenerator landmarkMarkerGenerator;
 
+    public Transform xrOrigin;
+
     // New XR Origin → Camera Offset → Main Camera
     public Transform headsetCamera;
 
@@ -14,8 +16,7 @@ public class VRPlayerController : MonoBehaviour
     public Transform rightControllerTransform;
 
     public float moveSpeed = 1.25f;
-    public float verticalSpeed = 1.25f;
-    public float strafeSpeed = 1.25f;
+    public float speedChangeFactor = 2.0f;
     public float turnSpeed = 35.0f;
 
     public float inputDeadzone = 0.15f;
@@ -34,6 +35,8 @@ public class VRPlayerController : MonoBehaviour
     private float smoothedMove = 0f;
     private float smoothedTurn = 0f;
 
+    private bool previousLeftX = false;
+    private bool previousLeftY = false;
     private bool previousA = false;
     private bool previousB = false;
 
@@ -58,7 +61,7 @@ public class VRPlayerController : MonoBehaviour
         InputDevice leftHand =
             InputDevices.GetDeviceAtXRNode(XRNode.LeftHand);
 
-        InputDevice rightHand =
+        InputDevice rightHand = 
             InputDevices.GetDeviceAtXRNode(XRNode.RightHand);
 
         Vector2 leftStick = Vector2.zero;
@@ -119,10 +122,12 @@ public class VRPlayerController : MonoBehaviour
 
         Vector3 movement =
             forward * smoothedMove * moveSpeed +
-            right * rightStick.x * strafeSpeed +
-            Vector3.up * rightStick.y * verticalSpeed;
+            right * rightStick.x * moveSpeed +
+            Vector3.up * rightStick.y * moveSpeed;
 
         transform.position += movement * Time.deltaTime;
+
+        HandleSpeedControls(leftHand);
 
         if (dustCloudGenerator != null)
         {
@@ -133,6 +138,45 @@ public class VRPlayerController : MonoBehaviour
         HandleLandmarkSelection(rightHand);
 
         HandleLandmarkPopupClose(rightHand);
+    }
+
+    private void HandleSpeedControls(InputDevice leftHand)
+    {
+        bool leftX = false;
+        bool leftY = false;
+
+        leftHand.TryGetFeatureValue(
+            CommonUsages.primaryButton,
+            out leftX
+        );
+
+        leftHand.TryGetFeatureValue(
+            CommonUsages.secondaryButton,
+            out leftY
+        );
+
+        // X = increase speed
+        if (leftX && !previousLeftX)
+        {
+            moveSpeed *= speedChangeFactor;
+            if (xrOrigin != null)
+            {
+                xrOrigin.localScale /= speedChangeFactor;
+            }
+        }
+
+        // Y = decrease speed
+        if (leftY && !previousLeftY)
+        {
+            moveSpeed /= speedChangeFactor;
+            if (xrOrigin != null)
+            {
+                xrOrigin.localScale *= speedChangeFactor;
+            }
+        }
+
+        previousLeftX = leftX;
+        previousLeftY = leftY;
     }
 
     private void HandleColorControls(InputDevice leftHand)

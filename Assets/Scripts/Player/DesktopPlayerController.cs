@@ -4,8 +4,8 @@ using UnityEngine.InputSystem;
 public class DesktopPlayerController : MonoBehaviour
 {
     [Header("Movement")]
-    public float moveSpeed = 3.0f;
-    public float verticalSpeed = 3.0f;
+    public float moveSpeed = 1.25f;
+    public float speedChangeFactor = 2.0f;
 
     [Header("Mouse Look")]
     public Transform cameraTransform;
@@ -213,6 +213,26 @@ public class DesktopPlayerController : MonoBehaviour
 
     private void HandleControls()
     {
+        // 9 = increase movement speed
+        if (Keyboard.current.digit9Key.wasPressedThisFrame)
+        {
+            moveSpeed *= speedChangeFactor;
+
+            Debug.Log(
+                $"Movement speed increased to {moveSpeed}"
+            );
+        }
+
+        // 0 = decrease movement speed
+        if (Keyboard.current.digit0Key.wasPressedThisFrame)
+        {
+            moveSpeed /= speedChangeFactor;
+
+            Debug.Log(
+                $"Movement speed decreased to {moveSpeed}"
+            );
+        }
+
         if (dustCloudGenerator != null)
         {
             // 1 = next color scheme
