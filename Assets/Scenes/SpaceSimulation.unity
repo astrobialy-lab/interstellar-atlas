@@ -1132,7 +1132,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::DesktopDebugController
   moveSpeed: 3
-  verticalSpeed: 3
+  speedChangeFactor: 10
   cameraTransform: {fileID: 0}
   mouseSensitivity: 0.1
   maxLookAngle: 89
@@ -1161,11 +1161,11 @@ MonoBehaviour:
   dustCloudGenerator: {fileID: 1085639424}
   landmarkPopup: {fileID: 383082162}
   landmarkMarkerGenerator: {fileID: 2109148596}
+  xrOrigin: {fileID: 475100218}
   headsetCamera: {fileID: 330585546}
   rightControllerTransform: {fileID: 0}
   moveSpeed: 2
-  verticalSpeed: 1.25
-  strafeSpeed: 1.25
+  speedChangeFactor: 2
   turnSpeed: 60
   inputDeadzone: 0.15
   movementSmoothing: 4

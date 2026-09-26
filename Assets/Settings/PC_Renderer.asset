@@ -14,6 +14,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::GaiaStarRenderFeature
   m_Active: 1
   compositeShader: {fileID: 4800000, guid: c71ad30eccff3ed47a72058445e390c8, type: 3}
+  glareShader: {fileID: 4800000, guid: 4669d208c16e8194198ca0486b80534e, type: 3}
+  finalCompositeShader: {fileID: 4800000, guid: 2b99cb4e47111eb45a87319b26eb4ba2, type: 3}
   rasterizer: {fileID: 0}
 --- !u!114 &11400000
 MonoBehaviour:
