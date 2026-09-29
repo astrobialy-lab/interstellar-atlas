@@ -1,39 +1,51 @@
 # Gaia Star Rendering — Unity VR
 
-This document describes the current star-rendering system used in the Unity VR space-simulation project.
+This document describes the current Gaia star-rendering and level-of-detail (LOD) system used in the Unity VR space-simulation project.
 
-The renderer is designed for a very large local Gaia DR3 catalogue and is built around the ideas in:
+The renderer is designed for a very large local Gaia DR3 catalogue and is built around ideas from:
 
 > **S. Schneegans, A. Kreskowski, and A. Gerndt, “Smaller than Pixels: Rendering Millions of Stars in Real-Time,” Eurographics 2025.**
 
-The implementation here is an **independent Unity/URP implementation inspired by the paper**, not a copy of the CosmoScout VR implementation. The project uses the same central idea—treat distant stars as sub-pixel sources, rasterize them in a compute shader, then add a glare/post-processing stage—but adapts the data layout, streaming system, colour representation, and RenderGraph integration to this project.
+The implementation here is an **independent Unity/URP implementation inspired by the paper**, not a copy of the CosmoScout VR implementation. The project uses the same central idea—treat distant stars as sub-pixel sources, rasterize them in a compute shader, then add a glare/post-processing stage—but adapts the data layout, streaming system, LOD system, colour representation, and RenderGraph integration to this project.
 
 ---
 
-## 1. Overview
+## 1. System overview
 
-The rendering pipeline is:
+The current system has two main runtime parts:
+
+1. **LOD + streaming** — decides which parts of the Gaia catalogue are needed and loads them from local binary files.
+2. **Rendering** — takes the loaded stars, rasterizes them on the GPU, reconstructs the HDR star image, and produces the glare effect.
+
+The logical flow is:
 
 ```text
-Gaia DR3 data
+Gaia DR3
     │
     ▼
 Offline preprocessing
     │
-    ├── HEALPix spatial partitioning (level 6)
-    ├── Distance-shell partitioning
-    └── Binary chunk files
+    ├── spatial partitioning
+    ├── LOD / octree construction
+    └── compact binary particle files
     │
     ▼
-GaiaIndexReader
+Runtime LOD selection
+    │
+    ├── frustum culling
+    ├── solid-angle LOD selection
+    ├── preload / fade ranges
+    └── load / unload decisions
     │
     ▼
-GaiaStarLoader
+GaiaMSLODLoader.cs
     │
-    │  Streams only nearby/relevant chunks
-    │
+    │  asynchronously loads selected nodes
     ▼
 Loaded GraphicsBuffers
+    │
+    ▼
+GaiaStarRasterizer.cs
     │
     ▼
 GaiaStarRasterizer.compute
@@ -42,7 +54,6 @@ GaiaStarRasterizer.compute
     │  project star to screen
     │  distribute sub-pixel contribution over 2×2 pixels
     │  atomic fixed-point accumulation
-    │
     ▼
 Luminance + colour accumulation buffers
     │
@@ -57,10 +68,10 @@ HDR star texture
     ▼                               ▼
 GaiaStarGlare.shader          Sharp star image
     │
-    ├── Prefilter bright stars
-    ├── Downsample
-    ├── Horizontal Gaussian
-    └── Vertical Gaussian
+    ├── prefilter bright stars
+    ├── downsample
+    ├── horizontal Gaussian
+    └── vertical Gaussian
     │
     ▼
 5-level glare pyramid
@@ -70,39 +81,40 @@ GaiaStarFinalComposite.shader
     │
     ├── original camera image
     ├── sharp stars
-    └── weighted bicubic glare pyramid
+    └── weighted glare pyramid
     │
     ▼
 Final camera image
 ```
 
-The important design choice is that stars are **not rendered as conventional 3D meshes or billboard geometry**. Most astronomical stars are far smaller than a display pixel at normal viewing distances, so the renderer treats them as point-like sources and preserves their luminance by distributing their contribution across nearby pixels.
+Stars are **not** rendered as individual GameObjects, meshes, or billboard objects. The catalogue remains data-driven: only the required LOD nodes are resident, and the GPU processes the stars inside those nodes directly.
 
 ---
 
-## 2. Why this approach
+## 2. Why this rendering approach
 
-A conventional point primitive has two problems for this use case:
+A conventional point or billboard renderer has two important problems for a huge star catalogue:
 
-1. A star can move between discrete pixel locations as the camera moves, producing visible flicker/jitter.
-2. A one-pixel representation does not naturally preserve the apparent luminance behaviour required for very wide fields of view.
+1. Very small stars can jump between discrete pixel locations as the camera moves.
+2. Rendering large numbers of astronomical sources as geometry creates unnecessary CPU/GPU overhead.
 
-The reference paper addresses this by using a software rasterizer. Each star is processed independently, projected into screen space, and its contribution is distributed over a 2×2 pixel neighbourhood according to the star's sub-pixel position.
+The reference paper addresses this by treating stars as sub-pixel point sources. Each star is projected into screen space and its contribution is distributed over a 2×2 pixel neighbourhood according to its fractional pixel position.
 
-This project follows that general strategy, with the accumulation implemented using integer buffers and a fixed-point scale so that multiple stars can safely contribute to the same pixel using atomic operations.
+This project follows that general strategy. Accumulation is implemented with integer buffers and a fixed-point scale so that many stars can safely contribute to the same pixel using atomic operations.
 
 ---
 
 ## 3. Project file structure
 
-The Unity-side rendering code is organized as follows:
+The relevant Unity-side code is organized approximately as follows:
 
 ```text
 Assets/
 ├── Scripts/
 │   └── Gaia/
 │       ├── GaiaIndexReader.cs
-│       ├── GaiaStarLoader.cs
+│       ├── GaiaMSLODLoader.cs
+│       ├── GaiaStarBufferProvider.cs
 │       ├── GaiaStarRasterizer.cs
 │       └── GaiaStarRenderFeature.cs
 │
@@ -116,33 +128,36 @@ Assets/
 Data/
 └── Gaia/
     ├── index.bin
-    └── chunks/
-        ├── healpix_00000/
-        │   ├── shell_00.bin
-        │   ├── shell_01.bin
-        │   └── ...
-        ├── healpix_00001/
-        │   └── ...
-        └── ...
+    └── lod_test/
+        ├── metadata.bin
+        └── particles/
+            ├── particles_00000000.bin
+            ├── particles_00000001.bin
+            └── ...
 ```
 
-The exact number of chunk directories/files depends on the preprocessing run. The current processed catalogue uses HEALPix level 6 and 10 distance shells, with a generated index describing the available chunk files.
+The exact directory contents depend on the preprocessing run. The important distinction is:
+
+- `index.bin` belongs to the original HEALPix/distance-shell catalogue organization.
+- `lod_test/metadata.bin` and `lod_test/particles/` belong to the current octree-based MS LOD representation used by `GaiaMSLODLoader.cs`.
+
+The old `GaiaStarLoader.cs` is no longer part of the active runtime architecture. `GaiaMSLODLoader.cs` is the current star-data loader used by the renderer.
 
 ---
 
-## 4. Data organization
+## 4. Gaia data preparation
 
 ### 4.1 Gaia source data
 
 The renderer uses Gaia DR3 as the underlying stellar catalogue.
 
-The raw Gaia download is kept outside the runtime rendering path. Unity does **not** query Gaia over the network while rendering.
+The raw Gaia download is processed offline. Unity does **not** query Gaia over the network while rendering.
 
-Instead, Gaia data is converted offline into compact binary chunks suitable for streaming at runtime.
+The purpose of preprocessing is to turn the very large catalogue into compact binary data structures that can be loaded incrementally during runtime.
 
-### 4.2 Spatial partitioning
+### 4.2 Original catalogue partitioning
 
-The current partitioning scheme is:
+The source catalogue is spatially organized using:
 
 - **HEALPix level:** 6
 - **Distance shells:**
@@ -160,64 +175,257 @@ The current partitioning scheme is:
 40000+ pc
 ```
 
-This gives two useful properties:
+This gives angular/spatial locality through HEALPix and radial locality through the distance shells.
 
-- angular/spatial locality from HEALPix
-- radial locality from the distance shells
+### 4.3 Runtime LOD representation
 
-The renderer therefore does not need one enormous GPU buffer containing the whole Gaia catalogue.
+For rendering, the stars are additionally converted into an **octree / multi-scale LOD structure**.
 
-### 4.3 Index
-
-`Data/Gaia/index.bin` contains the metadata needed to locate chunk files.
-
-The current processed index contains approximately:
+The LOD metadata stores, for each node:
 
 ```text
-Magic:      0x47414941
-Version:    2
-HEALPix:    level 6
-Shells:     10
-Chunks:     219,646
+node ID
+center
+half-size
+LOD depth
+star count
+cumulative star count
+child count
+child node IDs
 ```
 
-The index also contains the chunk path string table and the spatial metadata used when deciding which chunks need to be loaded.
+The corresponding star data are stored in separate binary particle files.
+
+The important idea is that runtime selection does not inspect every Gaia star. It first selects appropriate octree nodes, then only loads the star data for those nodes.
 
 ---
 
-## 5. Runtime classes
+## 5. LOD and streaming system
+
+The runtime LOD system is implemented primarily in:
+
+```text
+GaiaMSLODLoader.cs
+```
+
+with the renderer accessing its loaded GPU data through:
+
+```text
+GaiaStarBufferProvider.cs
+```
+
+This is the part of the project that determines **which stars should exist in memory right now**.
+
+### 5.1 Octree hierarchy
+
+The processed star catalogue is represented as a hierarchy of spatially bounded nodes.
+
+Conceptually:
+
+```text
+                    Root
+                 /   / \   \
+                /   ...    \
+             Child       Child
+            /   \         /   \
+          ...   ...     ...   ...
+```
+
+Each node contains its own stored star records, so a selected parent node can contribute stars while its children are also selected for finer detail.
+
+The hierarchy allows the renderer to use coarse representations when a region is visually small and progressively finer nodes when the same region occupies more of the viewer's field of view.
+
+### 5.2 Frustum culling
+
+Before doing LOD recursion, each node is tested against the camera frustum.
+
+A node whose bounding box lies outside the camera frustum is ignored completely.
+
+Conceptually:
+
+```text
+octree node
+    ↓
+frustum test
+    ├── outside → reject
+    └── visible → continue LOD test
+```
+
+This prevents off-screen catalogue regions from being loaded merely because they are spatially close to the player.
+
+### 5.3 Solid-angle based LOD
+
+The important LOD criterion is **projected angular size**, not catalogue distance alone.
+
+`GaiaMSLODLoader.cs` estimates the apparent solid angle of each node's bounding box as seen from the camera.
+
+Conceptually:
+
+```text
+large apparent solid angle
+        ↓
+node occupies significant visual area
+        ↓
+recurse into children
+        ↓
+finer detail
+```
+
+and:
+
+```text
+small apparent solid angle
+        ↓
+node is visually small
+        ↓
+stop recursion
+        ↓
+use this node as the representation
+```
+
+This is the core of the multi-scale LOD behaviour. A node does not need to be close in absolute distance to require refinement; what matters is how large that region appears from the current viewpoint.
+
+### 5.4 LOD thresholds
+
+The current implementation uses three related solid-angle thresholds:
+
+```text
+solidAngleThreshold   = 2.4e-4
+solidAngleFadeRange   = 1.2e-4
+solidAnglePreloadRange= 6.0e-5
+```
+
+They serve different purposes:
+
+- **LOD threshold:** controls when recursion into child nodes should continue.
+- **Fade range:** provides a transition region for node visibility/weighting.
+- **Preload range:** allows nodes to be loaded before they become fully required.
+
+The exact values are project tuning parameters rather than fundamental constants.
+
+### 5.5 Streaming
+
+Once the LOD traversal has produced the desired node set, `GaiaMSLODLoader.cs` compares it with the nodes already resident in memory.
+
+```text
+Desired nodes
+     │
+     ├── already loaded → keep
+     │
+     ├── missing → start async load
+     │
+     └── no longer desired → unload
+```
+
+The particle files are loaded asynchronously so disk I/O does not block the main Unity thread.
+
+The current loader also limits the number of simultaneous loads with:
+
+```text
+maxConcurrentLoads
+```
+
+A current working value is **16**. This limits large bursts of file reads and GPU-buffer uploads when many LOD nodes become necessary at once.
+
+### 5.6 GPU upload
+
+After a node is read and parsed, its stars are uploaded to a `GraphicsBuffer`.
+
+The renderer therefore has a clean separation:
+
+```text
+Disk
+ ↓
+CPU node data
+ ↓
+GPU GraphicsBuffer
+ ↓
+Compute rasterizer
+```
+
+Only nodes selected by the LOD system need to reach the GPU.
+
+### 5.7 Why this is similar to Gaia Sky
+
+The important Gaia-Sky-like idea is that the full catalogue is organized into hierarchical spatial regions and the visible representation is chosen from that hierarchy according to apparent size.
+
+The Unity implementation is independent, but the logical structure is similar:
+
+```text
+Huge catalogue
+     ↓
+Spatial hierarchy
+     ↓
+View-dependent node selection
+     ↓
+Coarse representation when small
+     ↓
+Fine representation when large
+     ↓
+Load only what is required
+```
+
+The current system therefore has the **core multi-scale / angular LOD behaviour** in place. Further work is mainly in tuning and adding stronger resource-management policies, rather than changing the basic LOD concept.
+
+---
+
+## 6. Runtime class responsibilities
 
 ### `GaiaIndexReader.cs`
 
-Responsible for reading `index.bin` and exposing chunk metadata to the runtime.
+Reads the original Gaia chunk index from:
 
-Main responsibilities:
+```text
+Data/Gaia/index.bin
+```
 
-- load the Gaia binary index
-- parse HEALPix/shell chunk metadata
-- resolve chunk paths
-- expose chunk spatial bounds
-- allow the loader to determine which chunks intersect the active viewing region
+It handles metadata describing the HEALPix/distance-shell catalogue layout.
 
-The index is metadata only. The actual stars remain in the individual chunk files.
+It is part of the data organization pipeline, but the current MS LOD renderer does not use it as the active star-selection mechanism.
 
 ---
 
-### `GaiaStarLoader.cs`
+### `GaiaMSLODLoader.cs`
 
-Responsible for runtime chunk streaming.
+This is the **active runtime star loader and LOD controller**.
 
 Main responsibilities:
 
-- determine which chunks should be resident around the camera
-- asynchronously read binary chunk files
-- convert loaded star records into GPU-friendly `GraphicsBuffer` objects
-- unload chunks that are sufficiently far away
-- maintain the current list of loaded star buffers for the renderer
+- read the MS LOD metadata
+- build the in-memory node hierarchy
+- track the camera
+- frustum-cull nodes
+- compute node apparent solid angle
+- decide LOD depth
+- maintain desired node IDs
+- asynchronously load particle files
+- upload loaded stars into `GraphicsBuffer`s
+- unload nodes that are no longer needed
+- provide the currently loaded buffers to the renderer
 
-Current streaming parameters include a load radius and an unload radius so that chunks are not repeatedly loaded/unloaded when the camera moves slightly.
+It is the main class connecting the astronomical data representation to the rendering system.
 
-This separation is important: the renderer only sees the currently resident GPU buffers and does not care how the files were loaded.
+---
+
+### `GaiaStarBufferProvider.cs`
+
+Defines the interface between the LOD/streaming system and the rendering system.
+
+The renderer does not need to know whether stars came from HEALPix chunks, an octree, or another source. It simply asks the provider for the currently loaded GPU star buffers.
+
+Conceptually:
+
+```text
+GaiaMSLODLoader
+      │
+      ▼
+GaiaStarBufferProvider
+      │
+      ▼
+GaiaStarRasterizer
+```
+
+This separation makes the rendering code independent of the specific streaming implementation.
 
 ---
 
@@ -225,31 +433,24 @@ This separation is important: the renderer only sees the currently resident GPU 
 
 Owns the GPU accumulation buffers and the configuration used by the compute rasterizer.
 
-Current important settings include:
+Its main responsibilities are:
+
+- allocate/resize accumulation buffers
+- gather the currently loaded star buffers
+- provide camera/render parameters to the compute shader
+- dispatch the rasterization kernels
+- expose the accumulated buffers to the render feature
+
+Important parameters include:
 
 ```text
-Brightness multiplier = 1000
-Storage scale         = 1 / 1024
-Fixed-point scale     = 65536
-Colour range          = -0.5 ... 3.5  (BP-RP)
+Brightness multiplier
+Storage scale       = 1 / 1024
+Fixed-point scale   = 65536
+Colour range        = -0.5 ... 3.5  (BP-RP)
 ```
 
-The renderer stores accumulated data in two GPU buffers:
-
-```text
-starLuminance
-starColorLuminance
-```
-
-Each buffer contains one `uint` per render pixel (per eye when stereo rendering is used).
-
-The fixed-point representation is conceptually:
-
-```text
-storedValue = physicalValue × 65536
-```
-
-This permits atomic integer accumulation while retaining fractional precision.
+The accumulation buffers store integer fixed-point quantities so multiple GPU threads can safely update the same pixel using atomic operations.
 
 ---
 
@@ -257,32 +458,27 @@ This permits atomic integer accumulation while retaining fractional precision.
 
 This is the URP integration layer.
 
-It creates and records the RenderGraph passes that connect the compute rasterizer, the star-composite shader, the glare pyramid, and the final camera composite.
-
-At a high level its work is:
+It creates and records the RenderGraph passes that connect:
 
 ```text
-1. Get active camera target
-2. Determine render resolution and eye count
-3. Gather currently loaded star GraphicsBuffers
-4. Run Gaia star compute rasterization
-5. Composite accumulated buffers into an HDR star texture
-6. Build the glare pyramid
-7. Export intermediate textures through RenderGraph globals
-8. Run the final composite into the camera target
+loaded star buffers
+      ↓
+compute rasterization
+      ↓
+HDR star composite
+      ↓
+glare pyramid
+      ↓
+final camera composite
 ```
 
-The implementation uses Unity's modern RenderGraph resource declarations rather than treating the command buffer as an unrestricted global-state API.
-
-In particular, intermediate textures are exported with `SetGlobalTextureAfterPass` and consumed with `UseGlobalTexture`, which is the URP RenderGraph pattern documented by Unity.
+The feature also gathers the loaded buffers from the `GaiaStarBufferProvider` and passes them through the rendering pipeline.
 
 ---
 
-## 6. GPU star representation
+## 7. GPU star representation
 
-The runtime star record is intentionally compact.
-
-Conceptually it is:
+The runtime star record is intentionally compact:
 
 ```text
 struct StarGPU
@@ -303,13 +499,11 @@ That is:
 20 bytes per star
 ```
 
-The renderer does not need to carry the original Gaia record into the GPU.
-
-The runtime renderer uses the preprocessed position, apparent-brightness information, and BP-RP colour information needed for the visual representation.
+The GPU does not need the complete original Gaia record. It only receives the quantities required by the current visual renderer.
 
 ---
 
-## 7. Compute rasterization
+## 8. Compute rasterization
 
 ### `GaiaStarRasterizer.compute`
 
@@ -335,54 +529,52 @@ distribute to 2×2 neighbouring pixels
 atomic accumulation
 ```
 
-### 7.1 2×2 sub-pixel distribution
+### 8.1 2×2 sub-pixel distribution
 
-Instead of forcing the star into exactly one pixel, its contribution is distributed across the nearest 2×2 pixel neighbourhood.
+Instead of forcing a star into exactly one pixel, its contribution is distributed across the nearest 2×2 pixel neighbourhood.
 
 The weights depend on the fractional screen-space position of the star.
 
-This has two important effects:
+This gives smoother motion and reduces pixel-to-pixel popping as the camera moves.
 
-- smoother motion when the camera moves
-- reduced pixel-to-pixel popping compared with single-pixel rendering
+### 8.2 Atomic fixed-point accumulation
 
-It is also the key idea from the reference paper's software rasterizer.
+Many stars can contribute to one pixel simultaneously.
 
-### 7.2 Atomic accumulation
+Therefore the shader uses atomic integer accumulation rather than ordinary floating-point writes.
 
-Many stars can contribute to the same pixel simultaneously.
-
-Therefore the compute shader cannot simply write:
+Conceptually:
 
 ```text
-buffer[pixel] = value
+physical contribution
+        ↓
+× fixed-point scale
+        ↓
+uint atomic add
+        ↓
+accumulated integer
+        ↓
+decode during composite
 ```
 
-Instead it uses atomic integer accumulation.
+The current fixed-point scale is:
 
-The project stores the contribution using a fixed-point representation, so the atomic operation can operate on `uint` values while the final composite converts the value back into floating-point HDR values.
+```text
+65536
+```
 
 ---
 
-## 8. Star compositing
+## 9. Star compositing
 
 ### `GaiaStarComposite.shader`
 
 This shader converts the accumulated integer buffers into an HDR star image.
 
-Inputs:
+The conceptual flow is:
 
 ```text
-starLuminance
-starColorLuminance
-```
-
-The composite reconstructs the per-pixel star luminance and colour and writes it to an HDR render texture.
-
-Conceptually:
-
-```text
-uint accumulation
+integer accumulation
         ↓
 fixed-point decode
         ↓
@@ -393,15 +585,15 @@ colour reconstruction from BP-RP
 StarHDR
 ```
 
-The resulting `StarHDR` texture is intentionally separate from the camera image. This is important because the glare filter must operate on the high-dynamic-range star signal rather than on the already-tonemapped screen image.
+The resulting `StarHDR` texture is kept separate from the camera image so the glare stage can operate on the high-dynamic-range star signal.
 
 ---
 
-## 9. Glare pipeline
+## 10. Glare pipeline
 
 ### `GaiaStarGlare.shader`
 
-The glare system is a multi-resolution pyramid.
+The glare system uses a multi-resolution pyramid.
 
 Current levels are approximately:
 
@@ -441,7 +633,7 @@ Glare4
 
 ### Pass layout
 
-`GaiaStarGlare.shader` currently has four passes, and the C# RenderGraph code relies on these exact indices:
+`GaiaStarGlare.shader` currently has four passes, and the C# RenderGraph code relies on these indices:
 
 ```text
 Pass 0 = Prefilter
@@ -450,31 +642,29 @@ Pass 2 = HorizontalGaussian
 Pass 3 = VerticalGaussian
 ```
 
-Do not reorder these passes without updating the RenderGraph code that selects the shader pass index.
+Do not reorder these passes without updating the code that selects the shader pass indices.
 
 ---
 
-## 10. Bright-star prefilter
+## 11. Bright-star prefilter
 
-The prefilter extracts the high-intensity part of the star image.
+The prefilter extracts the high-intensity part of the star image before the expensive blur operations.
 
 Conceptually:
 
 ```text
 brightness = max(R, G, B)
-
 contribution = max(brightness - threshold, 0)
-
-prefiltered = color × contribution / brightness
+prefiltered = colour × contribution / brightness
 ```
 
-The purpose is to keep the glare contribution concentrated on sufficiently bright stars instead of blurring every star in the catalogue.
+This keeps glare concentrated on bright stars instead of blurring the entire catalogue equally.
 
 ---
 
-## 11. Gaussian blur
+## 12. Gaussian blur
 
-Each pyramid level is blurred with a separable Gaussian approximation:
+Each glare level uses a separable blur:
 
 ```text
 horizontal blur
@@ -482,21 +672,15 @@ horizontal blur
 vertical blur
 ```
 
-The current implementation uses a 5-tap optimized Gaussian approximation with weights based on the common pair of symmetric taps around the center.
-
-The blur is performed independently for the horizontal and vertical directions.
-
-The current view-space version additionally maps the sampling displacement through the camera projection so that the glare is not purely screen-space.
+The implementation uses a compact multi-tap Gaussian approximation. Because the lower pyramid levels are already downsampled, the blur radius represents progressively larger angular structures at a low texture cost.
 
 ---
 
-## 12. Perspective-correct glare
+## 13. Perspective-correct glare
 
-A normal screen-space blur assumes that a fixed number of screen pixels corresponds to a fixed angular distance everywhere on the screen.
+A simple screen-space blur assumes the screen is a flat Euclidean plane. That is not ideal for immersive rendering with a wide field of view.
 
-That is not correct for immersive/wide-field rendering.
-
-The current glare implementation therefore does the conceptual operation:
+The current implementation therefore conceptually performs:
 
 ```text
 screen UV
@@ -510,9 +694,9 @@ project the ray back to screen
 sample source texture
 ```
 
-This makes the blur dependent on the camera projection instead of treating the screen as a flat Euclidean image.
+This makes the glare sampling dependent on the camera projection instead of using a fixed screen-space displacement everywhere.
 
-That is the reason for the view-space helper functions in `GaiaStarGlare.shader`:
+The relevant helper functions in `GaiaStarGlare.shader` are:
 
 ```text
 ViewRayFromUV()
@@ -520,15 +704,13 @@ ViewRayToUV()
 SampleViewSpaceGaussian()
 ```
 
-The reference paper specifically discusses perspective-correct glare as an important consideration for immersive scenarios with large fields of view.
-
 ---
 
-## 13. Final glare reconstruction
+## 14. Final glare reconstruction
 
 ### `GaiaStarFinalComposite.shader`
 
-The final shader combines three components:
+The final shader combines:
 
 ```text
 camera image
@@ -536,7 +718,7 @@ camera image
 + glare pyramid
 ```
 
-The five glare pyramid levels are weighted by decreasing powers of two:
+The current glare pyramid is weighted approximately as:
 
 ```text
 Glare0 × 1
@@ -545,8 +727,6 @@ Glare2 × 1/4
 Glare3 × 1/8
 Glare4 × 1/16
 ```
-
-The current final shader reconstructs the lower-resolution levels using bicubic sampling before adding them to the sharp stars.
 
 Conceptually:
 
@@ -557,15 +737,13 @@ Final = Camera
         (G0 + 0.5 G1 + 0.25 G2 + 0.125 G3 + 0.0625 G4)
 ```
 
-This keeps the sharp star core while building a broad HDR halo around bright sources.
+The lower-resolution levels are reconstructed during the final composite so the result contains both a sharp star core and a broad surrounding halo.
 
 ---
 
-## 14. RenderGraph resource flow
+## 15. RenderGraph resource flow
 
-The renderer passes several intermediate textures between RenderGraph passes.
-
-The important resources are conceptually:
+The important intermediate resources are:
 
 ```text
 StarHDR
@@ -576,7 +754,9 @@ Glare3
 Glare4
 ```
 
-Because the final composite shader consumes them as global textures, the RenderGraph code uses the explicit global-texture transfer mechanism:
+These textures are produced and consumed by different RenderGraph passes.
+
+For the global-texture handoff, the implementation uses the explicit RenderGraph mechanism:
 
 ```text
 producer pass
@@ -588,95 +768,37 @@ consumer pass
 UseGlobalTexture(...)
 ```
 
-This is preferable to calling `CommandBuffer.SetGlobalTexture` from inside an ordinary RenderGraph render function, which is not allowed for the global-state model used by the current URP RenderGraph implementation.
+This keeps the resource lifetime visible to RenderGraph instead of relying on unrestricted global command-buffer state.
 
 ---
 
-## 15. Why the star image and glare are separate
+## 16. XR / VR
 
-The sharp stars and the glare should remain separate buffers.
-
-If the stars are blurred before their sharp contribution is preserved, the renderer loses the compact point-source core.
-
-Keeping them separate gives:
-
-```text
-StarHDR  → sharp point/source
-Glare    → soft extended response
-```
-
-and the final shader combines them only at the end.
-
-This also makes it possible to tune `GlareStrength` independently of the underlying star brightness.
-
----
-
-## 16. XR / VR status
-
-The shader code uses Unity's XR-aware texture macros such as:
+The fullscreen shader path uses Unity's XR-aware texture macros such as:
 
 ```text
 TEXTURE2D_X
 SAMPLE_TEXTURE2D_X
 ```
 
-and the fullscreen shaders call the stereo setup macro where needed.
+and the render path supports mono or stereo accumulation buffers.
 
-The render path also allocates accumulation buffers for an eye count of 1 or 2.
-
-However, **full per-eye star projection is still an area for further verification/improvement**. The current C# rasterization setup passes the same `viewProj` matrix into both `_ViewProj0` and `_ViewProj1` rather than supplying independent left/right eye matrices.
-
-Therefore the system should be considered:
-
-```text
-XR-compatible infrastructure: yes
-Full independently projected stereo star rasterization: not finished yet
-```
-
-This is an important future step before treating the renderer as fully stereo-correct.
+The current infrastructure is XR-aware, but **independent per-eye star projection remains an area for verification/improvement**. The current rasterization setup should therefore be treated as XR-compatible infrastructure rather than a finished independently projected stereo implementation until the left/right view-projection path is fully verified.
 
 ---
 
-## 17. What this implementation takes from the paper
+## 17. Performance design
 
-The main ideas adopted from *Smaller than Pixels* are:
-
-- render distant stars as sub-pixel point sources rather than expensive geometry
-- process stars in a GPU software rasterizer
-- process one star per GPU thread
-- distribute a star's contribution over a 2×2 pixel neighbourhood using sub-pixel position
-- keep stellar brightness in HDR
-- use a post-process glare representation rather than making every star's geometry large
-- build glare at multiple resolutions
-- reconstruct/combine the pyramid to produce a smooth extended glare
-- account for perspective in immersive/wide-field glare rendering
-
-The paper's implementation and this project are not identical.
-
-Important project-specific differences include:
-
-- Unity 6 + URP + RenderGraph instead of the original CosmoScout VR rendering framework
-- Gaia DR3 local binary chunk streaming instead of a simple bright-star CSV subset
-- HEALPix + distance shells for out-of-core streaming
-- BP-RP colour information in the GPU star record
-- fixed-point `uint` accumulation buffers
-- a five-level RenderGraph glare pipeline
-- Unity XR texture abstractions and VR integration
-
----
-
-## 18. Performance design goals
-
-The renderer is structured so that the expensive work scales primarily with the stars that are actually resident/processed, rather than requiring every Gaia source to exist as a full Unity GameObject or mesh.
-
-Important performance decisions:
+The system is intended to scale with the visible/selected subset of Gaia rather than with the entire catalogue as live Unity objects.
 
 ### CPU
 
 - Gaia is preprocessed offline.
-- Runtime loads binary chunks instead of parsing large CSV files every frame.
-- Only a neighbourhood around the camera is kept resident.
-- Star chunks are stored in GPU-friendly buffers.
+- Runtime reads compact binary files rather than parsing large CSV files.
+- LOD selection happens hierarchically instead of checking every star.
+- Frustum culling rejects nodes outside the camera view.
+- Background loading prevents file I/O from directly blocking the main thread.
+- `maxConcurrentLoads` limits the number of simultaneous node loads.
 
 ### GPU
 
@@ -685,20 +807,69 @@ Important performance decisions:
 - no mesh renderer per star
 - compact 20-byte star record
 - atomic integer accumulation
-- separable Gaussian blur
 - glare processed at progressively lower resolutions
+- separable horizontal/vertical blur
 
 ### Memory
 
-The system deliberately keeps:
+The intended memory model is:
 
 ```text
-CPU disk data → many chunks
-GPU resident data → only currently loaded chunks
-screen accumulation → 2 × uint buffers per pixel
+Full Gaia catalogue
+        ↓
+stored on disk as many LOD particle files
+        ↓
+only selected LOD nodes loaded into CPU memory
+        ↓
+only loaded nodes uploaded to GPU GraphicsBuffers
+        ↓
+screen-sized accumulation buffers
 ```
 
-rather than trying to keep the entire Gaia catalogue in VRAM.
+This avoids requiring the full Gaia catalogue to remain resident in VRAM.
+
+---
+
+## 18. Current status
+
+At the current stage, the core rendering and LOD architecture is in place:
+
+```text
+[done]
+Offline Gaia data preparation
+        ↓
+[done]
+Hierarchical MS LOD data
+        ↓
+[done]
+Frustum culling
+        ↓
+[done]
+Solid-angle based LOD selection
+        ↓
+[done]
+Asynchronous node streaming
+        ↓
+[done]
+GPU GraphicsBuffer upload
+        ↓
+[done]
+Compute star rasterization
+        ↓
+[done]
+2×2 sub-pixel accumulation
+        ↓
+[done]
+HDR star reconstruction
+        ↓
+[done]
+5-level glare pipeline
+        ↓
+[done]
+Final camera composite
+```
+
+The remaining work is primarily refinement rather than replacing the architecture. Important future areas include stereo verification, memory-budget policies, photometric calibration, and integration with dust/extinction.
 
 ---
 
@@ -706,37 +877,35 @@ rather than trying to keep the entire Gaia catalogue in VRAM.
 
 ### Per-eye stereo projection
 
-Use independent left/right XR view-projection matrices in the compute rasterizer.
+Use and verify independent left/right XR view-projection matrices for the compute rasterizer.
+
+### Resident-star memory budget
+
+A future streaming layer can impose a hard upper bound on the number of resident stars or GPU memory used by LOD nodes, then evict less useful nodes when the budget is exceeded.
 
 ### Better physical photometry
 
-The current renderer is primarily a visual rendering system. The brightness multiplier, storage scale, and colour mapping are project parameters and are not yet a complete calibrated photometric model.
-
-A later physically calibrated stage can convert Gaia quantities into display luminance more rigorously.
+The current renderer is primarily a visual rendering system. Brightness multipliers, storage scale, and colour mapping are project parameters rather than a fully calibrated photometric model.
 
 ### Stellar colour model
 
-The current GPU record uses BP-RP. A future version can incorporate additional Gaia astrophysical parameters and/or an explicit stellar-temperature colour model where appropriate.
-
-### LOD
-
-The long-term plan is to make star representation and processing depend on projected/angular size rather than simply cutting stars by catalogue brightness.
+The current GPU record uses BP-RP. Gaia astrophysical parameters can later be used for a more physically motivated colour/temperature mapping.
 
 ### Exposure and tone mapping
 
-The current star renderer produces an HDR signal. The final display appearance should eventually be integrated with the project's global exposure and tone-mapping model rather than relying on arbitrary visual multipliers.
+The renderer produces an HDR star signal. Final appearance can later be integrated more tightly with the project's global exposure and tone-mapping model.
 
-### Dust/extinction integration
+### Dust / extinction integration
 
-The renderer is intentionally separated so that later dust rendering can modify the light reaching the camera. The planned dust system can eventually apply extinction/scattering to the stellar image before or during final composition.
+The rendering architecture leaves room for a later dust system that modifies stellar light through extinction and scattering before the final image is displayed.
 
 ---
 
 ## 20. Important implementation notes
 
-### Keep shader pass indices stable
+### Keep glare shader pass indices stable
 
-The glare shader's current pass indices are part of the C# interface:
+The C# code currently expects:
 
 ```text
 0 Prefilter
@@ -745,26 +914,26 @@ The glare shader's current pass indices are part of the C# interface:
 3 VerticalGaussian
 ```
 
-Changing these orderings requires changing the RenderGraph code.
+Changing their order requires a corresponding C# change.
 
 ### Do not redeclare `_BlitTexture`
 
-`Blit.hlsl` already supplies `_BlitTexture` and its sampler infrastructure. Redeclaring it in the individual glare passes causes shader redefinition errors.
+`Blit.hlsl` already provides `_BlitTexture` and its sampler infrastructure. Redeclaring it in individual glare passes causes shader redefinition errors.
 
-### Do not set RenderGraph globals from the pass command buffer
+### Use RenderGraph global-texture APIs correctly
 
-Use:
+For resources shared across RenderGraph passes, use the explicit global-texture mechanism:
 
 ```text
 SetGlobalTextureAfterPass
 UseGlobalTexture
 ```
 
-rather than `CommandBuffer.SetGlobalTexture` inside a RenderGraph pass.
+rather than treating the pass command buffer as unrestricted global state.
 
-### Keep `GaiaStarRenderFeature.cs` and the shader interfaces synchronized
+### Keep C# / shader interfaces synchronized
 
-The C# side expects specific property names and shader pass indices, including:
+The rendering C# side expects specific shader properties and buffers, including:
 
 ```text
 _Stars
@@ -783,19 +952,50 @@ _ColorMin
 _ColorMax
 ```
 
+Any change to these names or their layouts must be made on both sides.
+
 ---
 
-## 21. Reference implementation lineage
+## 21. What this implementation takes from the reference paper
+
+The main ideas adopted from *Smaller than Pixels* are:
+
+- render distant stars as sub-pixel point sources rather than expensive geometry
+- process stars in a GPU software rasterizer
+- process one star per GPU thread
+- distribute a star's contribution over a 2×2 pixel neighbourhood using sub-pixel position
+- preserve star brightness in HDR
+- use a post-process glare representation rather than making every star's geometry large
+- build glare at multiple resolutions
+- reconstruct/combine the glare pyramid to produce a smooth extended glare
+- account for perspective in immersive/wide-field glare rendering
+
+The paper's implementation and this project are not identical.
+
+Important project-specific differences include:
+
+- Unity 6 + URP + RenderGraph instead of the original CosmoScout VR rendering framework
+- Gaia DR3 local binary data instead of a simple bright-star subset
+- HEALPix/distance-shell preprocessing followed by a runtime octree/MS LOD representation
+- asynchronous local node streaming
+- BP-RP colour information in the GPU star record
+- fixed-point `uint` accumulation buffers
+- a five-level RenderGraph glare pipeline
+- Unity XR texture abstractions and VR integration
+
+---
+
+## 22. Reference implementation lineage
 
 The ideas in this renderer are directly informed by the Eurographics 2025 paper listed below.
 
-The paper states that the authors' implementation is part of **CosmoScout VR**, an open-source space-visualization project developed at the German Aerospace Center (DLR). CosmoScout VR's current public repository also contains star rendering functionality, including software-rasterized points and perspective-correct HDR glaring.
+The paper states that the authors' implementation is part of **CosmoScout VR**, an open-source space-visualization project developed at the German Aerospace Center (DLR). CosmoScout VR also contains star-rendering functionality related to software-rasterized stars and perspective-aware glare.
 
 This project does **not** claim to be CosmoScout VR or an official CosmoScout implementation.
 
 ---
 
-## 22. References
+## 23. References
 
 ### Primary rendering reference
 
@@ -865,7 +1065,7 @@ https://docs.unity3d.com/6000.0/Documentation/Manual/urp/renderer-features/how-t
 
 ---
 
-## 23. Credits and attribution
+## 24. Credits and attribution
 
 ### Rendering method
 
@@ -897,30 +1097,32 @@ The renderer is built on Unity's Universal Render Pipeline (URP) and its RenderG
 
 ---
 
-## 24. Suggested citation for this project
+## 25. Suggested citation for this project
 
 A concise project description can use wording such as:
 
-> The star renderer is an independent Unity/URP implementation inspired by Schneegans, Kreskowski, and Gerndt's Eurographics 2025 software-rasterization approach for sub-pixel star rendering and perspective-aware glare. Gaia DR3 is used as the stellar data source.
+> The star renderer is an independent Unity/URP implementation inspired by Schneegans, Kreskowski, and Gerndt's Eurographics 2025 software-rasterization approach for sub-pixel star rendering and perspective-aware glare. Gaia DR3 is used as the stellar data source, with a hierarchical angular LOD and asynchronous local streaming system used to select and load the required star data at runtime.
 
 ---
 
-## 25. Summary
+## 26. Summary
 
 The current system can be summarized as:
 
 ```text
 Gaia DR3
   ↓
-offline binary preprocessing
+offline preprocessing
   ↓
-HEALPix level 6 + distance shells
+HEALPix + distance-shell organization
   ↓
-indexed chunk files
+MS LOD octree / particle files
   ↓
-runtime chunk streaming
+frustum + solid-angle LOD selection
   ↓
-GPU star buffers
+asynchronous node streaming
+  ↓
+GPU GraphicsBuffers
   ↓
 compute software rasterizer
   ↓
@@ -941,4 +1143,4 @@ bicubic weighted reconstruction
 final camera composite
 ```
 
-The result is a star-rendering path designed to scale to a very large Gaia dataset without creating a Unity object or mesh for every star, while preserving sub-pixel motion behaviour and providing an HDR glare effect suitable for a wide-field VR space visualization.
+The result is a star-rendering system designed for a very large local Gaia dataset without creating a Unity object or mesh for every star. The LOD hierarchy determines which portions of that dataset are relevant to the current viewpoint, while the GPU rasterizer and HDR glare pipeline turn the selected stars into the final VR image.

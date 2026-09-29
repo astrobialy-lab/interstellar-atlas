@@ -8,7 +8,7 @@ public class GaiaStarRasterizer : MonoBehaviour
     private ComputeShader rasterizerCompute;
 
     [SerializeField]
-    private GaiaStarLoader starLoader;
+    private GaiaStarBufferProvider starLoader;
 
     [Header("Brightness")]
     [SerializeField]
@@ -38,7 +38,7 @@ public class GaiaStarRasterizer : MonoBehaviour
         }
     }
 
-    public GaiaStarLoader StarLoader
+    public GaiaStarBufferProvider StarLoader
     {
         get
         {
@@ -141,7 +141,7 @@ public class GaiaStarRasterizer : MonoBehaviour
         if (starLoader == null)
         {
             starLoader =
-                GetComponent<GaiaStarLoader>();
+                GetComponent<GaiaStarBufferProvider>();
         }
 
         if (starLoader == null)
@@ -156,18 +156,21 @@ public class GaiaStarRasterizer : MonoBehaviour
 
     public void GetLoadedStarBuffers(
         List<GraphicsBuffer> buffers,
-        List<int> counts)
+        List<int> counts,
+        List<float> fades)
     {
         if (starLoader == null)
         {
             buffers.Clear();
             counts.Clear();
+            fades.Clear();
             return;
         }
 
         starLoader.GetLoadedStarBuffers(
             buffers,
-            counts
+            counts,
+            fades
         );
     }
 }

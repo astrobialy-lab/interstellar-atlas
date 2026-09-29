@@ -214,7 +214,7 @@ public class DesktopPlayerController : MonoBehaviour
     private void HandleControls()
     {
         // 9 = increase movement speed
-        if (Keyboard.current.digit9Key.wasPressedThisFrame)
+        if (Keyboard.current.equalsKey.wasPressedThisFrame)
         {
             moveSpeed *= speedChangeFactor;
 
@@ -224,7 +224,7 @@ public class DesktopPlayerController : MonoBehaviour
         }
 
         // 0 = decrease movement speed
-        if (Keyboard.current.digit0Key.wasPressedThisFrame)
+        if (Keyboard.current.minusKey.wasPressedThisFrame)
         {
             moveSpeed /= speedChangeFactor;
 

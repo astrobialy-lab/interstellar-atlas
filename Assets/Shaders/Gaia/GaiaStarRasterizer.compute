@@ -29,6 +29,8 @@ float _StorageScale;
 float _ColorMin;
 float _ColorMax;
 
+float _LOD_Fade;
+
 int _FixedScale;
 
 uint PixelIndex(uint2 pixel, uint eye)
@@ -82,7 +84,9 @@ void RasterizeKernel(uint3 id : SV_DispatchThreadID)
     StarData star = _Stars[starIndex];
 
     float luminance =
-        pow(10.0, -0.4 * star.magnitude) * _BrightnessMultiplier;
+        pow(10.0, -0.4 * star.magnitude)
+        * _BrightnessMultiplier
+        * _LOD_Fade;
 
     float bpRpNormalized =
         saturate(

@@ -17,7 +17,7 @@ LEVEL = 6
 NPIXELS = 12 * 4**LEVEL
 DIVISOR = 2 ** (59 - 2 * LEVEL)
 
-MAX_WORKERS = 3
+MAX_WORKERS = 5
 
 
 def download_healpix(healpix):

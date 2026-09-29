@@ -1271,7 +1271,7 @@ GameObject:
   m_Component:
   - component: {fileID: 586631264}
   - component: {fileID: 586631263}
-  - component: {fileID: 586631265}
+  - component: {fileID: 586631267}
   - component: {fileID: 586631266}
   m_Layer: 0
   m_Name: GaiaStars
@@ -1308,24 +1308,6 @@ Transform:
   m_Children: []
   m_Father: {fileID: 475100218}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &586631265
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 586631262}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 045f649e403fa7e4eb07d1579afbedb0, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::GaiaStarLoader
-  indexReader: {fileID: 586631263}
-  playerTransform: {fileID: 475100218}
-  loadRadius: 10
-  unloadRadius: 12
-  streamUpdateDistance: 1
-  verboseLogging: 0
 --- !u!114 &586631266
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1339,11 +1321,33 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::GaiaStarRasterizer
   rasterizerCompute: {fileID: 7200000, guid: ca147506b25840f4ebed948d26f467e6, type: 3}
-  starLoader: {fileID: 586631265}
+  starLoader: {fileID: 586631267}
   brightnessMultiplier: 1
   storageScale: 0.0009765625
   colorMin: -0.5
   colorMax: 3.5
+--- !u!114 &586631267
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 586631262}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 36dd962b2be45994d9ae240c4877bba4, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::GaiaMSLODLoader
+  lodDirectory: Data/Gaia/lod
+  targetCamera: {fileID: 330585545}
+  solidAngleThreshold: 0.00024
+  solidAngleFadeRange: 0.00012
+  solidAnglePreloadRange: 0.00006
+  frustumCulling: 1
+  streamUpdateDistance: 1
+  streamUpdateAngle: 2
+  maxConcurrentLoads: 16
+  verboseLogging: 0
 --- !u!1 &938372574
 GameObject:
   m_ObjectHideFlags: 0

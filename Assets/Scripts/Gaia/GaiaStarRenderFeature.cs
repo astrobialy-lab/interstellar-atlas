@@ -163,6 +163,9 @@ public class GaiaStarRenderFeature :
         private readonly List<int> starCountArray =
             new List<int>();
 
+        private readonly List<float> starFades =
+            new List<float>();
+
 
         private static readonly int WidthID =
             Shader.PropertyToID("_Width");
@@ -243,6 +246,9 @@ public class GaiaStarRenderFeature :
 
         private static readonly int Glare4ID =
             Shader.PropertyToID("_Glare4");
+
+        private static readonly int LODFadeID =
+            Shader.PropertyToID("_LOD_Fade");
 
 
         public GaiaStarRenderPass(
@@ -386,10 +392,12 @@ public class GaiaStarRenderFeature :
 
             starBuffers.Clear();
             starCounts.Clear();
+            starFades.Clear();
 
             rasterizer.GetLoadedStarBuffers(
                 starBuffers,
-                starCounts
+                starCounts,
+                starFades
             );
 
 
@@ -526,6 +534,8 @@ public class GaiaStarRenderFeature :
                 computeData.starBuffers = starBufferHandles.ToArray();
 
                 computeData.starCounts = starCountArray.ToArray();
+
+                computeData.starFades = starFades.ToArray();
 
                 computeData.width = width;
 
@@ -1238,6 +1248,12 @@ public class GaiaStarRenderFeature :
                     count
                 );
 
+                context.cmd.SetComputeFloatParam(
+                    data.computeShader,
+                    LODFadeID,
+                    data.starFades[i]
+                );
+
                 int rasterGroupsX =
                     Mathf.CeilToInt(
                         count / 64.0f
@@ -1539,6 +1555,7 @@ public class GaiaStarRenderFeature :
 
             public BufferHandle[] starBuffers;
             public int[] starCounts;
+            public float[] starFades;
 
             public int width;
             public int height;
