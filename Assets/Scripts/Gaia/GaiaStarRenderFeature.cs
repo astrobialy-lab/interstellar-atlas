@@ -21,6 +21,11 @@ public class GaiaStarRenderFeature :
     [SerializeField]
     private GaiaStarRasterizer rasterizer;
 
+    [SerializeField]
+    private GaiaFarStarCache farStarCache;
+
+    [SerializeField]
+    private bool farCacheOnly;
 
     private GaiaStarRenderPass renderPass;
 
@@ -57,7 +62,8 @@ public class GaiaStarRenderFeature :
                 compositeShader,
                 glareShader,
                 finalCompositeShader,
-                rasterizer
+                rasterizer,
+                farStarCache
             );
 
         renderPass.renderPassEvent =
@@ -101,6 +107,24 @@ public class GaiaStarRenderFeature :
         }
 
 
+        if (farStarCache == null)
+        {
+            farStarCache =
+                Object.FindAnyObjectByType<
+                    GaiaFarStarCache
+                >();
+
+            renderPass.SetFarStarCache(
+                farStarCache
+            );
+        }
+
+
+        renderPass.SetFarCacheOnly(
+            farCacheOnly
+        );
+
+
         if (rasterizer == null)
             return;
 
@@ -139,10 +163,17 @@ public class GaiaStarRenderFeature :
 
 
         private GaiaStarRasterizer rasterizer;
+        private GaiaFarStarCache farStarCache;
+
+        private bool farCacheOnly;
 
 
         private GraphicsBuffer starLuminance;
         private GraphicsBuffer starColorLuminance;
+
+
+        private RTHandle farCacheRTHandle;
+        private RenderTexture farCacheTextureReference;
 
 
         private int bufferWidth;
@@ -251,15 +282,59 @@ public class GaiaStarRenderFeature :
             Shader.PropertyToID("_LOD_Fade");
 
 
+        // ============================================================
+        // Far-cache shader properties
+        // ============================================================
+
+        private static readonly int FarStarCacheID =
+            Shader.PropertyToID("_FarStarCache");
+
+        private static readonly int FarStarCacheValidID =
+            Shader.PropertyToID("_FarStarCacheValid");
+
+        private static readonly int FarStarCacheOnlyID =
+            Shader.PropertyToID("_FarStarCacheOnly");
+
+        private static readonly int InvViewProj0ID =
+            Shader.PropertyToID("_InvViewProj0");
+
+        private static readonly int InvViewProj1ID =
+            Shader.PropertyToID("_InvViewProj1");
+
+        private static readonly int EyePosition0ID =
+            Shader.PropertyToID("_EyePosition0");
+
+        private static readonly int EyePosition1ID =
+            Shader.PropertyToID("_EyePosition1");
+
+
+        // ============================================================
+        // Live rasterizer cutoff properties
+        // ============================================================
+
+        private static readonly int UseFarCacheCutoffID =
+            Shader.PropertyToID("_UseFarCacheCutoff");
+
+        private static readonly int FarCachePositionID =
+            Shader.PropertyToID("_FarCachePosition");
+
+        private static readonly int FarCacheDistanceID =
+            Shader.PropertyToID("_FarCacheDistance");
+
+
         public GaiaStarRenderPass(
             Shader compositeShader,
             Shader glareShader,
             Shader finalCompositeShader,
-            GaiaStarRasterizer rasterizer
+            GaiaStarRasterizer rasterizer,
+            GaiaFarStarCache farStarCache
         )
         {
             this.rasterizer =
                 rasterizer;
+
+            this.farStarCache =
+                farStarCache;
 
 
             if (compositeShader != null)
@@ -310,6 +385,24 @@ public class GaiaStarRenderFeature :
         )
         {
             rasterizer =
+                value;
+        }
+
+
+        public void SetFarStarCache(
+            GaiaFarStarCache value
+        )
+        {
+            farStarCache =
+                value;
+        }
+
+
+        public void SetFarCacheOnly(
+            bool value
+        )
+        {
+            farCacheOnly =
                 value;
         }
 
@@ -453,15 +546,20 @@ public class GaiaStarRenderFeature :
 
             // ============================================================
             // Camera matrices
-            //
-            // For now this keeps the existing single-camera behavior.
-            // Proper separate XR eye matrices come later.
             // ============================================================
 
             Matrix4x4 viewProjLeft;
             Matrix4x4 viewProjRight;
 
-            if (cameraData.xr.enabled && cameraData.xr.viewCount >= 2)
+            Matrix4x4 invViewProjLeft;
+            Matrix4x4 invViewProjRight;
+
+            Vector4 eyePositionLeft;
+            Vector4 eyePositionRight;
+
+
+            if (cameraData.xr.enabled &&
+                cameraData.xr.viewCount >= 2)
             {
                 Matrix4x4 viewLeft =
                     cameraData.xr.GetViewMatrix(0);
@@ -486,10 +584,46 @@ public class GaiaStarRenderFeature :
 
                 viewProjRight =
                     projRight * viewRight;
+
+                invViewProjLeft =
+                    viewProjLeft.inverse;
+
+                invViewProjRight =
+                    viewProjRight.inverse;
+
+
+                Matrix4x4 eyeWorldLeft =
+                    viewLeft.inverse;
+
+                Matrix4x4 eyeWorldRight =
+                    viewRight.inverse;
+
+
+                Vector3 eyeLeft =
+                    eyeWorldLeft.GetColumn(3);
+
+                Vector3 eyeRight =
+                    eyeWorldRight.GetColumn(3);
+
+
+                eyePositionLeft =
+                    new Vector4(
+                        eyeLeft.x,
+                        eyeLeft.y,
+                        eyeLeft.z,
+                        1.0f
+                    );
+
+                eyePositionRight =
+                    new Vector4(
+                        eyeRight.x,
+                        eyeRight.y,
+                        eyeRight.z,
+                        1.0f
+                    );
             }
             else
             {
-                // Non-XR / editor fallback
                 Matrix4x4 view =
                     camera.worldToCameraMatrix;
 
@@ -502,8 +636,89 @@ public class GaiaStarRenderFeature :
                 Matrix4x4 viewProj =
                     proj * view;
 
-                viewProjLeft = viewProj;
-                viewProjRight = viewProj;
+                viewProjLeft =
+                    viewProj;
+
+                viewProjRight =
+                    viewProj;
+
+                invViewProjLeft =
+                    viewProj.inverse;
+
+                invViewProjRight =
+                    invViewProjLeft;
+
+
+                Vector3 eye =
+                    camera.transform.position;
+
+
+                eyePositionLeft =
+                    new Vector4(
+                        eye.x,
+                        eye.y,
+                        eye.z,
+                        1.0f
+                    );
+
+                eyePositionRight =
+                    eyePositionLeft;
+            }
+
+
+            // ============================================================
+            // Far-cache state
+            // ============================================================
+
+            bool farCacheValid =
+                false;
+
+            RenderTexture farCacheTexture =
+                null;
+
+            TextureHandle farCacheHandle =
+                TextureHandle.nullHandle;
+
+
+            Vector3 farCachePosition =
+                camera.transform.position;
+
+            float farCacheDistance =
+                0.0f;
+
+
+            if (farStarCache != null)
+            {
+                farCacheDistance =
+                    farStarCache.FarCacheDistance;
+
+
+                if (farStarCache.CacheValid &&
+                    farStarCache.CacheTexture != null &&
+                    farStarCache.CacheTexture.IsCreated())
+                {
+                    farCacheTexture =
+                        farStarCache.CacheTexture;
+
+                    UpdateFarCacheRTHandle(
+                        farCacheTexture
+                    );
+
+
+                    if (farCacheRTHandle != null)
+                    {
+                        farCacheHandle =
+                            renderGraph.ImportTexture(
+                                farCacheRTHandle
+                            );
+
+                        farCacheValid =
+                            true;
+
+                        farCachePosition =
+                            farStarCache.CachePosition;
+                    }
+                }
             }
 
 
@@ -521,41 +736,69 @@ public class GaiaStarRenderFeature :
                     )
             )
             {
-                computeData.computeShader = rasterizer.RasterizerCompute;
+                computeData.computeShader =
+                    rasterizer.RasterizerCompute;
 
-                computeData.clearKernel = rasterizer.ClearKernel;
+                computeData.clearKernel =
+                    rasterizer.ClearKernel;
 
-                computeData.rasterizeKernel = rasterizer.RasterizeKernel;
+                computeData.rasterizeKernel =
+                    rasterizer.RasterizeKernel;
 
-                computeData.luminance = luminanceHandle;
+                computeData.luminance =
+                    luminanceHandle;
 
-                computeData.colorLuminance = colorLuminanceHandle;
+                computeData.colorLuminance =
+                    colorLuminanceHandle;
 
-                computeData.starBuffers = starBufferHandles.ToArray();
+                computeData.starBuffers =
+                    starBufferHandles.ToArray();
 
-                computeData.starCounts = starCountArray.ToArray();
+                computeData.starCounts =
+                    starCountArray.ToArray();
 
-                computeData.starFades = starFades.ToArray();
+                computeData.starFades =
+                    starFades.ToArray();
 
-                computeData.width = width;
+                computeData.width =
+                    width;
 
-                computeData.height = height;
+                computeData.height =
+                    height;
 
-                computeData.eyeCount = eyeCount;
+                computeData.eyeCount =
+                    eyeCount;
 
-                computeData.brightnessMultiplier = rasterizer.BrightnessMultiplier;
+                computeData.brightnessMultiplier =
+                    rasterizer.BrightnessMultiplier;
 
-                computeData.storageScale = rasterizer.StorageScale;
+                computeData.storageScale =
+                    rasterizer.StorageScale;
 
-                computeData.fixedScale = rasterizer.FixedScale;
+                computeData.fixedScale =
+                    rasterizer.FixedScale;
 
-                computeData.colorMin = rasterizer.ColorMin;
+                computeData.colorMin =
+                    rasterizer.ColorMin;
 
-                computeData.colorMax = rasterizer.ColorMax;
+                computeData.colorMax =
+                    rasterizer.ColorMax;
 
-                computeData.viewProj0 = viewProjLeft;
+                computeData.viewProj0 =
+                    viewProjLeft;
 
-                computeData.viewProj1 = viewProjRight;
+                computeData.viewProj1 =
+                    viewProjRight;
+
+                computeData.useFarCacheCutoff =
+                    farCacheValid;
+
+                computeData.farCachePosition =
+                    farCachePosition;
+
+                computeData.farCacheDistance =
+                    farCacheDistance;
+
 
                 builder.UseBuffer(
                     computeData.luminance,
@@ -566,6 +809,7 @@ public class GaiaStarRenderFeature :
                     computeData.colorLuminance,
                     AccessFlags.Write
                 );
+
 
                 for (
                     int i = 0;
@@ -579,7 +823,9 @@ public class GaiaStarRenderFeature :
                     );
                 }
 
+
                 builder.AllowPassCulling(false);
+
 
                 builder.SetRenderFunc(
                     (
@@ -595,7 +841,7 @@ public class GaiaStarRenderFeature :
 
 
             // ============================================================
-            // 1. Full-resolution HDR star texture
+            // Full-resolution HDR star texture
             // ============================================================
 
             TextureHandle starHDR =
@@ -652,6 +898,34 @@ public class GaiaStarRenderFeature :
                     rasterizer.ColorMax;
 
 
+                // Far cache
+                data.farCacheTexture =
+                    farCacheTexture;
+
+                data.farCacheHandle =
+                    farCacheHandle;
+
+                data.farCacheValid =
+                    farCacheValid;
+
+                data.farCacheOnly =
+                    farCacheOnly;
+
+
+                // Per-eye inverse camera transforms
+                data.invViewProj0 =
+                    invViewProjLeft;
+
+                data.invViewProj1 =
+                    invViewProjRight;
+
+                data.eyePosition0 =
+                    eyePositionLeft;
+
+                data.eyePosition1 =
+                    eyePositionRight;
+
+
                 builder.UseBuffer(
                     luminanceHandle,
                     AccessFlags.Read
@@ -674,6 +948,15 @@ public class GaiaStarRenderFeature :
                 }
 
 
+                if (farCacheValid)
+                {
+                    builder.UseTexture(
+                        farCacheHandle,
+                        AccessFlags.Read
+                    );
+                }
+
+
                 builder.SetRenderAttachment(
                     starHDR,
                     0,
@@ -681,8 +964,6 @@ public class GaiaStarRenderFeature :
                 );
 
 
-                // Export the generated texture through
-                // RenderGraph's global-texture mechanism.
                 builder.SetGlobalTextureAfterPass(
                     starHDR,
                     StarHDRID
@@ -706,15 +987,7 @@ public class GaiaStarRenderFeature :
 
 
             // ============================================================
-            // 2. Bright-star prefilter
-            //
-            // Full resolution:
-            //
-            // starHDR
-            //    ↓
-            // brightStars
-            //
-            // Only sufficiently bright pixels survive.
+            // Bright-star prefilter
             // ============================================================
 
             TextureHandle brightStars =
@@ -732,27 +1005,13 @@ public class GaiaStarRenderFeature :
                 glareMaterial,
                 starHDR,
                 brightStars,
-                0,
+                1,
                 "Gaia Glare Prefilter"
             );
 
 
             // ============================================================
-            // 3. Glare pyramid
-            //
-            // Level 0 = 1/2 resolution
-            // Level 1 = 1/4
-            // Level 2 = 1/8
-            // Level 3 = 1/16
-            // Level 4 = 1/32
-            //
-            // Each level:
-            //
-            //       downsample
-            //            ↓
-            //      horizontal blur
-            //            ↓
-            //       vertical blur
+            // Glare pyramid
             // ============================================================
 
             TextureHandle currentSource =
@@ -801,7 +1060,6 @@ public class GaiaStarRenderFeature :
                     );
 
 
-                // Downsample
                 AddBlitPass(
                     renderGraph,
                     glareMaterial,
@@ -812,7 +1070,6 @@ public class GaiaStarRenderFeature :
                 );
 
 
-                // Horizontal blur
                 AddBlitPass(
                     renderGraph,
                     glareMaterial,
@@ -823,7 +1080,6 @@ public class GaiaStarRenderFeature :
                 );
 
 
-                // Vertical blur
                 AddBlitPass(
                     renderGraph,
                     glareMaterial,
@@ -856,13 +1112,7 @@ public class GaiaStarRenderFeature :
 
 
             // ============================================================
-            // 4. Final composite
-            //
-            // camera
-            //   +
-            // star HDR
-            //   +
-            // glare pyramid
+            // Final composite
             // ============================================================
 
             TextureHandle finalTarget =
@@ -893,14 +1143,12 @@ public class GaiaStarRenderFeature :
                     finalTarget;
 
 
-                // Camera input.
                 builder.UseTexture(
                     data.cameraColor,
                     AccessFlags.Read
                 );
 
 
-                // These are consumed as global textures.
                 builder.UseGlobalTexture(
                     StarHDRID,
                     AccessFlags.Read
@@ -955,9 +1203,56 @@ public class GaiaStarRenderFeature :
             }
 
 
-            // Avoid an additional blit back into the camera target.
             resourceData.cameraColor =
                 finalTarget;
+        }
+
+
+        // ================================================================
+        // External far-cache RTHandle
+        // ================================================================
+
+        private void UpdateFarCacheRTHandle(
+            RenderTexture texture
+        )
+        {
+            if (texture == null)
+            {
+                ReleaseFarCacheRTHandle();
+                return;
+            }
+
+
+            if (farCacheRTHandle != null &&
+                farCacheTextureReference == texture)
+            {
+                return;
+            }
+
+
+            ReleaseFarCacheRTHandle();
+
+
+            farCacheRTHandle =
+                RTHandles.Alloc(
+                    texture
+                );
+
+            farCacheTextureReference =
+                texture;
+        }
+
+
+        private void ReleaseFarCacheRTHandle()
+        {
+            if (farCacheRTHandle != null)
+            {
+                farCacheRTHandle.Release();
+                farCacheRTHandle = null;
+            }
+
+            farCacheTextureReference =
+                null;
         }
 
 
@@ -1026,10 +1321,6 @@ public class GaiaStarRenderFeature :
                         RasterGraphContext context
                     ) =>
                     {
-                        // Nothing to execute.
-                        //
-                        // SetGlobalTextureAfterPass() tells
-                        // RenderGraph how to expose the resource.
                     }
                 );
             }
@@ -1112,6 +1403,10 @@ public class GaiaStarRenderFeature :
         }
 
 
+        // ================================================================
+        // Compute rasterization
+        // ================================================================
+
         private static void ExecuteComputePass(
             ComputePassData data,
             ComputeGraphContext context
@@ -1149,6 +1444,7 @@ public class GaiaStarRenderFeature :
                 data.eyeCount
             );
 
+
             int clearGroupsX =
                 Mathf.CeilToInt(
                     data.width / 8.0f
@@ -1159,6 +1455,7 @@ public class GaiaStarRenderFeature :
                     data.height / 8.0f
                 );
 
+
             context.cmd.DispatchCompute(
                 data.computeShader,
                 data.clearKernel,
@@ -1166,6 +1463,7 @@ public class GaiaStarRenderFeature :
                 clearGroupsY,
                 data.eyeCount
             );
+
 
             context.cmd.SetComputeFloatParam(
                 data.computeShader,
@@ -1209,6 +1507,37 @@ public class GaiaStarRenderFeature :
                 data.viewProj1
             );
 
+
+            // ============================================================
+            // Live/far separation
+            // ============================================================
+
+            context.cmd.SetComputeIntParam(
+                data.computeShader,
+                UseFarCacheCutoffID,
+                data.useFarCacheCutoff ? 1 : 0
+            );
+
+
+            context.cmd.SetComputeVectorParam(
+                data.computeShader,
+                FarCachePositionID,
+                new Vector4(
+                    data.farCachePosition.x,
+                    data.farCachePosition.y,
+                    data.farCachePosition.z,
+                    0.0f
+                )
+            );
+
+
+            context.cmd.SetComputeFloatParam(
+                data.computeShader,
+                FarCacheDistanceID,
+                data.farCacheDistance
+            );
+
+
             for (
                 int i = 0;
                 i < data.starBuffers.Length;
@@ -1220,6 +1549,7 @@ public class GaiaStarRenderFeature :
 
                 int count =
                     data.starCounts[i];
+
 
                 context.cmd.SetComputeBufferParam(
                     data.computeShader,
@@ -1254,10 +1584,12 @@ public class GaiaStarRenderFeature :
                     data.starFades[i]
                 );
 
+
                 int rasterGroupsX =
                     Mathf.CeilToInt(
                         count / 64.0f
                     );
+
 
                 context.cmd.DispatchCompute(
                     data.computeShader,
@@ -1268,6 +1600,7 @@ public class GaiaStarRenderFeature :
                 );
             }
         }
+
 
         // ================================================================
         // Star buffer → HDR
@@ -1323,6 +1656,58 @@ public class GaiaStarRenderFeature :
             data.material.SetFloat(
                 ColorMaxCompositeID,
                 data.colorMax
+            );
+
+
+            // ============================================================
+            // Far panorama
+            // ============================================================
+
+            data.material.SetFloat(
+                FarStarCacheValidID,
+                data.farCacheValid
+                    ? 1.0f
+                    : 0.0f
+            );
+
+
+            data.material.SetFloat(
+                FarStarCacheOnlyID,
+                data.farCacheOnly
+                    ? 1.0f
+                    : 0.0f
+            );
+
+
+            if (data.farCacheValid &&
+                data.farCacheTexture != null)
+            {
+                data.material.SetTexture(
+                    FarStarCacheID,
+                    data.farCacheTexture
+                );
+            }
+
+
+            data.material.SetMatrix(
+                InvViewProj0ID,
+                data.invViewProj0
+            );
+
+            data.material.SetMatrix(
+                InvViewProj1ID,
+                data.invViewProj1
+            );
+
+
+            data.material.SetVector(
+                EyePosition0ID,
+                data.eyePosition0
+            );
+
+            data.material.SetVector(
+                EyePosition1ID,
+                data.eyePosition1
             );
 
 
@@ -1478,6 +1863,8 @@ public class GaiaStarRenderFeature :
         {
             ReleaseBuffers();
 
+            ReleaseFarCacheRTHandle();
+
 
             if (starCompositeMaterial != null)
             {
@@ -1532,6 +1919,19 @@ public class GaiaStarRenderFeature :
 
             public float colorMin;
             public float colorMax;
+
+
+            // Far cache
+            public RenderTexture farCacheTexture;
+            public TextureHandle farCacheHandle;
+            public bool farCacheValid;
+            public bool farCacheOnly;
+
+            public Matrix4x4 invViewProj0;
+            public Matrix4x4 invViewProj1;
+
+            public Vector4 eyePosition0;
+            public Vector4 eyePosition1;
         }
 
 
@@ -1542,6 +1942,7 @@ public class GaiaStarRenderFeature :
             public TextureHandle cameraColor;
             public TextureHandle destination;
         }
+
 
         private class ComputePassData
         {
@@ -1570,6 +1971,12 @@ public class GaiaStarRenderFeature :
 
             public Matrix4x4 viewProj0;
             public Matrix4x4 viewProj1;
+
+
+            // Far-cache cutoff
+            public bool useFarCacheCutoff;
+            public Vector3 farCachePosition;
+            public float farCacheDistance;
         }
 
 

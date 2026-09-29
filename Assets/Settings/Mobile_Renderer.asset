@@ -72,3 +72,5 @@ MonoBehaviour:
   glareShader: {fileID: 4800000, guid: 4669d208c16e8194198ca0486b80534e, type: 3}
   finalCompositeShader: {fileID: 4800000, guid: 2b99cb4e47111eb45a87319b26eb4ba2, type: 3}
   rasterizer: {fileID: 0}
+  farStarCache: {fileID: 0}
+  farCacheOnly: 0

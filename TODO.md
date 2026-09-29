@@ -68,3 +68,5 @@ so 6.5 mil of them dont have GSP-Phot distances thus not used. fix the prob and 
 - fix the stars fading. when moving close or away from the stars, they should fade in and out at the rage of the angle. but they actually pop in and out when moving around
 
 - update the readme, rn it talks about the rendering of the stars, but also add the LOD system used
+
+- make so that the far stars cache distance would depend on the players speed. and the mslod part always has a star limit so it doesnt cares if the volume is too big

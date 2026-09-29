@@ -72,6 +72,26 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
     private int rootNodeId = 0;
 
     // --------------------------------------------------------
+    // Public information for the far-cache system
+    // --------------------------------------------------------
+
+    public int NodeCount
+    {
+        get
+        {
+            return nodes.Count;
+        }
+    }
+
+    public int RootNodeId
+    {
+        get
+        {
+            return rootNodeId;
+        }
+    }
+
+    // --------------------------------------------------------
     // Unity
     // --------------------------------------------------------
 
@@ -155,6 +175,98 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
 
             UpdateStreaming();
         }
+    }
+
+    // --------------------------------------------------------
+    // Public node API
+    //
+    // Used later by GaiaFarStarCache.
+    // These functions do not change the existing live LOD.
+    // --------------------------------------------------------
+
+    public bool TryGetNodeInfo(
+        uint nodeId,
+        out GaiaLODNodeInfo info)
+    {
+        if (nodeId >= nodes.Count)
+        {
+            info =
+                default;
+
+            return false;
+        }
+
+        LODNode node =
+            nodes[(int)nodeId];
+
+        info =
+            new GaiaLODNodeInfo
+            {
+                nodeId =
+                    node.nodeId,
+
+                center =
+                    node.center,
+
+                halfSize =
+                    node.halfSize,
+
+                depth =
+                    node.depth,
+
+                starCount =
+                    node.starCount,
+
+                childCount =
+                    node.childCount
+            };
+
+        return true;
+    }
+
+    public int GetChildNodeId(
+        uint nodeId,
+        int childIndex)
+    {
+        if (nodeId >= nodes.Count)
+        {
+            return -1;
+        }
+
+        if (childIndex < 0 ||
+            childIndex >= 8)
+        {
+            return -1;
+        }
+
+        return
+            nodes[(int)nodeId]
+                .children[childIndex];
+    }
+
+    public Bounds GetNodeBounds(
+        uint nodeId)
+    {
+        if (nodeId >= nodes.Count)
+        {
+            return default;
+        }
+
+        LODNode node =
+            nodes[(int)nodeId];
+
+        return new Bounds(
+            node.center,
+            node.halfSize * 2.0f
+        );
+    }
+
+    public Task<GaiaStarGPU[]> LoadNodeStarsAsync(
+        uint nodeId)
+    {
+        return Task.Run(
+            () => ReadNodeStarsForExternalUse(nodeId)
+        );
     }
 
     // --------------------------------------------------------
@@ -463,24 +575,26 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
                 solidAnglePreloadRange
             );
 
-        // Too small to contribute anything.
         if (solidAngle < preloadThreshold)
         {
             return;
         }
 
         // ----------------------------------------------------
-        // This node itself is always retained.
+        // Keep this node.
         //
-        // Nodes contain their own stars, so parents cannot
-        // simply be discarded when children are loaded.
+        // Nodes contain their own stars, so parents remain
+        // useful even when children are loaded.
         // ----------------------------------------------------
 
         desiredNodeIds.Add(
             node.nodeId
         );
 
-        // Leaf: nothing below it.
+        // ----------------------------------------------------
+        // Leaf
+        // ----------------------------------------------------
+
         if (node.childCount == 0)
         {
             return;
@@ -488,10 +602,6 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
 
         // ----------------------------------------------------
         // LOD STOP
-        //
-        // The node is already small enough.
-        //
-        // Do NOT descend further.
         // ----------------------------------------------------
 
         if (solidAngle < solidAngleThreshold)
@@ -501,9 +611,6 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
 
         // ----------------------------------------------------
         // REFINE
-        //
-        // This node is large enough to justify more detail.
-        // Keep this node AND inspect its children.
         // ----------------------------------------------------
 
         for (int i = 0; i < 8; i++)
@@ -919,8 +1026,8 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
         byte[] data =
             File.ReadAllBytes(filePath);
 
-        StarGPU[] stars =
-            new StarGPU[node.starCount];
+        GaiaStarGPU[] stars =
+            new GaiaStarGPU[node.starCount];
 
         using MemoryStream stream =
             new MemoryStream(data);
@@ -934,7 +1041,7 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
             i++)
         {
             stars[i] =
-                new StarGPU
+                new GaiaStarGPU
                 {
                     position =
                         new Vector3(
@@ -961,6 +1068,99 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
             );
 
         return result;
+    }
+
+    // --------------------------------------------------------
+    // External/background node loading
+    //
+    // This is intentionally separate from the live streaming
+    // queue. GaiaFarStarCache will use this to load one node,
+    // process it, and then release it.
+    // --------------------------------------------------------
+
+    private GaiaStarGPU[] ReadNodeStarsForExternalUse(
+        uint nodeId)
+    {
+        if (nodeId >= nodes.Count)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(nodeId),
+                $"Invalid LOD node ID: {nodeId}"
+            );
+        }
+
+        LODNode node =
+            nodes[(int)nodeId];
+
+        string filePath =
+            Path.Combine(
+                projectRoot,
+                lodDirectory,
+                "particles",
+                $"particles_{nodeId:00000000}.bin"
+            );
+
+        if (!File.Exists(filePath))
+        {
+            throw new FileNotFoundException(
+                "LOD particle file not found.",
+                filePath
+            );
+        }
+
+        long fileSize =
+            new FileInfo(filePath).Length;
+
+        long expectedSize =
+            (long)node.starCount *
+            STAR_GPU_SIZE;
+
+        if (fileSize != expectedSize)
+        {
+            throw new InvalidDataException(
+                "LOD particle size mismatch.\n" +
+                $"Node: {nodeId}\n" +
+                $"Expected: {expectedSize} bytes\n" +
+                $"Actual: {fileSize} bytes"
+            );
+        }
+
+        byte[] data =
+            File.ReadAllBytes(filePath);
+
+        GaiaStarGPU[] stars =
+            new GaiaStarGPU[node.starCount];
+
+        using MemoryStream stream =
+            new MemoryStream(data);
+
+        using BinaryReader reader =
+            new BinaryReader(stream);
+
+        for (
+            int i = 0;
+            i < node.starCount;
+            i++)
+        {
+            stars[i] =
+                new GaiaStarGPU
+                {
+                    position =
+                        new Vector3(
+                            reader.ReadSingle(),
+                            reader.ReadSingle(),
+                            reader.ReadSingle()
+                        ),
+
+                    magnitude =
+                        reader.ReadSingle(),
+
+                    bpRp =
+                        reader.ReadSingle()
+                };
+        }
+
+        return stars;
     }
 
     // --------------------------------------------------------
@@ -1306,14 +1506,34 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
 
         public uint nodeId;
 
-        public StarGPU[] stars;
+        public GaiaStarGPU[] stars;
 
         public Bounds drawBounds;
 
         public string errorMessage;
     }
 
-    private struct StarGPU
+    // --------------------------------------------------------
+    // Public node metadata
+    // --------------------------------------------------------
+
+    public struct GaiaLODNodeInfo
+    {
+        public uint nodeId;
+
+        public Vector3 center;
+        public Vector3 halfSize;
+
+        public uint depth;
+        public uint starCount;
+        public uint childCount;
+    }
+
+    // --------------------------------------------------------
+    // Public GPU star format
+    // --------------------------------------------------------
+
+    public struct GaiaStarGPU
     {
         public Vector3 position;
         public float magnitude;
