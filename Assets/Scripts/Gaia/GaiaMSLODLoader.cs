@@ -8,10 +8,14 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
 {
     [Header("LOD Data")]
     [SerializeField]
-    private string lodDirectory = "Data/Gaia/lod_test";
+    private string lodDirectory = "Data/Gaia/lod";
 
     [SerializeField]
     private Camera targetCamera;
+
+    [Header("Cluster Filtering")]
+    [SerializeField]
+    private GaiaClusterFilter clusterFilter;
 
     [Header("LOD Selection")]
     [SerializeField]
@@ -49,6 +53,7 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
     private string lastLoggedDepths = "";
 
     private const int STAR_GPU_SIZE = 20;
+    private const int SOURCE_ID_SIZE = 8;
 
     private readonly List<LODNode> nodes =
         new List<LODNode>();
@@ -71,6 +76,8 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
     private string projectRoot;
     private int rootNodeId = 0;
 
+    private int activeFilterRevision = 0;
+
     // --------------------------------------------------------
     // Public information for the far-cache system
     // --------------------------------------------------------
@@ -88,6 +95,14 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
         get
         {
             return rootNodeId;
+        }
+    }
+
+    public int FilterRevision
+    {
+        get
+        {
+            return activeFilterRevision;
         }
     }
 
@@ -111,6 +126,18 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
             return;
         }
 
+        if (clusterFilter == null)
+        {
+            clusterFilter =
+                GetComponent<GaiaClusterFilter>();
+        }
+
+        if (clusterFilter == null)
+        {
+            clusterFilter =
+                FindAnyObjectByType<GaiaClusterFilter>();
+        }
+
         projectRoot =
             Directory.GetParent(
                 Application.dataPath
@@ -120,6 +147,9 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
         {
             return;
         }
+
+        activeFilterRevision =
+            GetCurrentFilterRevision();
 
         lastStreamPosition =
             targetCamera.transform.position;
@@ -132,12 +162,14 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
 
     private void Update()
     {
-        ProcessCompletedLoads();
-
         if (targetCamera == null)
         {
             return;
         }
+
+        HandleFilterChanges();
+
+        ProcessCompletedLoads();
 
         Transform cameraTransform =
             targetCamera.transform;
@@ -149,7 +181,8 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
             cameraTransform.rotation;
 
         Vector3 movement =
-            currentPosition - lastStreamPosition;
+            currentPosition -
+            lastStreamPosition;
 
         float movementSquared =
             movement.sqrMagnitude;
@@ -178,10 +211,93 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
     }
 
     // --------------------------------------------------------
+    // Filter changes
+    // --------------------------------------------------------
+
+    private void HandleFilterChanges()
+    {
+        int currentRevision =
+            GetCurrentFilterRevision();
+
+        if (currentRevision ==
+            activeFilterRevision)
+        {
+            return;
+        }
+
+        activeFilterRevision =
+            currentRevision;
+
+        if (verboseLogging)
+        {
+            Debug.Log(
+                "GaiaMSLODLoader: Cluster filter changed. " +
+                "Reloading loaded nodes."
+            );
+        }
+
+        InvalidateLoadedNodes();
+
+        UpdateStreaming();
+    }
+
+    private int GetCurrentFilterRevision()
+    {
+        if (clusterFilter == null)
+        {
+            return 0;
+        }
+
+        return clusterFilter.Revision;
+    }
+
+    private GaiaClusterFilterSettings GetCurrentFilterSettings()
+    {
+        if (clusterFilter == null)
+        {
+            return default;
+        }
+
+        GaiaClusterFilterSettings settings =
+            clusterFilter.CreateSnapshot();
+
+        // Do not filter anything when the database failed
+        // to load. This keeps the normal Gaia renderer usable.
+        if (clusterFilter.Database == null)
+        {
+            settings.enabled = false;
+        }
+
+        return settings;
+    }
+
+    private bool ShouldKeepStar(
+        ulong sourceId,
+        GaiaClusterFilterSettings settings)
+    {
+        if (!settings.enabled)
+        {
+            return true;
+        }
+
+        if (clusterFilter == null ||
+            clusterFilter.Database == null)
+        {
+            return true;
+        }
+
+        return clusterFilter.Database
+            .StarHasMatchingCluster(
+                sourceId,
+                settings
+            );
+    }
+
+    // --------------------------------------------------------
     // Public node API
     //
     // Used later by GaiaFarStarCache.
-    // These functions do not change the existing live LOD.
+    // These functions do not change the existing live LOD API.
     // --------------------------------------------------------
 
     public bool TryGetNodeInfo(
@@ -264,8 +380,19 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
     public Task<GaiaStarGPU[]> LoadNodeStarsAsync(
         uint nodeId)
     {
+        GaiaClusterFilterSettings filterSettings =
+            GetCurrentFilterSettings();
+
+        int filterRevision =
+            GetCurrentFilterRevision();
+
         return Task.Run(
-            () => ReadNodeStarsForExternalUse(nodeId)
+            () =>
+                ReadNodeStarsForExternalUse(
+                    nodeId,
+                    filterSettings,
+                    filterRevision
+                )
         );
     }
 
@@ -954,22 +1081,38 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
     {
         loadingNodes.Add(nodeId);
 
+        GaiaClusterFilterSettings filterSettings =
+            GetCurrentFilterSettings();
+
+        int filterRevision =
+            GetCurrentFilterRevision();
+
         Task<NodeLoadResult> task =
             Task.Run(
-                () => ReadNodeFromDisk(nodeId)
+                () =>
+                    ReadNodeFromDisk(
+                        nodeId,
+                        filterSettings,
+                        filterRevision
+                    )
             );
 
         loadingTasks.Add(task);
     }
 
     private NodeLoadResult ReadNodeFromDisk(
-        uint nodeId)
+        uint nodeId,
+        GaiaClusterFilterSettings filterSettings,
+        int filterRevision)
     {
         NodeLoadResult result =
             new NodeLoadResult();
 
         result.nodeId =
             nodeId;
+
+        result.filterRevision =
+            filterRevision;
 
         if (nodeId >= nodes.Count)
         {
@@ -984,7 +1127,7 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
         LODNode node =
             nodes[(int)nodeId];
 
-        string filePath =
+        string particlePath =
             Path.Combine(
                 projectRoot,
                 lodDirectory,
@@ -992,74 +1135,187 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
                 $"particles_{nodeId:00000000}.bin"
             );
 
-        if (!File.Exists(filePath))
+        if (!File.Exists(particlePath))
         {
             result.success = false;
 
             result.errorMessage =
                 "LOD particle file not found:\n" +
-                filePath;
+                particlePath;
 
             return result;
         }
 
-        long fileSize =
-            new FileInfo(filePath).Length;
+        long particleFileSize =
+            new FileInfo(
+                particlePath
+            ).Length;
 
-        long expectedSize =
+        long expectedParticleSize =
             (long)node.starCount *
             STAR_GPU_SIZE;
 
-        if (fileSize != expectedSize)
+        if (particleFileSize !=
+            expectedParticleSize)
         {
             result.success = false;
 
             result.errorMessage =
                 "LOD particle size mismatch.\n" +
                 $"Node: {nodeId}\n" +
-                $"Expected: {expectedSize} bytes\n" +
-                $"Actual: {fileSize} bytes";
+                $"Expected: {expectedParticleSize} bytes\n" +
+                $"Actual: {particleFileSize} bytes";
 
             return result;
         }
 
-        byte[] data =
-            File.ReadAllBytes(filePath);
+        bool useFilter =
+            filterSettings.enabled;
 
-        GaiaStarGPU[] stars =
-            new GaiaStarGPU[node.starCount];
+        byte[] particleData =
+            File.ReadAllBytes(
+                particlePath
+            );
 
-        using MemoryStream stream =
-            new MemoryStream(data);
+        byte[] sourceIdData = null;
 
-        using BinaryReader reader =
-            new BinaryReader(stream);
+        if (useFilter)
+        {
+            string sourceIdPath =
+                Path.Combine(
+                    projectRoot,
+                    lodDirectory,
+                    "source_ids",
+                    $"source_ids_{nodeId:00000000}.bin"
+                );
+
+            if (!File.Exists(sourceIdPath))
+            {
+                result.success = false;
+
+                result.errorMessage =
+                    "LOD source ID sidecar not found:\n" +
+                    sourceIdPath;
+
+                return result;
+            }
+
+            long sourceIdFileSize =
+                new FileInfo(
+                    sourceIdPath
+                ).Length;
+
+            long expectedSourceIdSize =
+                (long)node.starCount *
+                SOURCE_ID_SIZE;
+
+            if (sourceIdFileSize !=
+                expectedSourceIdSize)
+            {
+                result.success = false;
+
+                result.errorMessage =
+                    "LOD source ID size mismatch.\n" +
+                    $"Node: {nodeId}\n" +
+                    $"Expected: {expectedSourceIdSize} bytes\n" +
+                    $"Actual: {sourceIdFileSize} bytes";
+
+                return result;
+            }
+
+            sourceIdData =
+                File.ReadAllBytes(
+                    sourceIdPath
+                );
+        }
+
+        if (!useFilter)
+        {
+            GaiaStarGPU[] stars =
+                new GaiaStarGPU[node.starCount];
+
+            using MemoryStream stream =
+                new MemoryStream(
+                    particleData
+                );
+
+            using BinaryReader reader =
+                new BinaryReader(stream);
+
+            for (
+                int i = 0;
+                i < node.starCount;
+                i++)
+            {
+                stars[i] =
+                    ReadStar(
+                        reader
+                    );
+            }
+
+            result.success = true;
+            result.stars = stars;
+
+            result.drawBounds =
+                new Bounds(
+                    node.center,
+                    node.halfSize * 2.0f
+                );
+
+            return result;
+        }
+
+        List<GaiaStarGPU> filteredStars =
+            new List<GaiaStarGPU>(
+                (int)node.starCount
+            );
+
+        using MemoryStream particleStream =
+            new MemoryStream(
+                particleData
+            );
+
+        using BinaryReader particleReader =
+            new BinaryReader(
+                particleStream
+            );
+
+        using MemoryStream sourceIdStream =
+            new MemoryStream(
+                sourceIdData
+            );
+
+        using BinaryReader sourceIdReader =
+            new BinaryReader(
+                sourceIdStream
+            );
 
         for (
             int i = 0;
             i < node.starCount;
             i++)
         {
-            stars[i] =
-                new GaiaStarGPU
-                {
-                    position =
-                        new Vector3(
-                            reader.ReadSingle(),
-                            reader.ReadSingle(),
-                            reader.ReadSingle()
-                        ),
+            GaiaStarGPU star =
+                ReadStar(
+                    particleReader
+                );
 
-                    magnitude =
-                        reader.ReadSingle(),
+            ulong sourceId =
+                sourceIdReader.ReadUInt64();
 
-                    bpRp =
-                        reader.ReadSingle()
-                };
+            if (ShouldKeepStar(
+                    sourceId,
+                    filterSettings))
+            {
+                filteredStars.Add(
+                    star
+                );
+            }
         }
 
         result.success = true;
-        result.stars = stars;
+        result.stars =
+            filteredStars.ToArray();
 
         result.drawBounds =
             new Bounds(
@@ -1073,13 +1329,15 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
     // --------------------------------------------------------
     // External/background node loading
     //
-    // This is intentionally separate from the live streaming
-    // queue. GaiaFarStarCache will use this to load one node,
-    // process it, and then release it.
+    // GaiaFarStarCache uses this function.
+    //
+    // It uses the same cluster filtering as the live renderer.
     // --------------------------------------------------------
 
     private GaiaStarGPU[] ReadNodeStarsForExternalUse(
-        uint nodeId)
+        uint nodeId,
+        GaiaClusterFilterSettings filterSettings,
+        int filterRevision)
     {
         if (nodeId >= nodes.Count)
         {
@@ -1092,7 +1350,7 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
         LODNode node =
             nodes[(int)nodeId];
 
-        string filePath =
+        string particlePath =
             Path.Combine(
                 projectRoot,
                 lodDirectory,
@@ -1100,67 +1358,176 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
                 $"particles_{nodeId:00000000}.bin"
             );
 
-        if (!File.Exists(filePath))
+        if (!File.Exists(particlePath))
         {
             throw new FileNotFoundException(
                 "LOD particle file not found.",
-                filePath
+                particlePath
             );
         }
 
-        long fileSize =
-            new FileInfo(filePath).Length;
+        long particleFileSize =
+            new FileInfo(
+                particlePath
+            ).Length;
 
-        long expectedSize =
+        long expectedParticleSize =
             (long)node.starCount *
             STAR_GPU_SIZE;
 
-        if (fileSize != expectedSize)
+        if (particleFileSize !=
+            expectedParticleSize)
         {
             throw new InvalidDataException(
                 "LOD particle size mismatch.\n" +
                 $"Node: {nodeId}\n" +
-                $"Expected: {expectedSize} bytes\n" +
-                $"Actual: {fileSize} bytes"
+                $"Expected: {expectedParticleSize} bytes\n" +
+                $"Actual: {particleFileSize} bytes"
             );
         }
 
-        byte[] data =
-            File.ReadAllBytes(filePath);
+        byte[] particleData =
+            File.ReadAllBytes(
+                particlePath
+            );
 
-        GaiaStarGPU[] stars =
-            new GaiaStarGPU[node.starCount];
+        if (!filterSettings.enabled)
+        {
+            GaiaStarGPU[] stars =
+                new GaiaStarGPU[node.starCount];
 
-        using MemoryStream stream =
-            new MemoryStream(data);
+            using MemoryStream stream =
+                new MemoryStream(
+                    particleData
+                );
 
-        using BinaryReader reader =
-            new BinaryReader(stream);
+            using BinaryReader reader =
+                new BinaryReader(stream);
+
+            for (
+                int i = 0;
+                i < node.starCount;
+                i++)
+            {
+                stars[i] =
+                    ReadStar(
+                        reader
+                    );
+            }
+
+            return stars;
+        }
+
+        string sourceIdPath =
+            Path.Combine(
+                projectRoot,
+                lodDirectory,
+                "source_ids",
+                $"source_ids_{nodeId:00000000}.bin"
+            );
+
+        if (!File.Exists(sourceIdPath))
+        {
+            throw new FileNotFoundException(
+                "LOD source ID sidecar not found.",
+                sourceIdPath
+            );
+        }
+
+        long sourceIdFileSize =
+            new FileInfo(
+                sourceIdPath
+            ).Length;
+
+        long expectedSourceIdSize =
+            (long)node.starCount *
+            SOURCE_ID_SIZE;
+
+        if (sourceIdFileSize !=
+            expectedSourceIdSize)
+        {
+            throw new InvalidDataException(
+                "LOD source ID size mismatch.\n" +
+                $"Node: {nodeId}\n" +
+                $"Expected: {expectedSourceIdSize} bytes\n" +
+                $"Actual: {sourceIdFileSize} bytes"
+            );
+        }
+
+        byte[] sourceIdData =
+            File.ReadAllBytes(
+                sourceIdPath
+            );
+
+        List<GaiaStarGPU> filteredStars =
+            new List<GaiaStarGPU>(
+                (int)node.starCount
+            );
+
+        using MemoryStream particleStream =
+            new MemoryStream(
+                particleData
+            );
+
+        using BinaryReader particleReader =
+            new BinaryReader(
+                particleStream
+            );
+
+        using MemoryStream sourceIdStream =
+            new MemoryStream(
+                sourceIdData
+            );
+
+        using BinaryReader sourceIdReader =
+            new BinaryReader(
+                sourceIdStream
+            );
 
         for (
             int i = 0;
             i < node.starCount;
             i++)
         {
-            stars[i] =
-                new GaiaStarGPU
-                {
-                    position =
-                        new Vector3(
-                            reader.ReadSingle(),
-                            reader.ReadSingle(),
-                            reader.ReadSingle()
-                        ),
+            GaiaStarGPU star =
+                ReadStar(
+                    particleReader
+                );
 
-                    magnitude =
-                        reader.ReadSingle(),
+            ulong sourceId =
+                sourceIdReader.ReadUInt64();
 
-                    bpRp =
-                        reader.ReadSingle()
-                };
+            if (ShouldKeepStar(
+                    sourceId,
+                    filterSettings))
+            {
+                filteredStars.Add(
+                    star
+                );
+            }
         }
 
-        return stars;
+        return filteredStars.ToArray();
+    }
+
+    private static GaiaStarGPU ReadStar(
+        BinaryReader reader)
+    {
+        return new GaiaStarGPU
+        {
+            position =
+                new Vector3(
+                    reader.ReadSingle(),
+                    reader.ReadSingle(),
+                    reader.ReadSingle()
+                ),
+
+            magnitude =
+                reader.ReadSingle(),
+
+            bpRp =
+                reader.ReadSingle()
+        };
     }
 
     // --------------------------------------------------------
@@ -1213,6 +1580,14 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
                 continue;
             }
 
+            // The filter changed while this node was loading.
+            // Do not install the stale result.
+            if (result.filterRevision !=
+                activeFilterRevision)
+            {
+                continue;
+            }
+
             // Camera may have moved while the file was loading.
             if (!desiredNodeIds.Contains(
                     result.nodeId))
@@ -1226,16 +1601,21 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
                 continue;
             }
 
-            GraphicsBuffer buffer =
-                new GraphicsBuffer(
-                    GraphicsBuffer.Target.Structured,
-                    result.stars.Length,
-                    STAR_GPU_SIZE
-                );
+            GraphicsBuffer buffer = null;
 
-            buffer.SetData(
-                result.stars
-            );
+            if (result.stars.Length > 0)
+            {
+                buffer =
+                    new GraphicsBuffer(
+                        GraphicsBuffer.Target.Structured,
+                        result.stars.Length,
+                        STAR_GPU_SIZE
+                    );
+
+                buffer.SetData(
+                    result.stars
+                );
+            }
 
             LoadedNode loaded =
                 new LoadedNode();
@@ -1298,6 +1678,27 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
                 $"Unloaded Gaia LOD node {nodeId}."
             );
         }
+    }
+
+    private void InvalidateLoadedNodes()
+    {
+        foreach (
+            LoadedNode node
+            in loadedNodes.Values)
+        {
+            if (node == null)
+            {
+                continue;
+            }
+
+            if (node.buffer != null)
+            {
+                node.buffer.Release();
+                node.buffer = null;
+            }
+        }
+
+        loadedNodes.Clear();
     }
 
     // --------------------------------------------------------
@@ -1511,6 +1912,8 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
         public Bounds drawBounds;
 
         public string errorMessage;
+
+        public int filterRevision;
     }
 
     // --------------------------------------------------------

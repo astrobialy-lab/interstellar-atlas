@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "clusters": 7167,
+  "memberships": 1291929,
+  "unique_member_stars": 1290001,
+  "cluster_record_bytes": 136,
+  "membership_record_bytes": 16,
+  "membership_sorted_by": "GaiaDR3/source_id",
+  "cluster_types": {
+    "g": 132,
+    "m": 1309,
+    "o": 5647,
+    "d": 62,
+    "r": 17
+  }
+}

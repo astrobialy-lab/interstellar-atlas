@@ -70,3 +70,10 @@ so 6.5 mil of them dont have GSP-Phot distances thus not used. fix the prob and 
 - update the readme, rn it talks about the rendering of the stars, but also add the LOD system used
 
 - make so that the far stars cache distance would depend on the players speed. and the mslod part always has a star limit so it doesnt cares if the volume is too big
+
+- update Clusters_README
+
+- regenerate far stars cache when new filter is applied (as well when updating the MDLOD)
+
+- add stars filtering ui
+- as well as ladnmarks traveling choice ui

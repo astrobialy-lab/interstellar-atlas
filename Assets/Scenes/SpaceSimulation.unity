@@ -1274,6 +1274,7 @@ GameObject:
   - component: {fileID: 586631267}
   - component: {fileID: 586631266}
   - component: {fileID: 586631268}
+  - component: {fileID: 586631269}
   m_Layer: 0
   m_Name: GaiaStars
   m_TagString: Untagged
@@ -1341,6 +1342,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::GaiaMSLODLoader
   lodDirectory: Data/Gaia/lod
   targetCamera: {fileID: 330585545}
+  clusterFilter: {fileID: 0}
   solidAngleThreshold: 0.00024
   solidAngleFadeRange: 0.00012
   solidAnglePreloadRange: 0.00006
@@ -1371,6 +1373,35 @@ MonoBehaviour:
   farCacheDistance: 10000
   cacheAngularErrorDegrees: 1
   cacheNodeAngularDiameterDegrees: 0.35
+--- !u!114 &586631269
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 586631262}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 74f04fe32a4e94b46ae686f8e3c82020, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::GaiaClusterFilter
+  clusterDirectory: Data/Clusters/HuntReffert2024
+  filterEnabled: 1
+  useMembershipProbability: 0
+  minMembershipProbability: 0
+  useAgeRange: 0
+  minLogAge: 0
+  maxLogAge: 20
+  useDistanceRange: 0
+  minDistancePc: 0
+  maxDistancePc: 100000
+  useTotalMassRange: 0
+  minTotalMass: 0
+  maxTotalMass: 3.4028235e+38
+  requireInRj: 0
+  requireInRt: 0
+  useTypeCode: 0
+  typeCode: 0
 --- !u!1 &938372574
 GameObject:
   m_ObjectHideFlags: 0
