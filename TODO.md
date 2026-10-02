@@ -77,3 +77,5 @@ so 6.5 mil of them dont have GSP-Phot distances thus not used. fix the prob and 
 
 - add stars filtering ui
 - as well as ladnmarks traveling choice ui
+
+- make all of the popups cool. ask for chatgpt for a cool space design picture as a demonstration.

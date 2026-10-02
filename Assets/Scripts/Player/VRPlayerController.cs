@@ -19,6 +19,13 @@ public class VRPlayerController : MonoBehaviour
     public float speedChangeFactor = 2.0f;
     public float turnSpeed = 35.0f;
 
+    [Header("Fast Travel")]
+    public float fastTravelDuration = 3.0f;
+    private bool isFastTraveling = false;
+    private Vector3 fastTravelStart;
+    private Vector3 fastTravelTarget;
+    private float fastTravelTime;
+
     public float inputDeadzone = 0.15f;
     public float movementSmoothing = 4.0f;
     public float turnSmoothing = 4.0f;
@@ -58,6 +65,12 @@ public class VRPlayerController : MonoBehaviour
 
     private void Update()
     {
+        if (isFastTraveling)
+        {
+            UpdateFastTravel();
+            return;
+        }
+
         InputDevice leftHand =
             InputDevices.GetDeviceAtXRNode(XRNode.LeftHand);
 
@@ -138,6 +151,53 @@ public class VRPlayerController : MonoBehaviour
         HandleLandmarkSelection(rightHand);
 
         HandleLandmarkPopupClose(rightHand);
+    }
+
+    public void StartFastTravel(Vector3 destination)
+    {
+        if (isFastTraveling)
+        {
+            return;
+        }
+
+        fastTravelStart = transform.position;
+        fastTravelTarget = destination;
+        fastTravelTime = 0f;
+
+        isFastTraveling = true;
+
+        Debug.Log(
+            $"Starting fast travel from {fastTravelStart} to {fastTravelTarget}"
+        );
+    }
+
+    private void UpdateFastTravel()
+    {
+        fastTravelTime += Time.deltaTime;
+
+        float t =
+            Mathf.Clamp01(
+                fastTravelTime / fastTravelDuration
+            );
+
+        // Smooth ease-in/ease-out.
+        float smoothT =
+            t * t * (3f - 2f * t);
+
+        transform.position =
+            Vector3.Lerp(
+                fastTravelStart,
+                fastTravelTarget,
+                smoothT
+            );
+
+        if (t >= 1f)
+        {
+            transform.position = fastTravelTarget;
+            isFastTraveling = false;
+
+            Debug.Log("Fast travel complete.");
+        }
     }
 
     private void HandleSpeedControls(InputDevice leftHand)

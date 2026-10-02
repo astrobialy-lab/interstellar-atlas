@@ -27,10 +27,11 @@ public class VRMenuController : MonoBehaviour
     public TextMeshProUGUI optionText;
     public TextMeshProUGUI bodyText;
     public RectTransform bodyRect;
+    public FastTravelMenu fastTravelMenu;
 
     [Header("Controller References")]
-    public VRPlayerController tankControls;
-    public DustVisibilityController dustVisibility;
+    public VRPlayerController vrPlayerController;
+    public DesktopPlayerController desktopPlayerController;
 
     [Header("Optional Input Actions")]
     [Tooltip(
@@ -52,13 +53,6 @@ public class VRMenuController : MonoBehaviour
     public string moreUrl =
         "https://star-formation.com/";
 
-    [Header("Text Positions")]
-    public Vector2 mainBodyPosition =
-        new Vector2(0f, -280f);
-
-    public Vector2 pageBodyPosition =
-        new Vector2(0f, -80f);
-
     private bool menuOpen = false;
     private bool stickReleased = true;
 
@@ -71,6 +65,7 @@ public class VRMenuController : MonoBehaviour
     {
         "Controls",
         "About",
+        "Fast Travel",
         "Show Me More",
         "Quit"
     };
@@ -115,14 +110,14 @@ public class VRMenuController : MonoBehaviour
             menuCanvas.SetActive(false);
         }
 
-        if (tankControls != null)
+        if (vrPlayerController != null)
         {
-            tankControls.enabled = true;
+            vrPlayerController.enabled = true;
         }
 
-        if (dustVisibility != null)
+        if (desktopPlayerController != null)
         {
-            dustVisibility.ShowDust();
+            desktopPlayerController.enabled = true;
         }
     }
 
@@ -248,7 +243,23 @@ public class VRMenuController : MonoBehaviour
 
         if (yPressed)
         {
-            ToggleMenu();
+            if (fastTravelMenu != null &&
+                fastTravelMenu.IsOpen())
+            {
+                fastTravelMenu.CloseMenu();
+
+                if (menuCanvas != null)
+                {
+                    menuCanvas.SetActive(true);
+                }
+
+                selectedIndex = 0;
+                ShowMainMenu();
+            }
+            else
+            {
+                ToggleMenu();
+            }
         }
 
         if (menuOpen)
@@ -258,6 +269,25 @@ public class VRMenuController : MonoBehaviour
             if (xPressed)
             {
                 SelectOption();
+            }
+        }
+        else if (fastTravelMenu != null &&
+                 fastTravelMenu.IsOpen())
+        {
+            fastTravelMenu.HandleStickNavigation(leftStick);
+
+            if (xPressed)
+            {
+                fastTravelMenu.SelectCurrentLandmark();
+
+                menuOpen = false;
+
+                if (menuCanvas != null)
+                {
+                    menuCanvas.SetActive(false);
+                }
+
+                RestoreSceneAfterMenu();
             }
         }
 
@@ -286,14 +316,14 @@ public class VRMenuController : MonoBehaviour
             menuCanvas.SetActive(true);
         }
 
-        if (tankControls != null)
+        if (vrPlayerController != null)
         {
-            tankControls.enabled = false;
+            vrPlayerController.enabled = false;
         }
 
-        if (dustVisibility != null)
+        if (desktopPlayerController != null)
         {
-            dustVisibility.HideDust();
+            desktopPlayerController.enabled = false;
         }
 
         selectedIndex = 0;
@@ -317,14 +347,14 @@ public class VRMenuController : MonoBehaviour
 
     private void RestoreSceneAfterMenu()
     {
-        if (tankControls != null)
+        if (vrPlayerController != null)
         {
-            tankControls.enabled = true;
+            vrPlayerController.enabled = true;
         }
 
-        if (dustVisibility != null)
+        if (desktopPlayerController != null)
         {
-            dustVisibility.ShowDust();
+            desktopPlayerController.enabled = true;
         }
     }
 
@@ -363,40 +393,9 @@ public class VRMenuController : MonoBehaviour
         ShowMainMenu();
     }
 
-    private void ApplyMainBodyLayout()
-    {
-        if (bodyRect != null)
-        {
-            bodyRect.anchoredPosition =
-                mainBodyPosition;
-        }
-
-        if (bodyText != null)
-        {
-            bodyText.alignment =
-                TextAlignmentOptions.Center;
-        }
-    }
-
-    private void ApplyPageBodyLayout()
-    {
-        if (bodyRect != null)
-        {
-            bodyRect.anchoredPosition =
-                pageBodyPosition;
-        }
-
-        if (bodyText != null)
-        {
-            bodyText.alignment =
-                TextAlignmentOptions.Top;
-        }
-    }
 
     private void ShowMainMenu()
     {
-        ApplyMainBodyLayout();
-
         if (titleText != null)
         {
             titleText.text =
@@ -452,10 +451,14 @@ public class VRMenuController : MonoBehaviour
                 break;
 
             case 2:
-                Application.OpenURL(moreUrl);
+                OpenFastTravel();
                 break;
 
             case 3:
+                Application.OpenURL(moreUrl);
+                break;
+
+            case 4:
                 Application.Quit();
                 break;
         }
@@ -463,8 +466,6 @@ public class VRMenuController : MonoBehaviour
 
     private void ShowControls()
     {
-        ApplyPageBodyLayout();
-
         if (titleText != null)
         {
             titleText.text = "Controls";
@@ -478,20 +479,23 @@ public class VRMenuController : MonoBehaviour
         if (bodyText != null)
         {
             bodyText.text =
-                "Left Stick: move / turn\n" +
-                "Right Stick: strafe / rise / descend\n" +
-                "A: quality / performance   B: show / hide landmarks\n" +
-                "Left Trigger: colors   Left Grip: thickness\n" +
-                "Right Trigger: select landmark\n" +
-                "Right Grip: close landmark information\n" +
-                "Y: open / close menu   X: select";
+                @"Left Stick: move / turn
+Right Stick: strafe / rise / descend
+X: increase speed
+Y: decrease speed
+A: quality / performance particles
+B: show / hide landmarks
+Left Trigger: next color scheme
+Left Grip: cycle particle thickness
+Right Trigger: select landmark
+Right Grip: close landmark information
+Y: open / close menu
+X: select";
         }
     }
 
     private void ShowAbout()
     {
-        ApplyPageBodyLayout();
-
         if (titleText != null)
         {
             titleText.text = "About";
@@ -516,5 +520,26 @@ public class VRMenuController : MonoBehaviour
                 "can explore nearby Galactic dust " +
                 "structure from inside the data.";
         }
+    }
+
+    private void OpenFastTravel()
+    {
+        if (fastTravelMenu == null)
+        {
+            Debug.LogError(
+                "VRMenuController: Fast Travel Menu is not assigned."
+            );
+
+            return;
+        }
+
+        menuOpen = false;
+
+        if (menuCanvas != null)
+        {
+            menuCanvas.SetActive(false);
+        }
+
+        fastTravelMenu.OpenMenu();
     }
 }
