@@ -1,7 +1,9 @@
+
 from pathlib import Path
 import shutil
 import struct
 import json
+import gc
 
 import numpy as np
 
@@ -10,23 +12,11 @@ try:
     from numba.typed import Dict
 except ImportError as exc:
     raise RuntimeError(
-        "This full Gaia MS-LOD builder requires numba.\n"
+        "This Gaia MS-LOD builder requires numba.\n"
         "Install it with:\n"
         "python -m pip install numba"
     ) from exc
 
-
-# Numba typed-dict key type.
-#
-# Key:
-#   (depth, spatial_path)
-#
-# depth  = uint32
-# path   = uint64
-NODE_KEY_TYPE = types.Tuple((
-    types.uint32,
-    types.uint64
-))
 
 # ============================================================
 # Paths
@@ -35,12 +25,11 @@ NODE_KEY_TYPE = types.Tuple((
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 INPUT_DIR = PROJECT_ROOT / "Data" / "Gaia" / "chunks"
-
-# Final full-dataset output.
 OUTPUT_DIR = PROJECT_ROOT / "Data" / "Gaia" / "lod"
-
-# Temporary output while building.
 BUILD_DIR = PROJECT_ROOT / "Data" / "Gaia" / "lod_building"
+
+RUN_DIR = BUILD_DIR / "_sort_runs"
+PARTITION_DIR = BUILD_DIR / "_node_partitions"
 
 
 # ============================================================
@@ -50,48 +39,43 @@ BUILD_DIR = PROJECT_ROOT / "Data" / "Gaia" / "lod_building"
 # None = use every processed Gaia chunk.
 MAX_FILES = None
 
-# Gaia Sky MS-LOD parameter.
 N_SIGMA = 2_000
-
-# 21 spatial bits per axis is far more than we should need.
-#
-# 2^21 = 2,097,152 cells per axis.
 MAX_OCTREE_DEPTH = 21
-
-# Initial number of node slots.
-# The arrays automatically grow if needed.
 NODE_INITIAL_CAPACITY = 65_536
 
-# Hierarchy progress message interval.
-PROGRESS_INTERVAL = 5_000_000
+# Maximum number of records held while making one sorted run.
+SORT_RUN_STARS = 2_000_000
 
-# Input-file progress message interval.
+# Number of records loaded from the final sorted stream at once.
+PROCESS_BATCH_STARS = 2_000_000
+
+# Number of sorted runs merged simultaneously.
+MERGE_FAN_IN = 128
+
+# Records buffered from each input run.
+# 128 * 16,384 * 32 bytes ≈ 64 MiB.
+MERGE_BUFFER_STARS = 16_384
+
+# Output buffer.
+MERGE_OUTPUT_STARS = 1_000_000
+
+# Final output partitioning.
+#
+# Node IDs are grouped into ranges of this many nodes.
+# Each partition is therefore bounded by roughly:
+#
+#     NODE_PARTITION_SPAN * N_SIGMA * 32 bytes
+#
+# before accounting for nodes that contain fewer than N_SIGMA stars.
+NODE_PARTITION_SPAN = 1_024
+
+PROGRESS_INTERVAL = 5_000_000
 FILE_PROGRESS_INTERVAL = 5_000
 
 
 # ============================================================
 # Gaia processed record format
 # ============================================================
-#
-# 65 bytes:
-#
-# uint64 source_id
-# float  x
-# float  y
-# float  z
-# float  G
-# float  BP-RP
-# float  Teff
-# float  logg
-# float  metallicity
-# float  radius
-# float  A0
-# float  AG
-# float  ABP
-# float  ARP
-# float  E(BP-RP)
-# byte   flags
-#
 
 GAIA_DTYPE = np.dtype([
     ("source_id", "<u8"),
@@ -116,7 +100,44 @@ assert GAIA_DTYPE.itemsize == 65
 
 
 # ============================================================
-# Unity rendering record
+# Temporary sorted-run record
+# ============================================================
+
+# absolute magnitude + everything needed later
+#
+# 4 + 8 + 5*4 = 32 bytes/star
+SORT_DTYPE = np.dtype([
+    ("abs_mag", "<f4"),
+    ("source_id", "<u8"),
+    ("x", "<f4"),
+    ("y", "<f4"),
+    ("z", "<f4"),
+    ("g", "<f4"),
+    ("bp_rp", "<f4"),
+])
+
+assert SORT_DTYPE.itemsize == 32
+
+
+# ============================================================
+# Temporary node-partition record
+# ============================================================
+
+PARTITION_DTYPE = np.dtype([
+    ("node_id", "<u4"),
+    ("source_id", "<u8"),
+    ("x", "<f4"),
+    ("y", "<f4"),
+    ("z", "<f4"),
+    ("g", "<f4"),
+    ("bp_rp", "<f4"),
+])
+
+assert PARTITION_DTYPE.itemsize == 32
+
+
+# ============================================================
+# Final Unity rendering record
 # ============================================================
 
 RENDER_DTYPE = np.dtype([
@@ -137,29 +158,179 @@ assert RENDER_DTYPE.itemsize == 20
 METADATA_MAGIC = b"MSLOD001"
 METADATA_VERSION = 1
 
-HEADER_STRUCT = struct.Struct(
-    "<8sIIQI3ff"
-)
+HEADER_STRUCT = struct.Struct("<8sIIQI3ff")
 
-NODE_STRUCT = struct.Struct(
-    "<I3f3fIIQI8i"
-)
+NODE_STRUCT = struct.Struct("<I3f3fIIQI8i")
 
 
 # ============================================================
-# Count input records
+# Numba node-key type
 # ============================================================
 
-def count_input_records(files):
+# Both components are uint64 to keep the typed-dict key simple.
+#
+# key[0] = depth
+# key[1] = spatial path
+NODE_KEY_TYPE = types.UniTuple(types.uint64, 2)
 
-    counts = np.empty(
-        len(files),
-        dtype=np.int64
+
+# ============================================================
+# Make one sorted run
+# ============================================================
+
+def prepare_sort_run(chunk):
+    """
+    Validate a Gaia chunk, compute absolute G magnitude,
+    sort by absolute magnitude, and return a 32-byte run array.
+
+    Returns:
+        run
+        valid_count
+        minimum xyz
+        maximum xyz
+        invalid_count
+    """
+
+    x = chunk["x"]
+    y = chunk["y"]
+    z = chunk["z"]
+
+    with np.errstate(
+        invalid="ignore",
+        divide="ignore",
+        over="ignore"
+    ):
+
+        distance = np.sqrt(
+            x * x + y * y + z * z
+        ).astype(
+            np.float32,
+            copy=False
+        )
+
+        g = chunk["g"]
+        ag = chunk["ag"]
+
+        g_intrinsic = np.where(
+            np.isfinite(ag),
+            g - ag,
+            g
+        )
+
+        valid = (
+            np.isfinite(x)
+            & np.isfinite(y)
+            & np.isfinite(z)
+            & np.isfinite(g_intrinsic)
+            & np.isfinite(distance)
+            & (distance > 0.0)
+        )
+
+        invalid_count = int(
+            np.count_nonzero(~valid)
+        )
+
+        if invalid_count == len(chunk):
+            return (
+                None,
+                0,
+                None,
+                None,
+                invalid_count
+            )
+
+        valid_records = chunk[valid]
+        valid_distance = distance[valid]
+        valid_g_intrinsic = g_intrinsic[valid]
+
+        abs_mag = (
+            valid_g_intrinsic
+            - 5.0 * np.log10(valid_distance)
+            + 5.0
+        ).astype(
+            np.float32,
+            copy=False
+        )
+
+    run = np.empty(
+        len(valid_records),
+        dtype=SORT_DTYPE
     )
 
-    total_records = 0
+    run["abs_mag"] = abs_mag
+    run["source_id"] = valid_records["source_id"]
+    run["x"] = valid_records["x"]
+    run["y"] = valid_records["y"]
+    run["z"] = valid_records["z"]
+    run["g"] = valid_records["g"]
+    run["bp_rp"] = valid_records["bp_rp"]
 
-    for i, path in enumerate(files):
+    order = np.argsort(
+        run["abs_mag"],
+        kind="stable"
+    )
+
+    run = run[order]
+
+    minimum = np.array(
+        [
+            run["x"].min(),
+            run["y"].min(),
+            run["z"].min(),
+        ],
+        dtype=np.float32
+    )
+
+    maximum = np.array(
+        [
+            run["x"].max(),
+            run["y"].max(),
+            run["z"].max(),
+        ],
+        dtype=np.float32
+    )
+
+    return (
+        run,
+        len(run),
+        minimum,
+        maximum,
+        invalid_count
+    )
+
+
+def create_sorted_runs(files):
+    """
+    Read input chunks in bounded pieces, sort each piece, and
+    write sorted temporary runs to disk.
+
+    Returns:
+        run_paths
+        total_valid
+        global_minimum
+        global_maximum
+        total_invalid
+    """
+
+    RUN_DIR.mkdir(
+        parents=True,
+        exist_ok=True
+    )
+
+    run_paths = []
+
+    total_valid = 0
+    total_invalid = 0
+
+    global_minimum = None
+    global_maximum = None
+
+    run_id = 0
+    file_counter = 0
+
+    for path in files:
+
+        file_counter += 1
 
         file_size = path.stat().st_size
 
@@ -171,254 +342,789 @@ def count_input_records(files):
                 f"Record size = {GAIA_DTYPE.itemsize}"
             )
 
-        count = (
+        remaining = (
             file_size //
             GAIA_DTYPE.itemsize
         )
 
-        counts[i] = count
-        total_records += count
+        with path.open("rb") as f:
 
-    return total_records, counts
+            while remaining > 0:
 
+                count = min(
+                    remaining,
+                    SORT_RUN_STARS
+                )
 
-# ============================================================
-# Load all input files
-# ============================================================
+                chunk = np.fromfile(
+                    f,
+                    dtype=GAIA_DTYPE,
+                    count=count
+                )
 
-def load_input_files(files):
+                if len(chunk) != count:
+                    raise IOError(
+                        f"Could not read entire input piece:\n"
+                        f"{path}\n"
+                        f"Expected records: {count}\n"
+                        f"Read records: {len(chunk)}"
+                    )
 
-    total_records, record_counts = (
-        count_input_records(files)
-    )
+                remaining -= count
 
-    if total_records <= 0:
-        raise RuntimeError(
-            "No Gaia records found."
-        )
+                (
+                    run,
+                    valid_count,
+                    minimum,
+                    maximum,
+                    invalid_count
+                ) = prepare_sort_run(chunk)
 
-    print(
-        f"Total records to load: "
-        f"{total_records:,}"
-    )
+                total_invalid += invalid_count
 
-    print(
-        f"Approximate Gaia record memory: "
-        f"{total_records * GAIA_DTYPE.itemsize / 1e9:.2f} GB"
-    )
+                if valid_count == 0:
+                    del chunk
+                    continue
 
-    records = np.empty(
-        total_records,
-        dtype=GAIA_DTYPE
-    )
+                total_valid += valid_count
 
-    offset = 0
+                if global_minimum is None:
+                    global_minimum = minimum.copy()
+                    global_maximum = maximum.copy()
+                else:
+                    global_minimum = np.minimum(
+                        global_minimum,
+                        minimum
+                    )
 
-    for i, path in enumerate(
-        files,
-        start=1
-    ):
+                    global_maximum = np.maximum(
+                        global_maximum,
+                        maximum
+                    )
+
+                run_path = (
+                    RUN_DIR /
+                    f"run_{run_id:08d}.bin"
+                )
+
+                run.tofile(run_path)
+
+                run_paths.append(run_path)
+
+                # print(
+                #     f"  Wrote sorted run "
+                #     f"{run_id:,}: "
+                #     f"{valid_count:,} stars"
+                # )
+
+                run_id += 1
+
+                del run
+                del chunk
 
         if (
-            i == 1
-            or i == len(files)
-            or i % FILE_PROGRESS_INTERVAL == 0
+            file_counter == 1
+            or file_counter == len(files)
+            or file_counter % FILE_PROGRESS_INTERVAL == 0
         ):
             print(
-                f"Reading chunks: "
-                f"{i:,}/{len(files):,}"
+                f"Sorted input files: "
+                f"{file_counter:,}/{len(files):,}"
             )
 
-        expected_count = int(
-            record_counts[i - 1]
-        )
-
-        chunk = np.fromfile(
-            path,
-            dtype=GAIA_DTYPE
-        )
-
-        if len(chunk) != expected_count:
-            raise IOError(
-                f"Could not read entire file:\n"
-                f"{path}\n"
-                f"Expected records: {expected_count}\n"
-                f"Read records: {len(chunk)}"
-            )
-
-        end = offset + len(chunk)
-
-        records[offset:end] = chunk
-
-        offset = end
-
-    if offset != total_records:
+    if total_valid == 0:
         raise RuntimeError(
-            "Input record count mismatch."
+            "No valid Gaia stars remain."
         )
 
+    print()
     print(
-        f"Loaded records: "
-        f"{len(records):,}"
-    )
-
-    return records
-
-
-# ============================================================
-# Prepare stars
-# ============================================================
-
-def prepare_stars(records):
-
-    x = records["x"]
-    y = records["y"]
-    z = records["z"]
-
-    distance = np.sqrt(
-        x * x +
-        y * y +
-        z * z,
-        dtype=np.float32
-    )
-
-    g = records["g"]
-    ag = records["ag"]
-
-    # Extinction-corrected G when AG exists.
-    g_intrinsic = np.where(
-        np.isfinite(ag),
-        g - ag,
-        g
-    )
-
-    valid = (
-        np.isfinite(x)
-        & np.isfinite(y)
-        & np.isfinite(z)
-        & np.isfinite(g_intrinsic)
-        & np.isfinite(distance)
-        & (distance > 0.0)
-    )
-
-    invalid_count = np.count_nonzero(
-        ~valid
-    )
-
-    if invalid_count:
-        print(
-            f"Discarding invalid records: "
-            f"{invalid_count:,}"
-        )
-
-        records = records[valid]
-        distance = distance[valid]
-        g_intrinsic = g_intrinsic[valid]
-
-    else:
-        print(
-            "No invalid records found."
-        )
-
-    # Absolute G magnitude:
-    #
-    # M = m - 5 log10(d) + 5
-    #
-    # d in parsecs.
-    abs_mag = (
-        g_intrinsic
-        - 5.0 * np.log10(distance)
-        + 5.0
-    ).astype(
-        np.float32,
-        copy=False
+        f"Valid stars: {total_valid:,}"
     )
 
     print(
-        "Sorting by absolute magnitude..."
-    )
-
-    order = np.argsort(
-        abs_mag,
-        kind="stable"
-    )
-
-    records = records[order]
-
-    del order
-    del abs_mag
-    del distance
-    del g_intrinsic
-    del valid
-
-    print(
-        f"Stars after validation: "
-        f"{len(records):,}"
+        f"Invalid stars discarded: "
+        f"{total_invalid:,}"
     )
 
     print(
-        "Sorted by absolute magnitude "
-        "(brightest first)."
+        f"Sorted runs: {len(run_paths):,}"
     )
 
-    return records
+    print(
+        f"Approximate final sorted data: "
+        f"{total_valid * SORT_DTYPE.itemsize / 1e9:.2f} GB"
+    )
+
+    return (
+        run_paths,
+        total_valid,
+        global_minimum,
+        global_maximum,
+        total_invalid
+    )
 
 
 # ============================================================
-# Numba MS-LOD hierarchy construction
+# Numba multi-way merge
 # ============================================================
-#
-# The input records are already sorted brightest -> faintest.
-#
-# First N_SIGMA stars:
-#     root
-#
-# Every later star:
-#
-#     root
-#       ↓
-#     child
-#       ↓
-#     child
-#       ↓
-#     ...
-#
-# Continue until the first spatial node containing fewer than
-# N_SIGMA stars is found.
-#
-# This is equivalent to the prototype hierarchy construction,
-# but the expensive loop is compiled with Numba.
-#
-# node_lookup key:
-#
-#     (depth, base-8 spatial path)
-#
-# The depth is part of the key so paths consisting of zero
-# octants cannot collide between different depths.
-#
 
 @njit
-def build_hierarchy_numba(
-    records,
-    root_min,
-    root_size,
-    n_sigma,
-    max_depth,
-    initial_capacity,
-    progress_interval
+def kway_merge_buffers(
+    buffers,
+    lengths,
+    positions,
+    active,
+    heap_streams,
+    output
 ):
+    """
+    Merge multiple sorted in-memory buffers.
 
-    star_count = records.shape[0]
+    Each stream is represented by:
+        buffers[stream]
+        positions[stream]
+        lengths[stream]
 
-    root_count = n_sigma
+    A binary min-heap stores the stream whose current record
+    has the smallest absolute magnitude.
 
-    if root_count > star_count:
-        root_count = star_count
+    Returns:
+        output_count
+        exhausted_stream
 
-    capacity = initial_capacity
+    exhausted_stream:
+        >= 0 : that stream's buffer was exhausted and needs refill
+        -1   : output buffer filled before any stream exhausted
+        -2   : all currently loaded buffers were exhausted
+    """
 
-    if capacity < 1:
-        capacity = 1
+    k = buffers.shape[0]
+
+    # --------------------------------------------------------
+    # Build initial heap from current stream heads
+    # --------------------------------------------------------
+
+    heap_size = 0
+
+    for stream in range(k):
+
+        if (
+            active[stream]
+            and
+            positions[stream] < lengths[stream]
+        ):
+
+            i = heap_size
+
+            heap_streams[i] = stream
+
+            heap_size += 1
+
+            # Bubble up.
+            while i > 0:
+
+                parent = (
+                    i - 1
+                ) >> 1
+
+                parent_stream = (
+                    heap_streams[parent]
+                )
+
+                current_stream = (
+                    heap_streams[i]
+                )
+
+                parent_key = buffers[
+                    parent_stream,
+                    positions[parent_stream]
+                ]["abs_mag"]
+
+                current_key = buffers[
+                    current_stream,
+                    positions[current_stream]
+                ]["abs_mag"]
+
+                if parent_key <= current_key:
+                    break
+
+                heap_streams[parent] = (
+                    current_stream
+                )
+
+                heap_streams[i] = (
+                    parent_stream
+                )
+
+                i = parent
+
+    # --------------------------------------------------------
+    # Merge
+    # --------------------------------------------------------
+
+    output_count = 0
+
+    while (
+        heap_size > 0
+        and
+        output_count < output.shape[0]
+    ):
+
+        # Smallest current record.
+        stream = heap_streams[0]
+
+        output[output_count] = buffers[
+            stream,
+            positions[stream]
+        ]
+
+        output_count += 1
+
+        positions[stream] += 1
+
+        # ----------------------------------------------------
+        # Remove root from heap
+        # ----------------------------------------------------
+
+        heap_size -= 1
+
+        if heap_size > 0:
+
+            heap_streams[0] = (
+                heap_streams[heap_size]
+            )
+
+            i = 0
+
+            while True:
+
+                left = (
+                    2 * i + 1
+                )
+
+                if left >= heap_size:
+                    break
+
+                right = left + 1
+
+                child = left
+
+                if right < heap_size:
+
+                    left_stream = (
+                        heap_streams[left]
+                    )
+
+                    right_stream = (
+                        heap_streams[right]
+                    )
+
+                    left_key = buffers[
+                        left_stream,
+                        positions[left_stream]
+                    ]["abs_mag"]
+
+                    right_key = buffers[
+                        right_stream,
+                        positions[right_stream]
+                    ]["abs_mag"]
+
+                    if right_key < left_key:
+                        child = right
+
+                current_stream = (
+                    heap_streams[i]
+                )
+
+                child_stream = (
+                    heap_streams[child]
+                )
+
+                current_key = buffers[
+                    current_stream,
+                    positions[current_stream]
+                ]["abs_mag"]
+
+                child_key = buffers[
+                    child_stream,
+                    positions[child_stream]
+                ]["abs_mag"]
+
+                if current_key <= child_key:
+                    break
+
+                heap_streams[i] = (
+                    child_stream
+                )
+
+                heap_streams[child] = (
+                    current_stream
+                )
+
+                i = child
+
+        # ----------------------------------------------------
+        # This stream's buffer is empty.
+        #
+        # Python will refill it before calling us again.
+        # ----------------------------------------------------
+
+        if positions[stream] >= lengths[stream]:
+
+            return (
+                output_count,
+                stream
+            )
+
+        # ----------------------------------------------------
+        # Put stream back into heap
+        # ----------------------------------------------------
+
+        i = heap_size
+
+        heap_streams[i] = stream
+
+        heap_size += 1
+
+        while i > 0:
+
+            parent = (
+                i - 1
+            ) >> 1
+
+            parent_stream = (
+                heap_streams[parent]
+            )
+
+            current_stream = (
+                heap_streams[i]
+            )
+
+            parent_key = buffers[
+                parent_stream,
+                positions[parent_stream]
+            ]["abs_mag"]
+
+            current_key = buffers[
+                current_stream,
+                positions[current_stream]
+            ]["abs_mag"]
+
+            if parent_key <= current_key:
+                break
+
+            heap_streams[parent] = (
+                current_stream
+            )
+
+            heap_streams[i] = (
+                parent_stream
+            )
+
+            i = parent
+
+    # --------------------------------------------------------
+    # Heap empty
+    # --------------------------------------------------------
+
+    if heap_size == 0:
+
+        return (
+            output_count,
+            -2
+        )
+
+    return (
+        output_count,
+        -1
+    )
+
+
+def merge_many_runs(
+    run_paths,
+    output_path
+):
+    """
+    Merge N sorted runs into one sorted run.
+
+    Uses:
+        MERGE_FAN_IN
+        MERGE_BUFFER_STARS
+        MERGE_OUTPUT_STARS
+
+    This is a true multi-way external merge.
+    """
+
+    run_count = len(run_paths)
+
+    if run_count == 0:
+        raise RuntimeError(
+            "No runs supplied to merge."
+        )
+
+    if run_count == 1:
+
+        run_paths[0].replace(
+            output_path
+        )
+
+        return
+
+    # --------------------------------------------------------
+    # Open all input streams
+    # --------------------------------------------------------
+
+    files = [
+        path.open("rb")
+        for path in run_paths
+    ]
+
+    try:
+
+        buffers = np.empty(
+            (
+                run_count,
+                MERGE_BUFFER_STARS
+            ),
+            dtype=SORT_DTYPE
+        )
+
+        lengths = np.zeros(
+            run_count,
+            dtype=np.int64
+        )
+
+        positions = np.zeros(
+            run_count,
+            dtype=np.int64
+        )
+
+        active = np.zeros(
+            run_count,
+            dtype=np.bool_
+        )
+
+        heap_streams = np.empty(
+            run_count,
+            dtype=np.int32
+        )
+
+        output = np.empty(
+            MERGE_OUTPUT_STARS,
+            dtype=SORT_DTYPE
+        )
+
+        # ----------------------------------------------------
+        # Expected record count
+        # ----------------------------------------------------
+
+        expected_records = 0
+
+        for i, path in enumerate(run_paths):
+
+            file_size = path.stat().st_size
+
+            if (
+                file_size %
+                SORT_DTYPE.itemsize
+                != 0
+            ):
+
+                raise RuntimeError(
+                    f"Invalid run size:\n{path}"
+                )
+
+            expected_records += (
+                file_size //
+                SORT_DTYPE.itemsize
+            )
+
+        # ----------------------------------------------------
+        # Initial buffer fill
+        # ----------------------------------------------------
+
+        for i, f in enumerate(files):
+
+            data = np.fromfile(
+                f,
+                dtype=SORT_DTYPE,
+                count=MERGE_BUFFER_STARS
+            )
+
+            count = len(data)
+
+            if count > 0:
+
+                buffers[
+                    i,
+                    :count
+                ] = data
+
+                lengths[i] = count
+
+                positions[i] = 0
+
+                active[i] = True
+
+        # ----------------------------------------------------
+        # Merge
+        # ----------------------------------------------------
+
+        written = 0
+
+        with output_path.open("wb") as output_file:
+
+            while np.any(active):
+
+                (
+                    count,
+                    exhausted_stream
+                ) = kway_merge_buffers(
+                    buffers,
+                    lengths,
+                    positions,
+                    active,
+                    heap_streams,
+                    output
+                )
+
+                if count > 0:
+
+                    output[
+                        :count
+                    ].tofile(
+                        output_file
+                    )
+
+                    written += count
+
+                # ------------------------------------------------
+                # One input buffer needs refilling
+                # ------------------------------------------------
+
+                if exhausted_stream >= 0:
+
+                    stream = exhausted_stream
+
+                    data = np.fromfile(
+                        files[stream],
+                        dtype=SORT_DTYPE,
+                        count=MERGE_BUFFER_STARS
+                    )
+
+                    count = len(data)
+
+                    positions[stream] = 0
+
+                    if count > 0:
+
+                        buffers[
+                            stream,
+                            :count
+                        ] = data
+
+                        lengths[stream] = count
+
+                        active[stream] = True
+
+                    else:
+
+                        lengths[stream] = 0
+
+                        active[stream] = False
+
+                # ------------------------------------------------
+                # All currently loaded buffers exhausted.
+                # Refill all remaining files.
+                # ------------------------------------------------
+
+                elif exhausted_stream == -2:
+
+                    for stream in range(run_count):
+
+                        if not active[stream]:
+                            continue
+
+                        data = np.fromfile(
+                            files[stream],
+                            dtype=SORT_DTYPE,
+                            count=MERGE_BUFFER_STARS
+                        )
+
+                        count = len(data)
+
+                        positions[stream] = 0
+
+                        if count > 0:
+
+                            buffers[
+                                stream,
+                                :count
+                            ] = data
+
+                            lengths[stream] = count
+
+                        else:
+
+                            lengths[stream] = 0
+
+                            active[stream] = False
+
+                # ------------------------------------------------
+                # Output buffer filled.
+                # Positions are already preserved.
+                # ------------------------------------------------
+
+                elif exhausted_stream == -1:
+
+                    pass
+
+                # ------------------------------------------------
+                # Safety check
+                # ------------------------------------------------
+
+                elif count == 0:
+
+                    raise RuntimeError(
+                        "Multi-way merge made no progress."
+                    )
+
+        if written != expected_records:
+
+            raise RuntimeError(
+                "Multi-way merge size mismatch.\n"
+                f"Expected: {expected_records:,}\n"
+                f"Written:  {written:,}"
+            )
+
+    finally:
+
+        for f in files:
+            f.close()
+
+
+def merge_all_runs(run_paths):
+    """
+    Multi-pass multi-way external merge.
+
+    With 491,520 runs and MERGE_FAN_IN=128:
+
+        pass 0:
+            491,520 -> 3,840
+
+        pass 1:
+              3,840 -> 30
+
+        pass 2:
+                 30 -> 1
+    """
+
+    current = list(run_paths)
+
+    pass_id = 0
+
+    while len(current) > 1:
+
+        print()
+        print(
+            f"Merge pass {pass_id}: "
+            f"{len(current):,} runs"
+        )
+
+        next_runs = []
+
+        group_count = (
+            (
+                len(current)
+                +
+                MERGE_FAN_IN
+                -
+                1
+            )
+            //
+            MERGE_FAN_IN
+        )
+
+        for group_index, start in enumerate(
+            range(
+                0,
+                len(current),
+                MERGE_FAN_IN
+            )
+        ):
+
+            group = current[
+                start:
+                start + MERGE_FAN_IN
+            ]
+
+            # A single leftover run can simply
+            # be carried into the next pass.
+            if len(group) == 1:
+
+                next_runs.append(
+                    group[0]
+                )
+
+                continue
+
+            output = (
+                RUN_DIR /
+                f"merge_{pass_id:03d}_"
+                f"{group_index:08d}.bin"
+            )
+
+            merge_many_runs(
+                group,
+                output
+            )
+
+            # Only delete inputs after the merge
+            # has successfully completed.
+            for path in group:
+                path.unlink()
+
+            next_runs.append(
+                output
+            )
+
+            if (
+                group_index == 0
+                or
+                group_index + 1 == group_count
+                or
+                (group_index + 1) % 10 == 0
+            ):
+
+                print(
+                    f"  Merged groups: "
+                    f"{group_index + 1:,}/"
+                    f"{group_count:,}"
+                )
+
+        current = next_runs
+
+        pass_id += 1
+
+    if not current:
+
+        raise RuntimeError(
+            "No sorted run remains."
+        )
+
+    return current[0]
+
+# ============================================================
+# Hierarchy state
+# ============================================================
+
+def create_hierarchy_state():
+
+    capacity = max(
+        1,
+        NODE_INITIAL_CAPACITY
+    )
 
     parent_ids = np.full(
         capacity,
@@ -457,68 +1163,90 @@ def build_hierarchy_numba(
         dtype=np.int32
     )
 
-    # For every globally sorted star, store the LOD node
-    # that owns that star.
-    star_node_ids = np.full(
-        star_count,
-        -1,
-        dtype=np.int32
-    )
-
     node_lookup = Dict.empty(
         key_type=NODE_KEY_TYPE,
         value_type=types.int32
     )
 
-    # --------------------------------------------------------
-    # Root
-    # --------------------------------------------------------
-
-    node_count = 1
-
     node_lookup[
         (
-            np.uint32(0),
+            np.uint64(0),
             np.uint64(0)
         )
     ] = np.int32(0)
 
-    star_counts[0] = root_count
+    parent_ids[0] = -1
 
-    star_node_ids[:root_count] = 0
+    return (
+        1,
+        parent_ids,
+        depths,
+        cell_x,
+        cell_y,
+        cell_z,
+        star_counts,
+        children,
+        node_lookup
+    )
+
+
+# ============================================================
+# Incremental Numba MS-LOD builder
+# ============================================================
+
+@njit
+def build_hierarchy_batch_numba(
+    records,
+    root_min,
+    root_size,
+    n_sigma,
+    max_depth,
+    progress_interval,
+    total_processed,
+    node_count,
+    parent_ids,
+    depths,
+    cell_x,
+    cell_y,
+    cell_z,
+    star_counts,
+    children,
+    node_lookup
+):
+
+    batch_count = records.shape[0]
+
+    star_node_ids = np.full(
+        batch_count,
+        -1,
+        dtype=np.int32
+    )
+
+    capacity = parent_ids.shape[0]
 
     scale = 1 << max_depth
 
-    # --------------------------------------------------------
-    # Remaining stars
-    # --------------------------------------------------------
+    for local_i in range(batch_count):
 
-    for i in range(
-        root_count,
-        star_count
-    ):
+        global_i = (
+            total_processed +
+            local_i
+        )
 
         if (
             progress_interval > 0
-            and i > root_count
-            and i % progress_interval == 0
+            and global_i > 0
+            and global_i % progress_interval == 0
         ):
+
             print(
                 "Hierarchy progress:",
-                i,
-                "/",
-                star_count,
-                "nodes:",
-                node_count
+                global_i
             )
 
-        px = records[i]["x"]
-        py = records[i]["y"]
-        pz = records[i]["z"]
-
-        # Quantize the position once to max-depth grid
-        # coordinates. Individual octant bits are extracted
-        # from these integers while descending the tree.
+        px = records[local_i]["x"]
+        py = records[local_i]["y"]
+        pz = records[local_i]["z"]
 
         qx = int(
             (px - root_min[0])
@@ -565,7 +1293,8 @@ def build_hierarchy_numba(
         ):
 
             shift = (
-                max_depth - depth
+                max_depth -
+                depth
             )
 
             bx = (
@@ -591,18 +1320,18 @@ def build_hierarchy_numba(
             ) | np.uint64(octant)
 
             key = (
-                np.uint32(depth),
+                np.uint64(depth),
                 path
             )
 
             child_id = np.int32(-1)
 
             if key in node_lookup:
+
                 child_id = node_lookup[key]
 
             else:
 
-                # Grow arrays when needed.
                 if node_count >= capacity:
 
                     new_capacity = (
@@ -615,9 +1344,9 @@ def build_hierarchy_numba(
                         dtype=np.int32
                     )
 
-                    new_parent[:capacity] = (
-                        parent_ids
-                    )
+                    new_parent[
+                        :capacity
+                    ] = parent_ids
 
                     parent_ids = new_parent
 
@@ -626,9 +1355,9 @@ def build_hierarchy_numba(
                         dtype=np.uint32
                     )
 
-                    new_depths[:capacity] = (
-                        depths
-                    )
+                    new_depths[
+                        :capacity
+                    ] = depths
 
                     depths = new_depths
 
@@ -637,9 +1366,9 @@ def build_hierarchy_numba(
                         dtype=np.int32
                     )
 
-                    new_cell_x[:capacity] = (
-                        cell_x
-                    )
+                    new_cell_x[
+                        :capacity
+                    ] = cell_x
 
                     cell_x = new_cell_x
 
@@ -648,9 +1377,9 @@ def build_hierarchy_numba(
                         dtype=np.int32
                     )
 
-                    new_cell_y[:capacity] = (
-                        cell_y
-                    )
+                    new_cell_y[
+                        :capacity
+                    ] = cell_y
 
                     cell_y = new_cell_y
 
@@ -659,9 +1388,9 @@ def build_hierarchy_numba(
                         dtype=np.int32
                     )
 
-                    new_cell_z[:capacity] = (
-                        cell_z
-                    )
+                    new_cell_z[
+                        :capacity
+                    ] = cell_z
 
                     cell_z = new_cell_z
 
@@ -670,9 +1399,9 @@ def build_hierarchy_numba(
                         dtype=np.uint32
                     )
 
-                    new_star_counts[:capacity] = (
-                        star_counts
-                    )
+                    new_star_counts[
+                        :capacity
+                    ] = star_counts
 
                     star_counts = new_star_counts
 
@@ -699,25 +1428,31 @@ def build_hierarchy_numba(
 
                 node_lookup[key] = child_id
 
-                parent_ids[child_id] = (
-                    parent_id
-                )
+                parent_ids[
+                    child_id
+                ] = parent_id
 
-                depths[child_id] = np.uint32(
-                    depth
-                )
+                depths[
+                    child_id
+                ] = np.uint32(depth)
 
-                cell_x[child_id] = (
+                cell_x[
+                    child_id
+                ] = (
                     cell_x[parent_id] * 2
                     + bx
                 )
 
-                cell_y[child_id] = (
+                cell_y[
+                    child_id
+                ] = (
                     cell_y[parent_id] * 2
                     + by
                 )
 
-                cell_z[child_id] = (
+                cell_z[
+                    child_id
+                ] = (
                     cell_z[parent_id] * 2
                     + bz
                 )
@@ -727,18 +1462,22 @@ def build_hierarchy_numba(
                     octant
                 ] = child_id
 
-            # This node still has space.
-            if star_counts[child_id] < n_sigma:
+            if (
+                star_counts[child_id]
+                <
+                n_sigma
+            ):
 
                 star_counts[child_id] += 1
 
-                star_node_ids[i] = child_id
+                star_node_ids[
+                    local_i
+                ] = child_id
 
                 assigned = True
 
                 break
 
-            # Full node: continue into its child.
             parent_id = child_id
 
         if not assigned:
@@ -753,7 +1492,7 @@ def build_hierarchy_numba(
                 star_counts,
                 children,
                 star_node_ids,
-                np.int32(i)
+                np.int64(global_i)
             )
 
     return (
@@ -766,66 +1505,128 @@ def build_hierarchy_numba(
         star_counts,
         children,
         star_node_ids,
-        np.int32(-1)
+        np.int64(-1)
     )
 
 
 # ============================================================
-# Build hierarchy
+# Partition final stars by node-ID range
 # ============================================================
 
-def build_ms_lod(records):
+def write_partition_batch(
+    partition_dir,
+    records,
+    star_node_ids
+):
 
-    if len(records) == 0:
-        raise RuntimeError(
-            "No stars remain after validation."
+    partition = np.empty(
+        len(records),
+        dtype=PARTITION_DTYPE
+    )
+
+    partition["node_id"] = np.asarray(
+        star_node_ids,
+        dtype=np.uint32
+    )
+
+    partition["source_id"] = records["source_id"]
+
+    partition["x"] = records["x"]
+    partition["y"] = records["y"]
+    partition["z"] = records["z"]
+    partition["g"] = records["g"]
+    partition["bp_rp"] = records["bp_rp"]
+
+    bucket_ids = (
+        partition["node_id"]
+        //
+        NODE_PARTITION_SPAN
+    )
+
+    order = np.argsort(
+        bucket_ids,
+        kind="stable"
+    )
+
+    ordered = partition[order]
+
+    ordered_bucket_ids = (
+        bucket_ids[order]
+    )
+
+    start = 0
+    count = len(ordered)
+
+    while start < count:
+
+        bucket_id = int(
+            ordered_bucket_ids[start]
         )
 
-    minimum = np.array(
-        [
-            records["x"].min(),
-            records["y"].min(),
-            records["z"].min(),
-        ],
-        dtype=np.float32
-    )
+        end = start + 1
 
-    maximum = np.array(
-        [
-            records["x"].max(),
-            records["y"].max(),
-            records["z"].max(),
-        ],
-        dtype=np.float32
-    )
+        while (
+            end < count
+            and int(
+                ordered_bucket_ids[end]
+            ) == bucket_id
+        ):
+            end += 1
 
-    center = (
-        minimum + maximum
-    ) * 0.5
-
-    root_size = float(
-        np.max(maximum - minimum)
-    )
-
-    if root_size <= 0.0:
-        raise RuntimeError(
-            "All stars have identical positions."
+        path = (
+            partition_dir
+            /
+            f"bucket_{bucket_id:08d}.bin"
         )
 
-    root_min = (
-        center
-        - root_size * 0.5
-    ).astype(
-        np.float32
+        with path.open("ab") as f:
+
+            ordered[
+                start:end
+            ].tofile(f)
+
+        start = end
+
+
+# ============================================================
+# Build hierarchy from the final sorted stream
+# ============================================================
+
+def build_hierarchy_from_sorted_run(
+    sorted_run,
+    total_star_count,
+    root_min,
+    root_size
+):
+
+    (
+        node_count,
+        parent_ids,
+        depths,
+        cell_x,
+        cell_y,
+        cell_z,
+        star_counts,
+        children,
+        node_lookup
+    ) = create_hierarchy_state()
+
+    PARTITION_DIR.mkdir(
+        parents=True,
+        exist_ok=True
     )
+
+    processed = 0
+    batch_number = 0
 
     print()
     print(
-        "Building MS-LOD hierarchy..."
+        "Building MS-LOD hierarchy from "
+        "the merged sorted stream..."
     )
 
     print(
-        f"Stars: {len(records):,}"
+        f"Stars: {total_star_count:,}"
     )
 
     print(
@@ -841,72 +1642,101 @@ def build_ms_lod(records):
         f"{MAX_OCTREE_DEPTH}"
     )
 
-    (
-        node_count,
-        parent_ids,
-        depths,
-        cell_x,
-        cell_y,
-        cell_z,
-        star_counts,
-        children,
-        star_node_ids,
-        failed_index
-    ) = build_hierarchy_numba(
-        records,
-        root_min,
-        root_size,
-        N_SIGMA,
-        MAX_OCTREE_DEPTH,
-        NODE_INITIAL_CAPACITY,
-        PROGRESS_INTERVAL
-    )
+    with sorted_run.open("rb") as f:
 
-    if failed_index >= 0:
+        while processed < total_star_count:
+
+            batch = np.fromfile(
+                f,
+                dtype=SORT_DTYPE,
+                count=min(
+                    PROCESS_BATCH_STARS,
+                    total_star_count - processed
+                )
+            )
+
+            if len(batch) == 0:
+                break
+
+            (
+                node_count,
+                parent_ids,
+                depths,
+                cell_x,
+                cell_y,
+                cell_z,
+                star_counts,
+                children,
+                star_node_ids,
+                failed_index
+            ) = build_hierarchy_batch_numba(
+                batch,
+                root_min,
+                root_size,
+                N_SIGMA,
+                MAX_OCTREE_DEPTH,
+                PROGRESS_INTERVAL,
+                processed,
+                node_count,
+                parent_ids,
+                depths,
+                cell_x,
+                cell_y,
+                cell_z,
+                star_counts,
+                children,
+                node_lookup
+            )
+
+            if failed_index >= 0:
+
+                raise RuntimeError(
+                    "A star could not be assigned within "
+                    f"MAX_OCTREE_DEPTH={MAX_OCTREE_DEPTH}. "
+                    f"First failing star index: "
+                    f"{int(failed_index)}"
+                )
+
+            write_partition_batch(
+                PARTITION_DIR,
+                batch,
+                star_node_ids
+            )
+
+            processed += len(batch)
+            batch_number += 1
+
+            if (
+                batch_number == 1
+                or processed == total_star_count
+                or batch_number % 5 == 0
+            ):
+
+                print(
+                    f"  Processed "
+                    f"{processed:,}/{total_star_count:,} "
+                    f"stars; nodes: "
+                    f"{node_count:,}"
+                )
+
+            del batch
+            del star_node_ids
+
+    if processed != total_star_count:
 
         raise RuntimeError(
-            "A star could not be assigned within "
-            f"MAX_OCTREE_DEPTH={MAX_OCTREE_DEPTH}. "
-            f"First failing star index: "
-            f"{failed_index}"
+            "Final sorted stream size mismatch.\n"
+            f"Expected: {total_star_count:,}\n"
+            f"Processed: {processed:,}"
         )
 
-    # Trim node arrays.
-    parent_ids = (
-        parent_ids[:node_count]
-    )
-
-    depths = (
-        depths[:node_count]
-    )
-
-    cell_x = (
-        cell_x[:node_count]
-    )
-
-    cell_y = (
-        cell_y[:node_count]
-    )
-
-    cell_z = (
-        cell_z[:node_count]
-    )
-
-    star_counts = (
-        star_counts[:node_count]
-    )
-
-    children = (
-        children[:node_count]
-    )
-
-    if np.any(
-        star_node_ids < 0
-    ):
-        raise RuntimeError(
-            "Some stars were not assigned "
-            "to an LOD node."
-        )
+    parent_ids = parent_ids[:node_count]
+    depths = depths[:node_count]
+    cell_x = cell_x[:node_count]
+    cell_y = cell_y[:node_count]
+    cell_z = cell_z[:node_count]
+    star_counts = star_counts[:node_count]
+    children = children[:node_count]
 
     assigned_count = int(
         np.sum(
@@ -915,17 +1745,13 @@ def build_ms_lod(records):
         )
     )
 
-    if assigned_count != len(records):
+    if assigned_count != total_star_count:
 
         raise RuntimeError(
             "LOD star count mismatch.\n"
             f"Assigned: {assigned_count:,}\n"
-            f"Input:    {len(records):,}"
+            f"Input:    {total_star_count:,}"
         )
-
-    depth_counts = np.bincount(
-        depths.astype(np.int64)
-    )
 
     print()
     print(
@@ -935,6 +1761,10 @@ def build_ms_lod(records):
     print(
         f"Maximum depth: "
         f"{int(depths.max())}"
+    )
+
+    depth_counts = np.bincount(
+        depths.astype(np.int64)
     )
 
     for depth, count in enumerate(
@@ -957,9 +1787,191 @@ def build_ms_lod(records):
         cell_y,
         cell_z,
         star_counts,
-        children,
-        star_node_ids
+        children
     )
+
+
+# ============================================================
+# Convert partitions into final per-node files
+# ============================================================
+
+def write_final_node_files(
+    directory,
+    node_count,
+    star_counts
+):
+
+    particle_dir = directory / "particles"
+
+    source_id_dir = directory / "source_ids"
+
+    particle_dir.mkdir(
+        parents=True,
+        exist_ok=True
+    )
+
+    source_id_dir.mkdir(
+        parents=True,
+        exist_ok=True
+    )
+
+    seen = np.zeros(
+        node_count,
+        dtype=np.bool_
+    )
+
+    bucket_paths = sorted(
+        PARTITION_DIR.glob(
+            "bucket_*.bin"
+        )
+    )
+
+    print()
+    print(
+        f"Converting {len(bucket_paths):,} "
+        "node partitions into final files..."
+    )
+
+    for bucket_index, bucket_path in enumerate(
+        bucket_paths,
+        start=1
+    ):
+
+        data = np.fromfile(
+            bucket_path,
+            dtype=PARTITION_DTYPE
+        )
+
+        if len(data) == 0:
+
+            bucket_path.unlink()
+            continue
+
+        order = np.argsort(
+            data["node_id"],
+            kind="stable"
+        )
+
+        data = data[order]
+
+        start = 0
+        data_count = len(data)
+
+        while start < data_count:
+
+            node_id = int(
+                data["node_id"][start]
+            )
+
+            end = start + 1
+
+            while (
+                end < data_count
+                and int(
+                    data["node_id"][end]
+                ) == node_id
+            ):
+
+                end += 1
+
+            if node_id < 0 or node_id >= node_count:
+
+                raise RuntimeError(
+                    f"Invalid node ID {node_id} "
+                    f"in {bucket_path}"
+                )
+
+            count = end - start
+
+            expected = int(
+                star_counts[node_id]
+            )
+
+            if count != expected:
+
+                raise RuntimeError(
+                    f"Node {node_id} star-count mismatch.\n"
+                    f"Partition: {count}\n"
+                    f"Metadata:  {expected}"
+                )
+
+            group = data[start:end]
+
+            render = np.empty(
+                count,
+                dtype=RENDER_DTYPE
+            )
+
+            render["x"] = group["x"]
+            render["y"] = group["y"]
+            render["z"] = group["z"]
+            render["g"] = group["g"]
+            render["bp_rp"] = group["bp_rp"]
+
+            particle_path = (
+                particle_dir
+                /
+                f"particles_{node_id:08d}.bin"
+            )
+
+            source_path = (
+                source_id_dir
+                /
+                f"source_ids_{node_id:08d}.bin"
+            )
+
+            render.tofile(
+                particle_path
+            )
+
+            np.asarray(
+                group["source_id"],
+                dtype="<u8"
+            ).tofile(
+                source_path
+            )
+
+            seen[node_id] = True
+
+            start = end
+
+        bucket_path.unlink()
+
+        if (
+            bucket_index == 1
+            or bucket_index == len(bucket_paths)
+            or bucket_index % 20 == 0
+        ):
+
+            print(
+                f"  Buckets: "
+                f"{bucket_index:,}/{len(bucket_paths):,}"
+            )
+
+        del data
+        del order
+
+    # Nodes with zero local stars do not need a particle file.
+    # The root node is one such node: it stores the cumulative
+    # star count for the hierarchy but does not directly own stars.
+
+    required = (
+        star_counts > 0
+    )
+
+    missing = np.flatnonzero(
+        required & ~seen
+    )
+
+    if len(missing) > 0:
+
+        raise RuntimeError(
+            "Some non-empty hierarchy nodes did not receive "
+            "a final particle file.\n"
+            f"Missing nodes: {len(missing):,}"
+        )
+
+    del seen
 
 
 # ============================================================
@@ -971,14 +1983,11 @@ def compute_cumulative_counts(
     star_counts
 ):
 
-    cumulative = (
-        star_counts.astype(
-            np.uint64,
-            copy=True
-        )
+    cumulative = star_counts.astype(
+        np.uint64,
+        copy=True
     )
 
-    # Child IDs are always greater than parent IDs.
     for node_id in range(
         len(parent_ids) - 1,
         0,
@@ -996,145 +2005,6 @@ def compute_cumulative_counts(
             )
 
     return cumulative
-
-
-# ============================================================
-# Write particle/source files
-# ============================================================
-
-def write_particles(
-    directory,
-    records,
-    star_counts,
-    star_node_ids
-):
-
-    particle_dir = (
-        directory / "particles"
-    )
-
-    source_id_dir = (
-        directory / "source_ids"
-    )
-
-    particle_dir.mkdir(
-        parents=True,
-        exist_ok=True
-    )
-
-    source_id_dir.mkdir(
-        parents=True,
-        exist_ok=True
-    )
-
-    print()
-    print(
-        "Grouping stars by LOD node..."
-    )
-
-    # Stable sort means stars remain in global
-    # brightness order within each node.
-    sort_order = np.argsort(
-        star_node_ids,
-        kind="stable"
-    )
-
-    offsets = np.empty(
-        len(star_counts) + 1,
-        dtype=np.int64
-    )
-
-    offsets[0] = 0
-
-    offsets[1:] = np.cumsum(
-        star_counts,
-        dtype=np.int64
-    )
-
-    print(
-        "Writing particle/source files..."
-    )
-
-    node_count = len(
-        star_counts
-    )
-
-    for node_id in range(
-        node_count
-    ):
-
-        start = int(
-            offsets[node_id]
-        )
-
-        end = int(
-            offsets[node_id + 1]
-        )
-
-        indices = (
-            sort_order[start:end]
-        )
-
-        render = np.empty(
-            len(indices),
-            dtype=RENDER_DTYPE
-        )
-
-        render["x"] = (
-            records["x"][indices]
-        )
-
-        render["y"] = (
-            records["y"][indices]
-        )
-
-        render["z"] = (
-            records["z"][indices]
-        )
-
-        render["g"] = (
-            records["g"][indices]
-        )
-
-        render["bp_rp"] = (
-            records["bp_rp"][indices]
-        )
-
-        particle_path = (
-            particle_dir
-            / f"particles_{node_id:08d}.bin"
-        )
-
-        render.tofile(
-            particle_path
-        )
-
-        source_ids = np.asarray(
-            records["source_id"][indices],
-            dtype="<u8"
-        )
-
-        source_path = (
-            source_id_dir
-            / f"source_ids_{node_id:08d}.bin"
-        )
-
-        source_ids.tofile(
-            source_path
-        )
-
-        if (
-            node_id > 0
-            and node_id % 10_000 == 0
-        ):
-
-            print(
-                f"  Wrote "
-                f"{node_id:,}/{node_count:,} nodes"
-            )
-
-    del sort_order
-    del offsets
 
 
 # ============================================================
@@ -1160,11 +2030,9 @@ def write_metadata(
         "metadata.bin"
     )
 
-    cumulative = (
-        compute_cumulative_counts(
-            parent_ids,
-            star_counts
-        )
+    cumulative = compute_cumulative_counts(
+        parent_ids,
+        star_counts
     )
 
     with path.open("wb") as f:
@@ -1209,7 +2077,8 @@ def write_metadata(
 
                 minimum = (
                     root_min
-                    + np.array(
+                    +
+                    np.array(
                         [
                             cell_x[node_id],
                             cell_y[node_id],
@@ -1229,9 +2098,7 @@ def write_metadata(
                 node_size * 0.5
             )
 
-            child_ids = (
-                children[node_id]
-            )
+            child_ids = children[node_id]
 
             child_count = int(
                 np.count_nonzero(
@@ -1336,10 +2203,6 @@ def write_summary(
 
 def main():
 
-    # --------------------------------------------------------
-    # Input validation
-    # --------------------------------------------------------
-
     if not INPUT_DIR.exists():
 
         raise FileNotFoundError(
@@ -1374,10 +2237,6 @@ def main():
         f"Output:\n{OUTPUT_DIR}"
     )
 
-    # --------------------------------------------------------
-    # Clean temporary build directory
-    # --------------------------------------------------------
-
     if BUILD_DIR.exists():
 
         shutil.rmtree(
@@ -1389,24 +2248,98 @@ def main():
     )
 
     # --------------------------------------------------------
-    # Load
+    # Pass 1:
+    # make individually sorted runs
     # --------------------------------------------------------
 
-    records = load_input_files(
+    print()
+    print(
+        "=========================================="
+    )
+    print(
+        "CREATING SORTED RUNS"
+    )
+    print(
+        "=========================================="
+    )
+
+    (
+        run_paths,
+        total_valid,
+        global_minimum,
+        global_maximum,
+        _
+    ) = create_sorted_runs(
         files
     )
 
-    # --------------------------------------------------------
-    # Validate + sort
-    # --------------------------------------------------------
+    center = (
+        global_minimum +
+        global_maximum
+    ) * 0.5
 
-    records = prepare_stars(
-        records
+    root_size = float(
+        np.max(
+            global_maximum -
+            global_minimum
+        )
+    )
+
+    if root_size <= 0.0:
+
+        raise RuntimeError(
+            "All valid stars have identical positions."
+        )
+
+    root_min = (
+        center
+        -
+        root_size * 0.5
+    ).astype(
+        np.float32
     )
 
     # --------------------------------------------------------
-    # Build hierarchy
+    # Pass 2:
+    # multi-way external merge
     # --------------------------------------------------------
+
+    print()
+    print(
+        "=========================================="
+    )
+    print(
+        "EXTERNAL MERGE"
+    )
+    print(
+        "=========================================="
+    )
+
+    final_sorted_run = merge_all_runs(
+        run_paths
+    )
+
+    print()
+    print(
+        f"Final sorted run:\n"
+        f"{final_sorted_run}"
+    )
+
+    # --------------------------------------------------------
+    # Pass 3:
+    # build hierarchy incrementally
+    # --------------------------------------------------------
+
+    print()
+    print(
+        "=========================================="
+    )
+    print(
+        "BUILDING MS-LOD"
+    )
+    print(
+        "=========================================="
+    )
 
     (
         root_min,
@@ -1417,22 +2350,29 @@ def main():
         cell_y,
         cell_z,
         star_counts,
-        children,
-        star_node_ids
-    ) = build_ms_lod(
-        records
+        children
+    ) = build_hierarchy_from_sorted_run(
+        final_sorted_run,
+        total_valid,
+        root_min,
+        root_size
     )
 
+    final_sorted_run.unlink()
+
     # --------------------------------------------------------
-    # Write files
+    # Convert node partitions into final per-node files
     # --------------------------------------------------------
 
-    write_particles(
+    write_final_node_files(
         BUILD_DIR,
-        records,
-        star_counts,
-        star_node_ids
+        len(star_counts),
+        star_counts
     )
+
+    # --------------------------------------------------------
+    # Metadata + summary
+    # --------------------------------------------------------
 
     write_metadata(
         BUILD_DIR,
@@ -1445,27 +2385,37 @@ def main():
         cell_z,
         star_counts,
         children,
-        len(records)
+        total_valid
     )
 
     write_summary(
         BUILD_DIR,
         depths,
-        len(records)
+        total_valid
     )
+
+    # Temp directories should now be empty.
+
+    if RUN_DIR.exists():
+        shutil.rmtree(RUN_DIR)
+
+    if PARTITION_DIR.exists():
+        shutil.rmtree(PARTITION_DIR)
 
     # --------------------------------------------------------
     # Replace old full output only after success.
     # --------------------------------------------------------
 
     if OUTPUT_DIR.exists():
-
         shutil.rmtree(
             OUTPUT_DIR
         )
 
-    BUILD_DIR.rename(
-        OUTPUT_DIR
+    # Windows can occasionally keep the old directory handle
+    # around briefly, so use move instead of rename.
+    shutil.move(
+        str(BUILD_DIR),
+        str(OUTPUT_DIR)
     )
 
     # --------------------------------------------------------
@@ -1484,7 +2434,7 @@ def main():
     )
 
     print(
-        f"Stars:       {len(records):,}"
+        f"Stars:       {total_valid:,}"
     )
 
     print(
