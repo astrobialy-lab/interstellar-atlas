@@ -30,6 +30,22 @@ public class GaiaClusterFilter : MonoBehaviour
     private float maxLogAge = 20.0f;
 
     [SerializeField]
+    private bool useTotalMassRange = false;
+
+    [SerializeField]
+    private float minTotalMass = 0.0f;
+
+    [SerializeField]
+    private float maxTotalMass = 100000.0f;
+
+    [SerializeField]
+    private bool useTypeCode = false;
+
+    [SerializeField]
+    [Range(0, 255)]
+    private int typeCode = 0;
+
+    [SerializeField]
     private bool useDistanceRange = false;
 
     [SerializeField]
@@ -39,27 +55,11 @@ public class GaiaClusterFilter : MonoBehaviour
     private float maxDistancePc = 100000.0f;
 
     [SerializeField]
-    private bool useTotalMassRange = false;
-
-    [SerializeField]
-    private float minTotalMass = 0.0f;
-
-    [SerializeField]
-    private float maxTotalMass = float.MaxValue;
-
-    [SerializeField]
     private bool requireInRj = false;
 
     [SerializeField]
     private bool requireInRt = false;
 
-    [Header("Cluster Type")]
-    [SerializeField]
-    private bool useTypeCode = false;
-
-    [SerializeField]
-    [Range(0, 255)]
-    private int typeCode = 0;
 
     private GaiaClusterDatabase database;
     private int lastSettingsHash;
@@ -246,6 +246,59 @@ public class GaiaClusterFilter : MonoBehaviour
 
             return hash;
         }
+    }
+
+    public void ApplySettings(
+        GaiaClusterFilterSettings settings
+    )
+    {
+        filterEnabled =
+            settings.enabled;
+
+        useMembershipProbability =
+            settings.useMembershipProbability;
+
+        minMembershipProbability =
+            settings.minMembershipProbability;
+
+        useAgeRange =
+            settings.useAgeRange;
+
+        minLogAge =
+            settings.minLogAge;
+
+        maxLogAge =
+            settings.maxLogAge;
+
+        useDistanceRange =
+            settings.useDistanceRange;
+
+        minDistancePc =
+            settings.minDistancePc;
+
+        maxDistancePc =
+            settings.maxDistancePc;
+
+        useTotalMassRange =
+            settings.useTotalMassRange;
+
+        minTotalMass =
+            settings.minTotalMass;
+
+        maxTotalMass =
+            settings.maxTotalMass;
+
+        requireInRj =
+            settings.requireInRj;
+
+        requireInRt =
+            settings.requireInRt;
+
+        useTypeCode =
+            settings.useTypeCode;
+
+        typeCode =
+            settings.typeCode;
     }
 }
 

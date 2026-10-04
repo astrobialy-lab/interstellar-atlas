@@ -708,15 +708,18 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
         }
 
         // ----------------------------------------------------
-        // Keep this node.
+        // Keep this node only if it actually contains local stars.
         //
-        // Nodes contain their own stars, so parents remain
-        // useful even when children are loaded.
+        // A node with starCount == 0 is only an internal hierarchy
+        // node. Its descendants contain the actual stars.
         // ----------------------------------------------------
 
-        desiredNodeIds.Add(
-            node.nodeId
-        );
+        if (node.starCount > 0)
+        {
+            desiredNodeIds.Add(
+                node.nodeId
+            );
+        }
 
         // ----------------------------------------------------
         // Leaf
@@ -1127,6 +1130,24 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
         LODNode node =
             nodes[(int)nodeId];
 
+        // This is a valid internal node with no stars stored
+        // directly in it. There is intentionally no particle file.
+        if (node.starCount == 0)
+        {
+            result.success = true;
+
+            result.stars =
+                Array.Empty<GaiaStarGPU>();
+
+            result.drawBounds =
+                new Bounds(
+                    node.center,
+                    node.halfSize * 2.0f
+                );
+
+            return result;
+        }
+
         string particlePath =
             Path.Combine(
                 projectRoot,
@@ -1349,6 +1370,13 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
 
         LODNode node =
             nodes[(int)nodeId];
+
+        // A node with zero local stars has no particle file.
+        // This is valid for internal hierarchy nodes such as the root.
+        if (node.starCount == 0)
+        {
+            return Array.Empty<GaiaStarGPU>();
+        }
 
         string particlePath =
             Path.Combine(

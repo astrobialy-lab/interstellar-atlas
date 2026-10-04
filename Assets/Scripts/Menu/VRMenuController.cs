@@ -24,14 +24,19 @@ public class VRMenuController : MonoBehaviour
     [Header("Menu References")]
     public GameObject menuCanvas;
     public TextMeshProUGUI titleText;
-    public TextMeshProUGUI optionText;
     public TextMeshProUGUI bodyText;
     public RectTransform bodyRect;
+    public TextMeshProUGUI optionText;
+
     public FastTravelMenu fastTravelMenu;
+    public ClusterFilterMenu clusterFilterMenu;
 
     [Header("Controller References")]
     public VRPlayerController vrPlayerController;
     public DesktopPlayerController desktopPlayerController;
+
+    [Header("Link")]
+    public string moreUrl = "https://star-formation.com/";
 
     [Header("Optional Input Actions")]
     [Tooltip(
@@ -46,13 +51,6 @@ public class VRMenuController : MonoBehaviour
     )]
     public InputActionReference menuSelectAction;
 
-    [Header("Debugging")]
-    public bool logLeftButtonPresses = false;
-
-    [Header("Link")]
-    public string moreUrl =
-        "https://star-formation.com/";
-
     private bool menuOpen = false;
     private bool stickReleased = true;
 
@@ -66,6 +64,7 @@ public class VRMenuController : MonoBehaviour
         "Controls",
         "About",
         "Fast Travel",
+        "Cluster Filter",
         "Show Me More",
         "Quit"
     };
@@ -224,27 +223,39 @@ public class VRMenuController : MonoBehaviour
         bool yPressed =
             yPressedDirectly || yPressedByAction;
 
-        if (logLeftButtonPresses)
-        {
-            if (xPressed)
-            {
-                Debug.Log(
-                    "Left-controller X button detected."
-                );
-            }
-
-            if (yPressed)
-            {
-                Debug.Log(
-                    "Left-controller Y button detected."
-                );
-            }
-        }
-
+        /*
+         * Y BUTTON
+         */
         if (yPressed)
         {
-            if (fastTravelMenu != null &&
-                fastTravelMenu.IsOpen())
+            /*
+             * Cluster Filter is open:
+             * return to main menu.
+             */
+            if (clusterFilterMenu != null &&
+                clusterFilterMenu.IsOpen())
+            {
+                clusterFilterMenu.CloseMenu();
+
+                if (menuCanvas != null)
+                {
+                    menuCanvas.SetActive(true);
+                }
+
+                menuOpen = true;
+
+                selectedIndex = 3;
+
+                stickReleased = true;
+
+                ShowMainMenu();
+            }
+            /*
+             * Fast Travel is open:
+             * return to main menu.
+             */
+            else if (fastTravelMenu != null &&
+                     fastTravelMenu.IsOpen())
             {
                 fastTravelMenu.CloseMenu();
 
@@ -253,15 +264,26 @@ public class VRMenuController : MonoBehaviour
                     menuCanvas.SetActive(true);
                 }
 
-                selectedIndex = 0;
+                menuOpen = true;
+
+                selectedIndex = 2;
+
+                stickReleased = true;
+
                 ShowMainMenu();
             }
+            /*
+             * Otherwise toggle main menu.
+             */
             else
             {
                 ToggleMenu();
             }
         }
 
+        /*
+         * MAIN MENU
+         */
         if (menuOpen)
         {
             HandleStickNavigation(leftStick);
@@ -271,6 +293,9 @@ public class VRMenuController : MonoBehaviour
                 SelectOption();
             }
         }
+        /*
+         * FAST TRAVEL
+         */
         else if (fastTravelMenu != null &&
                  fastTravelMenu.IsOpen())
         {
@@ -290,6 +315,10 @@ public class VRMenuController : MonoBehaviour
                 RestoreSceneAfterMenu();
             }
         }
+
+        /*
+         * Cluster Filter is handled by the Unity UI/EventSystem.
+         */
 
         previousX = buttonX;
         previousY = buttonY;
@@ -330,6 +359,7 @@ public class VRMenuController : MonoBehaviour
         stickReleased = true;
 
         ShowMainMenu();
+
         Canvas.ForceUpdateCanvases();
     }
 
@@ -393,7 +423,6 @@ public class VRMenuController : MonoBehaviour
         ShowMainMenu();
     }
 
-
     private void ShowMainMenu()
     {
         if (titleText != null)
@@ -455,10 +484,14 @@ public class VRMenuController : MonoBehaviour
                 break;
 
             case 3:
-                Application.OpenURL(moreUrl);
+                OpenClusterFilter();
                 break;
 
             case 4:
+                Application.OpenURL(moreUrl);
+                break;
+
+            case 5:
                 Application.Quit();
                 break;
         }
@@ -527,7 +560,8 @@ X: select";
         if (fastTravelMenu == null)
         {
             Debug.LogError(
-                "VRMenuController: Fast Travel Menu is not assigned."
+                "VRMenuController: " +
+                "Fast Travel Menu is not assigned."
             );
 
             return;
@@ -541,5 +575,27 @@ X: select";
         }
 
         fastTravelMenu.OpenMenu();
+    }
+
+    private void OpenClusterFilter()
+    {
+        if (clusterFilterMenu == null)
+        {
+            Debug.LogError(
+                "VRMenuController: " +
+                "Cluster Filter Menu is not assigned."
+            );
+
+            return;
+        }
+
+        menuOpen = false;
+
+        if (menuCanvas != null)
+        {
+            menuCanvas.SetActive(false);
+        }
+
+        clusterFilterMenu.OpenMenu();
     }
 }

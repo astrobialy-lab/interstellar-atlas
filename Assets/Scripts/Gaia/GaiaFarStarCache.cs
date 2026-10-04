@@ -126,6 +126,13 @@ public class GaiaFarStarCache : MonoBehaviour
 
     private uint currentNodeId;
 
+    // Filter revision associated with the currently published
+    // / active cache generation.
+    private int activeFilterRevision = -1;
+
+    // Filter revision captured when the current generation began.
+    private int generationFilterRevision = -1;
+
 
     // ============================================================
     // Far-cache node list
@@ -552,6 +559,9 @@ public class GaiaFarStarCache : MonoBehaviour
         cacheValid = false;
 
         refreshRequired = true;
+
+        activeFilterRevision =
+            lodLoader.FilterRevision;
     }
 
 
@@ -562,6 +572,22 @@ public class GaiaFarStarCache : MonoBehaviour
         {
             return;
         }
+
+        // --------------------------------------------------------
+        // Detect cluster filter changes.
+        // --------------------------------------------------------
+
+        int currentFilterRevision =
+            lodLoader.FilterRevision;
+
+        if (currentFilterRevision !=
+            activeFilterRevision)
+        {
+            HandleFilterChange(
+                currentFilterRevision
+            );
+        }
+
 
         // --------------------------------------------------------
         // The loader's metadata is loaded in Start(), so wait
@@ -596,7 +622,8 @@ public class GaiaFarStarCache : MonoBehaviour
             float refreshDistance =
                 ComputeRefreshDistance();
 
-            if (movement >= refreshDistance)
+            if (movement >=
+                refreshDistance)
             {
                 refreshRequired = true;
             }
@@ -626,22 +653,49 @@ public class GaiaFarStarCache : MonoBehaviour
     }
 
 
-    private void OnDestroy()
+    // ============================================================
+    // Filter changes
+    // ============================================================
+
+    private void HandleFilterChange(
+        int newFilterRevision)
     {
-        ReleaseNodeBuffer();
+        activeFilterRevision =
+            newFilterRevision;
 
-        ReleaseAccumulationBuffers();
-
-        ReleaseCacheTextures();
-
-        if (cacheCompositeMaterial != null)
+        // Stop publishing/processing the current generation.
+        // The background task itself cannot be cancelled, but its
+        // result will no longer be used.
+        if (generationInProgress)
         {
-            CoreUtils.Destroy(
-                cacheCompositeMaterial
-            );
+            generationInProgress = false;
 
-            cacheCompositeMaterial = null;
+            currentNodeLoadTask = null;
         }
+
+        generationFilterRevision = -1;
+
+        generationStarted = false;
+
+        generationNodeIndex = 0;
+
+        generationNodeCount = 0;
+
+        farCacheNodeIds.Clear();
+
+        // The old panorama no longer represents the current
+        // cluster filter.
+        cacheValid = false;
+
+        refreshRequired = true;
+
+        ClearPublishedCacheTexture();
+
+        Debug.Log(
+            "GaiaFarStarCache: " +
+            "Cluster filter changed. " +
+            "Far cache invalidated."
+        );
     }
 
 
@@ -704,8 +758,6 @@ public class GaiaFarStarCache : MonoBehaviour
         descriptor.graphicsFormat =
             GraphicsFormat.R16G16B16A16_SFloat;
 
-        // The compute shader writes to buffers, not directly
-        // to this texture. Therefore random write is not needed.
         descriptor.enableRandomWrite = false;
 
         descriptor.sRGB = false;
@@ -761,6 +813,34 @@ public class GaiaFarStarCache : MonoBehaviour
         Destroy(texture);
 
         texture = null;
+    }
+
+
+    // ============================================================
+    // Clear published cache
+    // ============================================================
+
+    private void ClearPublishedCacheTexture()
+    {
+        if (cacheTexture == null)
+        {
+            return;
+        }
+
+        RenderTexture previousTarget =
+            RenderTexture.active;
+
+        RenderTexture.active =
+            cacheTexture;
+
+        GL.Clear(
+            true,
+            true,
+            Color.clear
+        );
+
+        RenderTexture.active =
+            previousTarget;
     }
 
 
@@ -873,13 +953,17 @@ public class GaiaFarStarCache : MonoBehaviour
 
         // --------------------------------------------------------
         // Capture the exact position for THIS generation.
-        //
-        // This must remain fixed even if the player moves while
-        // the cache is being generated.
         // --------------------------------------------------------
 
         generationCachePosition =
             targetCamera.transform.position;
+
+        // --------------------------------------------------------
+        // Capture the exact filter revision for THIS generation.
+        // --------------------------------------------------------
+
+        generationFilterRevision =
+            lodLoader.FilterRevision;
 
 
         // --------------------------------------------------------
@@ -921,7 +1005,8 @@ public class GaiaFarStarCache : MonoBehaviour
             $"Starting cache generation. " +
             $"Position={generationCachePosition}, " +
             $"Nodes={generationNodeCount}, " +
-            $"FarDistance={farCacheDistance}"
+            $"FarDistance={farCacheDistance}, " +
+            $"FilterRevision={generationFilterRevision}"
         );
     }
 
@@ -980,6 +1065,26 @@ public class GaiaFarStarCache : MonoBehaviour
     private void ProcessGeneration()
     {
         // --------------------------------------------------------
+        // The cluster filter changed while this generation was
+        // running. Abandon this generation completely.
+        // --------------------------------------------------------
+
+        if (lodLoader.FilterRevision !=
+            generationFilterRevision)
+        {
+            generationInProgress = false;
+
+            currentNodeLoadTask = null;
+
+            generationStarted = false;
+
+            refreshRequired = true;
+
+            return;
+        }
+
+
+        // --------------------------------------------------------
         // All nodes processed.
         // --------------------------------------------------------
 
@@ -1017,6 +1122,25 @@ public class GaiaFarStarCache : MonoBehaviour
 
         if (!currentNodeLoadTask.IsCompleted)
         {
+            return;
+        }
+
+
+        // --------------------------------------------------------
+        // Check the filter again before using the completed task.
+        // --------------------------------------------------------
+
+        if (lodLoader.FilterRevision !=
+            generationFilterRevision)
+        {
+            currentNodeLoadTask = null;
+
+            generationInProgress = false;
+
+            generationStarted = false;
+
+            refreshRequired = true;
+
             return;
         }
 
@@ -1178,6 +1302,24 @@ public class GaiaFarStarCache : MonoBehaviour
 
     private void FinishGeneration()
     {
+        // --------------------------------------------------------
+        // Do not publish a cache generated with an old filter.
+        // --------------------------------------------------------
+
+        if (lodLoader.FilterRevision !=
+            generationFilterRevision)
+        {
+            generationInProgress = false;
+
+            currentNodeLoadTask = null;
+
+            generationStarted = false;
+
+            refreshRequired = true;
+
+            return;
+        }
+
         generationInProgress = false;
 
         currentNodeLoadTask = null;
@@ -1186,7 +1328,8 @@ public class GaiaFarStarCache : MonoBehaviour
         Debug.Log(
             "GaiaFarStarCache: " +
             $"Finished cache accumulation. " +
-            $"Nodes={generationNodeCount}"
+            $"Nodes={generationNodeCount}, " +
+            $"FilterRevision={generationFilterRevision}"
         );
 
 
@@ -1199,8 +1342,22 @@ public class GaiaFarStarCache : MonoBehaviour
 
 
         // --------------------------------------------------------
-        // Publish the newly generated cache using the exact
-        // position at which it was generated.
+        // Re-check before publishing.
+        // --------------------------------------------------------
+
+        if (lodLoader.FilterRevision !=
+            generationFilterRevision)
+        {
+            generationStarted = false;
+
+            refreshRequired = true;
+
+            return;
+        }
+
+
+        // --------------------------------------------------------
+        // Publish the newly generated cache.
         // --------------------------------------------------------
 
         PublishPendingCache(
@@ -1307,9 +1464,6 @@ public class GaiaFarStarCache : MonoBehaviour
 
         // --------------------------------------------------------
         // Fullscreen reconstruction.
-        //
-        // The source texture is irrelevant because the composite
-        // shader only reads the structured accumulation buffers.
         // --------------------------------------------------------
 
         Graphics.Blit(
@@ -1723,7 +1877,8 @@ public class GaiaFarStarCache : MonoBehaviour
         Debug.Log(
             "GaiaFarStarCache: " +
             $"Published new far-star cache at " +
-            $"{cachePosition}."
+            $"{cachePosition}. " +
+            $"FilterRevision={generationFilterRevision}"
         );
     }
 

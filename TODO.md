@@ -75,7 +75,11 @@ so 6.5 mil of them dont have GSP-Phot distances thus not used. fix the prob and 
 
 - regenerate far stars cache when new filter is applied (as well when updating the MDLOD)
 
-- add stars filtering ui
-- as well as ladnmarks traveling choice ui
-
 - make all of the popups cool. ask for chatgpt for a cool space design picture as a demonstration.
+
+
+- change stars brightness/settings to match more realistic picture. rn its too dim so hard to enjoy the view
+
+- remove InputActionReference menuToggleAction, InputActionReference menuSelectAction from VRMenuController.cs
+
+- the bins load kinda buggy, when i look directly on them the whole chunk disappears, but when i look sideways it appears

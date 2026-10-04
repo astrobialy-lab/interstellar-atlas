@@ -7,18 +7,19 @@ public class DesktopMenuController : MonoBehaviour
     [Header("Menu References")]
     public GameObject menuCanvas;
     public TextMeshProUGUI titleText;
-    public TextMeshProUGUI optionText;
     public TextMeshProUGUI bodyText;
     public RectTransform bodyRect;
+    public TextMeshProUGUI optionText;
+
     public FastTravelMenu fastTravelMenu;
+    public ClusterFilterMenu clusterFilterMenu;
 
     [Header("Player References")]
     public VRPlayerController vrPlayerController;
     public DesktopPlayerController desktopPlayerController;
 
     [Header("Link")]
-    public string moreUrl =
-        "https://star-formation.com/";
+    public string moreUrl = "https://star-formation.com/";
 
     private bool menuOpen = false;
 
@@ -29,6 +30,7 @@ public class DesktopMenuController : MonoBehaviour
         "Controls",
         "About",
         "Fast Travel",
+        "Cluster Filter",
         "Show Me More",
         "Quit"
     };
@@ -70,10 +72,39 @@ public class DesktopMenuController : MonoBehaviour
     )
     {
         /*
-         * ESCAPE ALWAYS OPENS / CLOSES THE MAIN MENU
+         * ESCAPE
          */
         if (keyboard.escapeKey.wasPressedThisFrame)
         {
+            /*
+             * Cluster Filter is open:
+             * return to main menu.
+             */
+            if (clusterFilterMenu != null &&
+                clusterFilterMenu.IsOpen())
+            {
+                clusterFilterMenu.CloseMenu();
+
+                if (menuCanvas != null)
+                {
+                    menuCanvas.SetActive(true);
+                }
+
+                menuOpen = true;
+
+                selectedIndex = 3;
+
+                ShowMainMenu();
+
+                Canvas.ForceUpdateCanvases();
+
+                return;
+            }
+
+            /*
+             * Fast Travel is open:
+             * return to main menu.
+             */
             if (fastTravelMenu != null &&
                 fastTravelMenu.IsOpen())
             {
@@ -81,17 +112,32 @@ public class DesktopMenuController : MonoBehaviour
 
                 if (menuCanvas != null)
                 {
-                    menuCanvas.SetActive(false);
+                    menuCanvas.SetActive(true);
                 }
 
-                menuOpen = false;
+                menuOpen = true;
 
-                RestoreSceneAfterMenu();
+                selectedIndex = 2;
+
+                ShowMainMenu();
+
+                Canvas.ForceUpdateCanvases();
+
+                return;
             }
-            else if (menuOpen)
+
+            /*
+             * Main menu open:
+             * close it.
+             */
+            if (menuOpen)
             {
                 CloseMenu();
             }
+            /*
+             * Main menu closed:
+             * open it.
+             */
             else
             {
                 OpenMenu();
@@ -107,6 +153,18 @@ public class DesktopMenuController : MonoBehaviour
             fastTravelMenu.IsOpen())
         {
             HandleFastTravelKeyboard(keyboard);
+            return;
+        }
+
+        /*
+         * CLUSTER FILTER MENU
+         *
+         * The actual UI controls are handled by
+         * Unity UI/EventSystem.
+         */
+        if (clusterFilterMenu != null &&
+            clusterFilterMenu.IsOpen())
+        {
             return;
         }
 
@@ -226,21 +284,6 @@ public class DesktopMenuController : MonoBehaviour
         RestoreSceneAfterMenu();
     }
 
-    private void CloseFastTravel()
-    {
-        fastTravelMenu.CloseMenu();
-
-        if (menuCanvas != null)
-        {
-            menuCanvas.SetActive(true);
-        }
-
-        menuOpen = true;
-        selectedIndex = 2;
-
-        ShowMainMenu();
-    }
-
     private void RestoreSceneAfterMenu()
     {
         if (vrPlayerController != null)
@@ -315,10 +358,14 @@ public class DesktopMenuController : MonoBehaviour
                 break;
 
             case 3:
-                Application.OpenURL(moreUrl);
+                OpenClusterFilter();
                 break;
 
             case 4:
+                Application.OpenURL(moreUrl);
+                break;
+
+            case 5:
                 Application.Quit();
                 break;
         }
@@ -404,5 +451,27 @@ Escape: open / close menu";
         }
 
         fastTravelMenu.OpenMenu();
+    }
+
+    private void OpenClusterFilter()
+    {
+        if (clusterFilterMenu == null)
+        {
+            Debug.LogError(
+                "DesktopMenuController: " +
+                "Cluster Filter Menu is not assigned."
+            );
+
+            return;
+        }
+
+        menuOpen = false;
+
+        if (menuCanvas != null)
+        {
+            menuCanvas.SetActive(false);
+        }
+
+        clusterFilterMenu.OpenMenu();
     }
 }
