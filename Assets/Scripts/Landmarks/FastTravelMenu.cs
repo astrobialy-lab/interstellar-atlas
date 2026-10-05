@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
+using UnityEngine.EventSystems;
 
 public class FastTravelMenu : MonoBehaviour
 {
@@ -26,9 +27,11 @@ public class FastTravelMenu : MonoBehaviour
     private readonly List<Button> buttons =
         new List<Button>();
 
-    private int selectedIndex = 0;
-
     private bool stickReleased = true;
+
+    // Prevents the same input that opens the menu
+    // from immediately activating the first destination.
+    private int ignoreSelectionFrame = -1;
 
     private class LandmarkEntry
     {
@@ -45,6 +48,34 @@ public class FastTravelMenu : MonoBehaviour
         {
             menuRoot.SetActive(false);
         }
+    }
+
+    private void Update()
+    {
+        if (!IsOpen() ||
+            EventSystem.current == null)
+        {
+            return;
+        }
+
+        GameObject selected =
+            EventSystem.current.currentSelectedGameObject;
+
+        if (selected == null)
+        {
+            return;
+        }
+
+        Button button =
+            selected.GetComponent<Button>();
+
+        if (button == null ||
+            !buttons.Contains(button))
+        {
+            return;
+        }
+
+        ScrollToButton(button);
     }
 
     private void GenerateLandmarkButtons()
@@ -162,6 +193,16 @@ public class FastTravelMenu : MonoBehaviour
                     content
                 );
 
+            RectTransform rect = buttonObject.GetComponent<RectTransform>();
+
+            if (rect != null)
+            {
+                rect.SetSizeWithCurrentAnchors(
+                    RectTransform.Axis.Horizontal,
+                    580f
+                );
+            }
+
             buttonObject.name =
                 $"LandmarkButton_{name}";
 
@@ -176,6 +217,11 @@ public class FastTravelMenu : MonoBehaviour
                 );
 
                 Destroy(buttonObject);
+
+                landmarks.RemoveAt(
+                    landmarks.Count - 1
+                );
+
                 continue;
             }
 
@@ -187,6 +233,18 @@ public class FastTravelMenu : MonoBehaviour
                 text.text = name;
             }
 
+            /*
+             * Let Unity handle navigation between buttons.
+             */
+            Navigation navigation =
+                button.navigation;
+
+            navigation.mode =
+                Navigation.Mode.Automatic;
+
+            button.navigation =
+                navigation;
+
             int index =
                 landmarks.Count - 1;
 
@@ -196,37 +254,62 @@ public class FastTravelMenu : MonoBehaviour
 
             buttons.Add(button);
         }
-
-        if (buttons.Count > 0)
-        {
-            selectedIndex = 0;
-            UpdateSelection();
-        }
     }
 
+    /*
+     * Desktop W/S and arrow-key navigation.
+     *
+     * EventSystem remains the single source of truth.
+     */
     public void MoveSelection(int direction)
     {
-        if (buttons.Count == 0)
+        if (buttons.Count == 0 ||
+            EventSystem.current == null)
         {
             return;
         }
 
-        selectedIndex += direction;
+        GameObject currentObject =
+            EventSystem.current.currentSelectedGameObject;
 
-        if (selectedIndex < 0)
+        Button currentButton =
+            currentObject != null
+                ? currentObject.GetComponent<Button>()
+                : null;
+
+        int currentIndex =
+            currentButton != null
+                ? buttons.IndexOf(currentButton)
+                : -1;
+
+        if (currentIndex < 0)
         {
-            selectedIndex = buttons.Count - 1;
+            currentIndex = 0;
         }
 
-        if (selectedIndex >= buttons.Count)
+        int newIndex =
+            currentIndex + direction;
+
+        if (newIndex < 0)
         {
-            selectedIndex = 0;
+            newIndex = buttons.Count - 1;
         }
 
-        UpdateSelection();
-        ScrollToSelected();
+        if (newIndex >= buttons.Count)
+        {
+            newIndex = 0;
+        }
+
+        EventSystem.current.SetSelectedGameObject(
+            buttons[newIndex].gameObject
+        );
+
+        buttons[newIndex].Select();
     }
 
+    /*
+     * VR stick navigation.
+     */
     public void HandleStickNavigation(Vector2 stick)
     {
         if (Mathf.Abs(stick.y) < 0.3f)
@@ -252,38 +335,20 @@ public class FastTravelMenu : MonoBehaviour
         stickReleased = false;
     }
 
-    private void UpdateSelection()
-    {
-        for (int i = 0; i < buttons.Count; i++)
-        {
-            ColorBlock colors =
-                buttons[i].colors;
-
-            if (i == selectedIndex)
-            {
-                colors.normalColor = new Color(0.75f, 0.75f, 0.75f);
-            }
-            else
-            {
-                colors.normalColor = Color.white;
-            }
-
-            buttons[i].colors =
-                colors;
-        }
-    }
-
-    private void ScrollToSelected()
+    /*
+     * Keeps the currently selected Button visible.
+     */
+    private void ScrollToButton(Button button)
     {
         if (scrollRect == null ||
             scrollRect.content == null ||
-            selectedIndex < 0 ||
-            selectedIndex >= buttons.Count)
+            button == null)
         {
             return;
         }
 
-        RectTransform viewport = scrollRect.viewport;
+        RectTransform viewport =
+            scrollRect.viewport;
 
         if (viewport == null)
         {
@@ -294,7 +359,7 @@ public class FastTravelMenu : MonoBehaviour
             scrollRect.content;
 
         RectTransform selectedRect =
-            buttons[selectedIndex].GetComponent<RectTransform>();
+            button.GetComponent<RectTransform>();
 
         if (selectedRect == null)
         {
@@ -330,8 +395,6 @@ public class FastTravelMenu : MonoBehaviour
         float selectedCenter =
             selectedBounds.center.y;
 
-        // Position that puts the selected item near
-        // the center of the visible area.
         float scrollAmount =
             contentTop -
             viewportHeight * 0.5f -
@@ -345,19 +408,60 @@ public class FastTravelMenu : MonoBehaviour
             Mathf.Clamp01(normalizedPosition);
     }
 
+    /*
+     * Select the Button currently selected by the EventSystem.
+     */
     public void SelectCurrentLandmark()
     {
-        if (selectedIndex < 0 ||
-            selectedIndex >= landmarks.Count)
+        if (Time.frameCount == ignoreSelectionFrame)
         {
             return;
         }
 
-        SelectLandmark(selectedIndex);
+        if (EventSystem.current == null)
+        {
+            return;
+        }
+
+        GameObject selectedObject =
+            EventSystem.current.currentSelectedGameObject;
+
+        if (selectedObject == null)
+        {
+            return;
+        }
+
+        Button selectedButton =
+            selectedObject.GetComponent<Button>();
+
+        if (selectedButton == null)
+        {
+            return;
+        }
+
+        int index =
+            buttons.IndexOf(selectedButton);
+
+        if (index < 0)
+        {
+            return;
+        }
+
+        SelectLandmark(index);
     }
 
     private void SelectLandmark(int index)
     {
+        /*
+         * Prevent a mouse click or VR/keyboard submit
+         * occurring in the same frame that opened the menu
+         * from activating the first destination.
+         */
+        if (Time.frameCount == ignoreSelectionFrame)
+        {
+            return;
+        }
+
         if (index < 0 ||
             index >= landmarks.Count)
         {
@@ -400,10 +504,30 @@ public class FastTravelMenu : MonoBehaviour
 
         menuRoot.SetActive(true);
 
-        selectedIndex = 0;
+        /*
+         * Ignore any selection event occurring in the
+         * same frame that the menu was opened.
+         */
+        ignoreSelectionFrame = Time.frameCount;
 
-        UpdateSelection();
-        ScrollToSelected();
+        Canvas.ForceUpdateCanvases();
+
+        /*
+         * First destination is selected/highlighted.
+         */
+        if (buttons.Count > 0 &&
+            EventSystem.current != null)
+        {
+            EventSystem.current.SetSelectedGameObject(null);
+
+            EventSystem.current.SetSelectedGameObject(
+                buttons[0].gameObject
+            );
+
+            buttons[0].Select();
+
+            ScrollToButton(buttons[0]);
+        }
     }
 
     public void CloseMenu()
