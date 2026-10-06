@@ -222,8 +222,8 @@ public class GaiaMSLODBoundsVisualizer : MonoBehaviour
 
         Debug.Log(
             $"GaiaMSLODBoundsVisualizer: " +
-            $"Loaded={loadedDrawn}/{loadedNodes.Count}, " +
-            $"Desired={desiredDrawn}/{desiredNodes.Count}"
+            $"Displayed Loaded={loadedDrawn}/{loadedNodes.Count}, " +
+            $"Displayed Desired={desiredDrawn}/{desiredNodes.Count}"
         );
     }
 

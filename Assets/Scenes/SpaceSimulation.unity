@@ -1789,6 +1789,12 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::GaiaIndexReader
   indexRelativePath: Data/Gaia/index.bin
+  <Version>k__BackingField: 0
+  <HealpixLevel>k__BackingField: 0
+  <ShellCount>k__BackingField: 0
+  <ChunkCount>k__BackingField: 0
+  <Chunks>k__BackingField: []
+  stringTable: []
 --- !u!4 &586631264
 Transform:
   m_ObjectHideFlags: 0
@@ -2151,8 +2157,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::GaiaMSLODBoundsVisualizer
   msLODLoader: {fileID: 586631267}
   nodeSelector: {fileID: 0}
-  maxDesiredNodesToDraw: 100000
-  maxLoadedNodesToDraw: 100000
+  maxDesiredNodesToDraw: 100000000
+  maxLoadedNodesToDraw: 100000000
   lineWidth: 0.2
   baseMaterial: {fileID: 0}
 --- !u!4 &618384819
@@ -3185,9 +3191,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::MSLODNodeSelector
   metadataDirectory: Data/Gaia/lod
   targetCamera: {fileID: 330585545}
-  solidAngleThreshold: 0.005
-  solidAngleFadeRange: 0.0025
-  solidAnglePreloadRange: 0.00125
+  solidAngleThreshold: 0.05
+  solidAngleFadeRange: 0.025
+  solidAnglePreloadRange: 0.0125
   frustumCulling: 1
   verboseLogging: 0
 --- !u!4 &902951635

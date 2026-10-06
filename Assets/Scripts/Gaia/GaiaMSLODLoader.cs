@@ -24,7 +24,7 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
 
     [SerializeField]
     [Min(1)]
-    private int maxConcurrentLoads = 18;
+    private int maxConcurrentLoads = 10;
 
     [Header("Debug")]
     [SerializeField]

@@ -1,11 +1,3 @@
-- clean shader after downloading all of the gaia data
-- clean star loader
-- and verify no trash in the index loader
-
-
-
-
-
 - get his script that converts to csv of data.
 
 - ask for his scripts that process dust and pull + process landmarks
@@ -89,3 +81,7 @@ so 6.5 mil of them dont have GSP-Phot distances thus not used. fix the prob and 
 - make so the nodes display color would also depends whether the dust was rendered or still rendering (4 colors in total)
 
 - make so that it displays the far blocks as light blocks + top bright stars. ccuz when i fly far away i dont see the real mess that there is
+
+- update the Tools/Dust script 2_..
+
+- change landmark icons

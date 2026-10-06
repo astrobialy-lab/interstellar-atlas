@@ -1,0 +1,1 @@
+you need to obtain X.npy Y.npy Z.npy n_obs.npy from shmuels google drive, and put them under DataRaw/Dust/
