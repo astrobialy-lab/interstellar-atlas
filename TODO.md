@@ -6,7 +6,7 @@
 
 
 
-- get his script that converts to csv of data. and check the units of x,y,z. make sure i use same scales for the stars
+- get his script that converts to csv of data.
 
 - ask for his scripts that process dust and pull + process landmarks
 

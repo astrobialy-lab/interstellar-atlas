@@ -149,8 +149,6 @@ public class VRPlayerController : MonoBehaviour
         }
 
         HandleLandmarkSelection(rightHand);
-
-        HandleLandmarkPopupClose(rightHand);
     }
 
     public void StartFastTravel(Vector3 destination)
@@ -267,26 +265,6 @@ public class VRPlayerController : MonoBehaviour
         previousLeftTrigger = leftTriggerPressed;
         previousLeftGrip = leftGripPressed;
     }
-
-    private void HandleLandmarkPopupClose(InputDevice rightHand)
-{
-    bool rightGripPressed = false;
-
-    rightHand.TryGetFeatureValue(
-        CommonUsages.gripButton,
-        out rightGripPressed
-    );
-
-    if (rightGripPressed && !previousRightGrip)
-    {
-        if (landmarkPopup != null)
-        {
-            landmarkPopup.Hide();
-        }
-    }
-
-    previousRightGrip = rightGripPressed;
-}
 
     private void HandleParticleCountControls(
         InputDevice rightHand

@@ -294,15 +294,6 @@ public class DesktopPlayerController : MonoBehaviour
         {
             TrySelectLandmark();
         }
-
-        // 8 = close landmark popup
-        if (
-            landmarkPopup != null &&
-            Keyboard.current.digit8Key.wasPressedThisFrame
-        )
-        {
-            landmarkPopup.Hide();
-        }
     }
 
     private void TrySelectLandmark()

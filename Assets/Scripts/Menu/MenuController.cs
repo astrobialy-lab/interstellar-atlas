@@ -27,6 +27,7 @@ public class MenuController : MonoBehaviour
     [Header("Other Menus")]
     public FastTravelMenu fastTravelMenu;
     public ClusterFilterMenu clusterFilterMenu;
+    public LandmarkPopup landmarkPopup;
 
     [Header("Player References")]
     public VRPlayerController vrPlayerController;
@@ -157,75 +158,43 @@ public class MenuController : MonoBehaviour
 
     private void HandleMenuKeyboardToggle()
     {
-        /*
-         * INFORMATION -> MAIN MENU
-         */
+        // INFORMATION / CONTROLS
         if (infoCanvas != null &&
             infoCanvas.activeSelf)
         {
             CloseInfoMenu();
-
-            if (menuCanvas != null)
-            {
-                menuCanvas.SetActive(true);
-            }
-
-            menuOpen = true;
-
-            SelectRememberedButton();
-
-            Canvas.ForceUpdateCanvases();
-
+            RestoreSceneAfterMenu();
             return;
         }
 
-        /*
-         * CLUSTER FILTER -> MAIN MENU
-         */
+        // CLUSTER FILTER
         if (clusterFilterMenu != null &&
             clusterFilterMenu.IsOpen())
         {
             clusterFilterMenu.CloseMenu();
-
-            if (menuCanvas != null)
-            {
-                menuCanvas.SetActive(true);
-            }
-
-            menuOpen = true;
-
-            SelectRememberedButton();
-
-            Canvas.ForceUpdateCanvases();
-
+            RestoreSceneAfterMenu();
             return;
         }
 
-        /*
-         * FAST TRAVEL -> MAIN MENU
-         */
+        // FAST TRAVEL
         if (fastTravelMenu != null &&
             fastTravelMenu.IsOpen())
         {
             fastTravelMenu.CloseMenu();
-
-            if (menuCanvas != null)
-            {
-                menuCanvas.SetActive(true);
-            }
-
-            menuOpen = true;
-
-            SelectRememberedButton();
-
-            Canvas.ForceUpdateCanvases();
-
+            RestoreSceneAfterMenu();
             return;
         }
 
-        /*
-         * MAIN MENU
-         */
+        // LANDMARK POPUP
+        if (landmarkPopup != null &&
+            landmarkPopup.gameObject.activeSelf)
+        {
+            landmarkPopup.Hide();
+            RestoreSceneAfterMenu();
+            return;
+        }
+
+        // MAIN MENU
         if (menuOpen)
         {
             CloseMenu();
@@ -281,66 +250,35 @@ public class MenuController : MonoBehaviour
          */
         if (yPressed)
         {
-            /*
-             * INFORMATION -> MAIN MENU
-             */
+            // INFORMATION / CONTROLS
             if (infoCanvas != null &&
                 infoCanvas.activeSelf)
             {
                 CloseInfoMenu();
-
-                if (menuCanvas != null)
-                {
-                    menuCanvas.SetActive(true);
-                }
-
-                menuOpen = true;
-
-                SelectRememberedButton();
-
-                Canvas.ForceUpdateCanvases();
+                RestoreSceneAfterMenu();
             }
-            /*
-             * CLUSTER FILTER -> MAIN MENU
-             */
+            // CLUSTER FILTER
             else if (clusterFilterMenu != null &&
                      clusterFilterMenu.IsOpen())
             {
                 clusterFilterMenu.CloseMenu();
-
-                if (menuCanvas != null)
-                {
-                    menuCanvas.SetActive(true);
-                }
-
-                menuOpen = true;
-
-                SelectRememberedButton();
-
-                Canvas.ForceUpdateCanvases();
+                RestoreSceneAfterMenu();
             }
-            /*
-             * FAST TRAVEL -> MAIN MENU
-             */
+            // FAST TRAVEL
             else if (fastTravelMenu != null &&
                      fastTravelMenu.IsOpen())
             {
                 fastTravelMenu.CloseMenu();
-
-                if (menuCanvas != null)
-                {
-                    menuCanvas.SetActive(true);
-                }
-
-                menuOpen = true;
-
-                SelectRememberedButton();
-
-                Canvas.ForceUpdateCanvases();
+                RestoreSceneAfterMenu();
             }
-            /*
-             * MAIN MENU
-             */
+            // LANDMARK POPUP
+            else if (landmarkPopup != null &&
+                     landmarkPopup.gameObject.activeSelf)
+            {
+                landmarkPopup.Hide();
+                RestoreSceneAfterMenu();
+            }
+            // MAIN MENU
             else
             {
                 ToggleMenu();
@@ -551,8 +489,7 @@ Q / E: roll
 4 / 5: decrease / increase particle size
 6: show / hide landmarks
 7: select landmark
-8: close landmark information
-Escape: open / close menu
+Escape / M: open menu / close current menu or popup
 
 VR:
 Left Stick: move / turn
@@ -564,8 +501,7 @@ B: show / hide landmarks
 Left Trigger: next color scheme
 Left Grip: cycle particle thickness
 Right Trigger: select landmark
-Right Grip: close landmark information
-Y: open / close menu
+Y: open menu / close current menu or popup
 X: select"
         );
     }
