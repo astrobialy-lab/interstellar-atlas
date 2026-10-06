@@ -1768,7 +1768,6 @@ GameObject:
   - component: {fileID: 586631263}
   - component: {fileID: 586631267}
   - component: {fileID: 586631266}
-  - component: {fileID: 586631268}
   - component: {fileID: 586631269}
   m_Layer: 0
   m_Name: GaiaStars
@@ -1842,28 +1841,6 @@ MonoBehaviour:
   streamUpdateAngle: 2
   maxConcurrentLoads: 100
   verboseLogging: 0
---- !u!114 &586631268
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 586631262}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 3a63dfe68b7745e478e9eb30078d9255, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::GaiaFarStarCache
-  lodLoader: {fileID: 586631267}
-  rasterizer: {fileID: 586631266}
-  targetCamera: {fileID: 330585545}
-  cacheCompute: {fileID: 7200000, guid: 56595467b9b1716448e6529aebc6231c, type: 3}
-  cacheCompositeShader: {fileID: 4800000, guid: f10d5f990b4d51243a6bdb41c8ab0303, type: 3}
-  cacheWidth: 2048
-  cacheFilterMode: 1
-  farCacheDistance: 10000
-  cacheAngularErrorDegrees: 1
-  cacheNodeAngularDiameterDegrees: 0.35
 --- !u!114 &586631269
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3211,6 +3188,7 @@ MonoBehaviour:
   solidAngleThreshold: 0.005
   solidAngleFadeRange: 0.0025
   solidAnglePreloadRange: 0.00125
+  frustumCulling: 1
   verboseLogging: 0
 --- !u!4 &902951635
 Transform:
