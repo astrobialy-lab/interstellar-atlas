@@ -81,3 +81,11 @@ so 6.5 mil of them dont have GSP-Phot distances thus not used. fix the prob and 
 - the bins load kinda buggy, when i look directly on them the whole chunk disappears, but when i look sideways it appears
 
 - fix fast travel bug: cant look around when selecting destination with a mouse
+
+
+- when doing dust MSLOD, no need to recalculate the chunk vieable angle. i can use same as stars:
+  make sure to build the lod of dust same structure as the lod of stars, and when whatever dept stars are displayed, use the same nodes for dust
+
+- make so the nodes display color would also depends whether the dust was rendered or still rendering (4 colors in total)
+
+- make so that it displays the far blocks as light blocks + top bright stars. ccuz when i fly far away i dont see the real mess that there is

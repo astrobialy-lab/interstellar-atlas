@@ -7,6 +7,9 @@ public class VRPlayerController : MonoBehaviour
     public LandmarkPopup landmarkPopup;
     public LandmarkMarkerGenerator landmarkMarkerGenerator;
 
+    [Header("Orientation")]
+    public GameObject orientation;
+
     public Transform xrOrigin;
 
     // New XR Origin → Camera Offset → Main Camera
@@ -15,6 +18,10 @@ public class VRPlayerController : MonoBehaviour
     // New XR Origin → Camera Offset → Right Controller
     public Transform rightControllerTransform;
 
+    [Header("MS-LOD Debug")]
+    public GaiaMSLODBoundsVisualizer msLODBoundsVisualizer;
+
+    [Header("Movement")]
     public float moveSpeed = 1.25f;
     public float speedChangeFactor = 2.0f;
     public float turnSpeed = 35.0f;
@@ -49,14 +56,20 @@ public class VRPlayerController : MonoBehaviour
 
     private bool previousLeftTrigger = false;
     private bool previousLeftGrip = false;
-    private bool previousRightGrip = false;
 
     private bool previousRightTrigger = false;
+    private bool previousRightGrip = false;
 
     private bool usingQualityParticleCount = true;
 
     private void Start()
     {
+        if (msLODBoundsVisualizer == null)
+        {
+            msLODBoundsVisualizer =
+                FindAnyObjectByType<GaiaMSLODBoundsVisualizer>();
+        }
+
         if (rightRayLine != null)
         {
             rightRayLine.enabled = false;
@@ -72,10 +85,14 @@ public class VRPlayerController : MonoBehaviour
         }
 
         InputDevice leftHand =
-            InputDevices.GetDeviceAtXRNode(XRNode.LeftHand);
+            InputDevices.GetDeviceAtXRNode(
+                XRNode.LeftHand
+            );
 
-        InputDevice rightHand = 
-            InputDevices.GetDeviceAtXRNode(XRNode.RightHand);
+        InputDevice rightHand =
+            InputDevices.GetDeviceAtXRNode(
+                XRNode.RightHand
+            );
 
         Vector2 leftStick = Vector2.zero;
         Vector2 rightStick = Vector2.zero;
@@ -114,13 +131,19 @@ public class VRPlayerController : MonoBehaviour
 
         transform.Rotate(
             Vector3.up,
-            smoothedTurn * turnSpeed * Time.deltaTime
+            smoothedTurn *
+            turnSpeed *
+            Time.deltaTime
         );
 
         Transform movementReference =
-            headsetCamera != null ? headsetCamera : transform;
+            headsetCamera != null
+                ? headsetCamera
+                : transform;
 
-        Vector3 forward = movementReference.forward;
+        Vector3 forward =
+            movementReference.forward;
+
         forward.y = 0f;
 
         if (forward.sqrMagnitude > 0.001f)
@@ -129,58 +152,96 @@ public class VRPlayerController : MonoBehaviour
         }
 
         Vector3 right =
-            Vector3.Cross(Vector3.up, forward);
+            Vector3.Cross(
+                Vector3.up,
+                forward
+            );
 
         right.Normalize();
 
         Vector3 movement =
-            forward * smoothedMove * moveSpeed +
-            right * rightStick.x * moveSpeed +
-            Vector3.up * rightStick.y * moveSpeed;
+            forward *
+            smoothedMove *
+            moveSpeed
+            +
+            right *
+            rightStick.x *
+            moveSpeed
+            +
+            Vector3.up *
+            rightStick.y *
+            moveSpeed;
 
-        transform.position += movement * Time.deltaTime;
+        transform.position +=
+            movement *
+            Time.deltaTime;
 
-        HandleSpeedControls(leftHand);
+        HandleSpeedControls(
+            leftHand
+        );
 
         if (dustCloudGenerator != null)
         {
-            HandleColorControls(leftHand);
-            HandleParticleCountControls(rightHand);
+            HandleColorControls(
+                leftHand
+            );
+
+            HandleParticleCountControls(
+                rightHand
+            );
         }
 
-        HandleLandmarkSelection(rightHand);
+        HandleMSLODBoundsControls(
+            rightHand
+        );
+
+        HandleLandmarkSelection(
+            rightHand
+        );
     }
 
-    public void StartFastTravel(Vector3 destination)
+    public void StartFastTravel(
+        Vector3 destination
+    )
     {
         if (isFastTraveling)
         {
             return;
         }
 
-        fastTravelStart = transform.position;
-        fastTravelTarget = destination;
+        fastTravelStart =
+            transform.position;
+
+        fastTravelTarget =
+            destination;
+
         fastTravelTime = 0f;
 
         isFastTraveling = true;
 
         Debug.Log(
-            $"Starting fast travel from {fastTravelStart} to {fastTravelTarget}"
+            $"Starting fast travel from " +
+            $"{fastTravelStart} to " +
+            $"{fastTravelTarget}"
         );
     }
 
     private void UpdateFastTravel()
     {
-        fastTravelTime += Time.deltaTime;
+        fastTravelTime +=
+            Time.deltaTime;
 
         float t =
             Mathf.Clamp01(
-                fastTravelTime / fastTravelDuration
+                fastTravelTime /
+                fastTravelDuration
             );
 
         // Smooth ease-in/ease-out.
         float smoothT =
-            t * t * (3f - 2f * t);
+            t *
+            t *
+            (3f - 2f * t);
 
         transform.position =
             Vector3.Lerp(
@@ -191,14 +252,20 @@ public class VRPlayerController : MonoBehaviour
 
         if (t >= 1f)
         {
-            transform.position = fastTravelTarget;
+            transform.position =
+                fastTravelTarget;
+
             isFastTraveling = false;
 
-            Debug.Log("Fast travel complete.");
+            Debug.Log(
+                "Fast travel complete."
+            );
         }
     }
 
-    private void HandleSpeedControls(InputDevice leftHand)
+    private void HandleSpeedControls(
+        InputDevice leftHand
+    )
     {
         bool leftX = false;
         bool leftY = false;
@@ -216,28 +283,39 @@ public class VRPlayerController : MonoBehaviour
         // X = increase speed
         if (leftX && !previousLeftX)
         {
-            moveSpeed *= speedChangeFactor;
+            moveSpeed *=
+                speedChangeFactor;
+
             if (xrOrigin != null)
             {
-                xrOrigin.localScale /= speedChangeFactor;
+                xrOrigin.localScale /=
+                    speedChangeFactor;
             }
         }
 
         // Y = decrease speed
         if (leftY && !previousLeftY)
         {
-            moveSpeed /= speedChangeFactor;
+            moveSpeed /=
+                speedChangeFactor;
+
             if (xrOrigin != null)
             {
-                xrOrigin.localScale *= speedChangeFactor;
+                xrOrigin.localScale *=
+                    speedChangeFactor;
             }
         }
 
-        previousLeftX = leftX;
-        previousLeftY = leftY;
+        previousLeftX =
+            leftX;
+
+        previousLeftY =
+            leftY;
     }
 
-    private void HandleColorControls(InputDevice leftHand)
+    private void HandleColorControls(
+        InputDevice leftHand
+    )
     {
         bool leftTriggerPressed = false;
         bool leftGripPressed = false;
@@ -252,18 +330,25 @@ public class VRPlayerController : MonoBehaviour
             out leftGripPressed
         );
 
-        if (leftTriggerPressed && !previousLeftTrigger)
+        if (leftTriggerPressed &&
+            !previousLeftTrigger)
         {
-            dustCloudGenerator.NextColorScheme();
+            dustCloudGenerator
+                .NextColorScheme();
         }
 
-        if (leftGripPressed && !previousLeftGrip)
+        if (leftGripPressed &&
+            !previousLeftGrip)
         {
-            dustCloudGenerator.CycleParticleSizeMultiplier();
+            dustCloudGenerator
+                .CycleParticleSizeMultiplier();
         }
 
-        previousLeftTrigger = leftTriggerPressed;
-        previousLeftGrip = leftGripPressed;
+        previousLeftTrigger =
+            leftTriggerPressed;
+
+        previousLeftGrip =
+            leftGripPressed;
     }
 
     private void HandleParticleCountControls(
@@ -283,28 +368,71 @@ public class VRPlayerController : MonoBehaviour
             out buttonB
         );
 
+        // A = toggle particle count
         if (buttonA && !previousA)
         {
             usingQualityParticleCount =
                 !usingQualityParticleCount;
 
-            int particleCount = usingQualityParticleCount
-                ? qualityParticleCount
-                : performanceParticleCount;
+            int particleCount =
+                usingQualityParticleCount
+                    ? qualityParticleCount
+                    : performanceParticleCount;
 
-            dustCloudGenerator.SetParticleCount(particleCount);
+            dustCloudGenerator
+                .SetParticleCount(
+                    particleCount
+                );
         }
 
+        // B = toggle landmark markers and Orientation
         if (buttonB && !previousB)
         {
             if (landmarkMarkerGenerator != null)
             {
-                landmarkMarkerGenerator.ToggleMarkers();
+                landmarkMarkerGenerator
+                    .ToggleMarkers();
+            }
+
+            if (orientation != null)
+            {
+                orientation.SetActive(
+                    !orientation.activeSelf
+                );
             }
         }
 
-        previousA = buttonA;
-        previousB = buttonB;
+        previousA =
+            buttonA;
+
+        previousB =
+            buttonB;
+    }
+
+    private void HandleMSLODBoundsControls(
+        InputDevice rightHand
+    )
+    {
+        bool rightGripPressed = false;
+
+        rightHand.TryGetFeatureValue(
+            CommonUsages.gripButton,
+            out rightGripPressed
+        );
+
+        // Right Grip = toggle MS-LOD bounds
+        if (rightGripPressed &&
+            !previousRightGrip)
+        {
+            if (msLODBoundsVisualizer != null)
+            {
+                msLODBoundsVisualizer
+                    .RefreshBounds();
+            }
+        }
+
+        previousRightGrip =
+            rightGripPressed;
     }
 
     private void HandleLandmarkSelection(
@@ -318,12 +446,14 @@ public class VRPlayerController : MonoBehaviour
             out rightTriggerPressed
         );
 
-        if (rightTriggerPressed && !previousRightTrigger)
+        if (rightTriggerPressed &&
+            !previousRightTrigger)
         {
             TrySelectLandmark();
         }
 
-        previousRightTrigger = rightTriggerPressed;
+        previousRightTrigger =
+            rightTriggerPressed;
     }
 
     private void TrySelectLandmark()
@@ -331,7 +461,8 @@ public class VRPlayerController : MonoBehaviour
         if (rightControllerTransform == null)
         {
             Debug.LogWarning(
-                "Right Controller Transform has not been assigned."
+                "Right Controller Transform " +
+                "has not been assigned."
             );
 
             return;
@@ -357,21 +488,28 @@ public class VRPlayerController : MonoBehaviour
             rightRayLine.SetPosition(
                 1,
                 rayOrigin +
-                rayDirection * selectionRayDistance
+                rayDirection *
+                selectionRayDistance
             );
         }
 
         Ray ray =
-            new Ray(rayOrigin, rayDirection);
+            new Ray(
+                rayOrigin,
+                rayDirection
+            );
 
         if (Physics.Raycast(
             ray,
             out RaycastHit hit,
             selectionRayDistance
-            ))
+        ))
         {
             LandmarkInfo info =
-                hit.collider.GetComponentInParent<LandmarkInfo>();
+                hit.collider
+                    .GetComponentInParent<
+                        LandmarkInfo
+                    >();
 
             if (info != null)
             {
@@ -382,20 +520,25 @@ public class VRPlayerController : MonoBehaviour
 
                 if (landmarkPopup != null)
                 {
-                    landmarkPopup.Show(info);
+                    landmarkPopup.Show(
+                        info
+                    );
                 }
             }
             else
             {
                 Debug.Log(
-                    "Ray hit object without LandmarkInfo: " +
+                    "Ray hit object without " +
+                    "LandmarkInfo: " +
                     hit.collider.name
                 );
             }
         }
         else
         {
-            Debug.Log("Raycast hit nothing.");
+            Debug.Log(
+                "Raycast hit nothing."
+            );
         }
     }
 }

@@ -1911,4 +1911,19 @@ public class GaiaFarStarCache : MonoBehaviour
     {
         return farCacheNodeIds.Count;
     }
+
+    private void OnDestroy()
+    {
+        ReleaseNodeBuffer();
+
+        ReleaseAccumulationBuffers();
+
+        ReleaseCacheTextures();
+
+        if (cacheCompositeMaterial != null)
+        {
+            CoreUtils.Destroy(cacheCompositeMaterial);
+            cacheCompositeMaterial = null;
+        }
+    }
 }

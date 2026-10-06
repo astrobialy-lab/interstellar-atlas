@@ -26,6 +26,12 @@ public class DesktopPlayerController : MonoBehaviour
     public float selectionRayDistance = 50.0f;
     public LayerMask landmarkLayerMask = ~0;
 
+    [Header("Orientation")]
+    public GameObject orientation;
+
+    [Header("MS-LOD Debug")]
+    public GaiaMSLODBoundsVisualizer msLODBoundsVisualizer;
+
     private bool usingQualityParticleCount = true;
 
     // Camera pitch and roll are stored independently.
@@ -37,6 +43,12 @@ public class DesktopPlayerController : MonoBehaviour
         if (cameraTransform == null && Camera.main != null)
         {
             cameraTransform = Camera.main.transform;
+        }
+
+        if (msLODBoundsVisualizer == null)
+        {
+            msLODBoundsVisualizer =
+                FindAnyObjectByType<GaiaMSLODBoundsVisualizer>();
         }
 
         Cursor.lockState = CursorLockMode.Locked;
@@ -280,19 +292,35 @@ public class DesktopPlayerController : MonoBehaviour
             }
         }
 
-        // 6 = toggle landmark markers
-        if (
-            landmarkMarkerGenerator != null &&
-            Keyboard.current.digit6Key.wasPressedThisFrame
-        )
+        // 6 = toggle landmark markers and Orientation
+        if (Keyboard.current.digit6Key.wasPressedThisFrame)
         {
-            landmarkMarkerGenerator.ToggleMarkers();
+            if (landmarkMarkerGenerator != null)
+            {
+                landmarkMarkerGenerator.ToggleMarkers();
+            }
+
+            if (orientation != null)
+            {
+                orientation.SetActive(
+                    !orientation.activeSelf
+                );
+            }
         }
 
         // 7 = select landmark
         if (Keyboard.current.digit7Key.wasPressedThisFrame)
         {
             TrySelectLandmark();
+        }
+
+        // 8 = refresh MS-LOD bounds
+        if (Keyboard.current.digit8Key.wasPressedThisFrame)
+        {
+            if (msLODBoundsVisualizer != null)
+            {
+                msLODBoundsVisualizer.RefreshBounds();
+            }
         }
     }
 

@@ -12,8 +12,8 @@ RAW_DIR.mkdir(parents=True, exist_ok=True)
 CREDENTIALS_FILE = PROJECT_ROOT.parent / "gaia_credentials.txt"
 
 # HEALPix partition level used to split the Gaia data into manageable files.
-# Level 6 gives ~0.84 deg² per partition, balancing file size and file count.
-LEVEL = 6
+# The Level doesnt matters because the data is split by cubes later.
+LEVEL = 3
 NPIXELS = 12 * 4**LEVEL
 DIVISOR = 2 ** (59 - 2 * LEVEL)
 

@@ -487,7 +487,7 @@ Q / E: roll
 2: cycle particle thickness
 3: quality / performance particles
 4 / 5: decrease / increase particle size
-6: show / hide landmarks
+6: show / hide landmarks and orientation
 7: select landmark
 Escape / M: open menu / close current menu or popup
 
@@ -497,7 +497,7 @@ Right Stick: strafe / rise / descend
 X: increase speed
 Y: decrease speed
 A: quality / performance particles
-B: show / hide landmarks
+B: show / hide landmarks and orientation
 Left Trigger: next color scheme
 Left Grip: cycle particle thickness
 Right Trigger: select landmark

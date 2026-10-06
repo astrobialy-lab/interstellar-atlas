@@ -1,37 +1,19 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using UnityEngine;
 
 public class GaiaMSLODLoader : GaiaStarBufferProvider
 {
-    [Header("LOD Data")]
+    [Header("LOD")]
     [SerializeField]
-    private string lodDirectory = "Data/Gaia/lod";
-
-    [SerializeField]
-    private Camera targetCamera;
+    private MSLODNodeSelector nodeSelector;
 
     [Header("Cluster Filtering")]
     [SerializeField]
     private GaiaClusterFilter clusterFilter;
-
-    [Header("LOD Selection")]
-    [SerializeField]
-    [Min(0.0f)]
-    private float solidAngleThreshold = 2.4e-4f;
-
-    [SerializeField]
-    [Min(0.0f)]
-    private float solidAngleFadeRange = 1.2e-4f;
-
-    [SerializeField]
-    [Min(0.0f)]
-    private float solidAnglePreloadRange = 6.0e-5f;
-
-    [SerializeField]
-    private bool frustumCulling = true;
 
     [Header("Streaming")]
     [SerializeField]
@@ -42,7 +24,7 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
 
     [SerializeField]
     [Min(1)]
-    private int maxConcurrentLoads = 3;
+    private int maxConcurrentLoads = 18;
 
     [Header("Debug")]
     [SerializeField]
@@ -55,16 +37,10 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
     private const int STAR_GPU_SIZE = 20;
     private const int SOURCE_ID_SIZE = 8;
 
-    private readonly List<LODNode> nodes =
-        new List<LODNode>();
-
     private readonly Dictionary<uint, LoadedNode> loadedNodes =
         new Dictionary<uint, LoadedNode>();
 
     private readonly HashSet<uint> loadingNodes =
-        new HashSet<uint>();
-
-    private readonly HashSet<uint> desiredNodeIds =
         new HashSet<uint>();
 
     private readonly List<Task<NodeLoadResult>> loadingTasks =
@@ -74,19 +50,23 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
     private Quaternion lastStreamRotation;
 
     private string projectRoot;
-    private int rootNodeId = 0;
 
     private int activeFilterRevision = 0;
 
     // --------------------------------------------------------
-    // Public information for the far-cache system
+    // Public information
     // --------------------------------------------------------
 
     public int NodeCount
     {
         get
         {
-            return nodes.Count;
+            if (nodeSelector == null)
+            {
+                return 0;
+            }
+
+            return nodeSelector.NodeCount;
         }
     }
 
@@ -94,7 +74,12 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
     {
         get
         {
-            return rootNodeId;
+            if (nodeSelector == null)
+            {
+                return 0;
+            }
+
+            return nodeSelector.RootNodeId;
         }
     }
 
@@ -106,21 +91,75 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
         }
     }
 
+    public IReadOnlyCollection<uint> DesiredNodeIds
+    {
+        get
+        {
+            if (nodeSelector == null)
+            {
+                return Array.Empty<uint>();
+            }
+
+            return nodeSelector.DesiredNodeIds;
+        }
+    }
+
+    public IReadOnlyCollection<uint> LoadedNodeIds
+    {
+        get
+        {
+            return loadedNodes.Keys;
+        }
+    }
+
+    public MSLODNodeSelector NodeSelector
+    {
+        get
+        {
+            return nodeSelector;
+        }
+    }
+
     // --------------------------------------------------------
     // Unity
     // --------------------------------------------------------
 
     private void Start()
     {
-        if (targetCamera == null)
+        if (nodeSelector == null)
         {
-            targetCamera = Camera.main;
+            nodeSelector =
+                GetComponent<MSLODNodeSelector>();
         }
 
-        if (targetCamera == null)
+        if (nodeSelector == null)
+        {
+            nodeSelector =
+                FindAnyObjectByType<MSLODNodeSelector>();
+        }
+
+        if (nodeSelector == null)
         {
             Debug.LogError(
-                "GaiaMSLODLoader: No target camera assigned."
+                "GaiaMSLODLoader: No MSLODNodeSelector found."
+            );
+
+            return;
+        }
+
+        if (!nodeSelector.IsReady)
+        {
+            Debug.LogError(
+                "GaiaMSLODLoader: MSLODNodeSelector is not ready."
+            );
+
+            return;
+        }
+
+        if (nodeSelector.TargetCamera == null)
+        {
+            Debug.LogError(
+                "GaiaMSLODLoader: MSLODNodeSelector has no target camera."
             );
 
             return;
@@ -143,25 +182,31 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
                 Application.dataPath
             ).FullName;
 
-        if (!LoadMetadata())
-        {
-            return;
-        }
-
         activeFilterRevision =
             GetCurrentFilterRevision();
 
         lastStreamPosition =
-            targetCamera.transform.position;
+            nodeSelector.TargetCamera
+                .transform.position;
 
         lastStreamRotation =
-            targetCamera.transform.rotation;
+            nodeSelector.TargetCamera
+                .transform.rotation;
 
         UpdateStreaming();
     }
 
     private void Update()
     {
+        if (nodeSelector == null ||
+            !nodeSelector.IsReady)
+        {
+            return;
+        }
+
+        Camera targetCamera =
+            nodeSelector.TargetCamera;
+
         if (targetCamera == null)
         {
             return;
@@ -169,6 +214,7 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
 
         HandleFilterChanges();
 
+        // Install finished nodes and free their load slots.
         ProcessCompletedLoads();
 
         Transform cameraTransform =
@@ -197,6 +243,8 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
                 lastStreamRotation
             );
 
+        // Recalculate the desired node set only when
+        // the camera has moved/rotated enough.
         if (movementSquared >= distanceSquared ||
             angle >= streamUpdateAngle)
         {
@@ -208,6 +256,15 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
 
             UpdateStreaming();
         }
+
+        // ----------------------------------------------------
+        // IMPORTANT:
+        //
+        // Even if the camera has not moved, completed loads
+        // have freed slots. Fill those slots immediately.
+        // ----------------------------------------------------
+
+        StartPendingLoads();
     }
 
     // --------------------------------------------------------
@@ -296,24 +353,23 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
     // --------------------------------------------------------
     // Public node API
     //
-    // Used later by GaiaFarStarCache.
-    // These functions do not change the existing live LOD API.
+    // Kept compatible with GaiaFarStarCache.
     // --------------------------------------------------------
 
     public bool TryGetNodeInfo(
         uint nodeId,
         out GaiaLODNodeInfo info)
     {
-        if (nodeId >= nodes.Count)
+        if (nodeSelector == null ||
+            !nodeSelector.TryGetNodeInfo(
+                nodeId,
+                out MSLODNodeSelector.MSLODNodeInfo node))
         {
             info =
                 default;
 
             return false;
         }
-
-        LODNode node =
-            nodes[(int)nodeId];
 
         info =
             new GaiaLODNodeInfo
@@ -331,7 +387,7 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
                     node.depth,
 
                 starCount =
-                    node.starCount,
+                    node.localContentCount,
 
                 childCount =
                     node.childCount
@@ -344,36 +400,27 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
         uint nodeId,
         int childIndex)
     {
-        if (nodeId >= nodes.Count)
+        if (nodeSelector == null)
         {
             return -1;
         }
 
-        if (childIndex < 0 ||
-            childIndex >= 8)
-        {
-            return -1;
-        }
-
-        return
-            nodes[(int)nodeId]
-                .children[childIndex];
+        return nodeSelector.GetChildNodeId(
+            nodeId,
+            childIndex
+        );
     }
 
     public Bounds GetNodeBounds(
         uint nodeId)
     {
-        if (nodeId >= nodes.Count)
+        if (nodeSelector == null)
         {
             return default;
         }
 
-        LODNode node =
-            nodes[(int)nodeId];
-
-        return new Bounds(
-            node.center,
-            node.halfSize * 2.0f
+        return nodeSelector.GetNodeBounds(
+            nodeId
         );
     }
 
@@ -397,194 +444,67 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
     }
 
     // --------------------------------------------------------
-    // Metadata
-    // --------------------------------------------------------
-
-    private bool LoadMetadata()
-    {
-        string metadataPath =
-            Path.Combine(
-                projectRoot,
-                lodDirectory,
-                "metadata.bin"
-            );
-
-        if (!File.Exists(metadataPath))
-        {
-            Debug.LogError(
-                "GaiaMSLODLoader: Metadata file not found:\n" +
-                metadataPath
-            );
-
-            return false;
-        }
-
-        try
-        {
-            using FileStream file =
-                File.OpenRead(metadataPath);
-
-            using BinaryReader reader =
-                new BinaryReader(file);
-
-            byte[] magic =
-                reader.ReadBytes(8);
-
-            string magicString =
-                System.Text.Encoding.ASCII
-                    .GetString(magic);
-
-            if (magicString != "MSLOD001")
-            {
-                Debug.LogError(
-                    "GaiaMSLODLoader: Invalid metadata magic: " +
-                    magicString
-                );
-
-                return false;
-            }
-
-            uint version =
-                reader.ReadUInt32();
-
-            if (version != 1)
-            {
-                Debug.LogError(
-                    "GaiaMSLODLoader: Unsupported metadata version: " +
-                    version
-                );
-
-                return false;
-            }
-
-            uint nodeCount =
-                reader.ReadUInt32();
-
-            ulong totalStarCount =
-                reader.ReadUInt64();
-
-            uint nSigma =
-                reader.ReadUInt32();
-
-            Vector3 rootMin =
-                new Vector3(
-                    reader.ReadSingle(),
-                    reader.ReadSingle(),
-                    reader.ReadSingle()
-                );
-
-            float rootSize =
-                reader.ReadSingle();
-
-            nodes.Clear();
-
-            for (uint i = 0; i < nodeCount; i++)
-            {
-                LODNode node =
-                    new LODNode();
-
-                node.nodeId =
-                    reader.ReadUInt32();
-
-                node.center =
-                    new Vector3(
-                        reader.ReadSingle(),
-                        reader.ReadSingle(),
-                        reader.ReadSingle()
-                    );
-
-                node.halfSize =
-                    new Vector3(
-                        reader.ReadSingle(),
-                        reader.ReadSingle(),
-                        reader.ReadSingle()
-                    );
-
-                node.depth =
-                    reader.ReadUInt32();
-
-                node.starCount =
-                    reader.ReadUInt32();
-
-                node.cumulativeStarCount =
-                    reader.ReadUInt64();
-
-                node.childCount =
-                    reader.ReadUInt32();
-
-                node.children =
-                    new int[8];
-
-                for (int c = 0; c < 8; c++)
-                {
-                    node.children[c] =
-                        reader.ReadInt32();
-                }
-
-                nodes.Add(node);
-            }
-
-            if (nodes.Count != nodeCount)
-            {
-                Debug.LogError(
-                    "GaiaMSLODLoader: Node count mismatch."
-                );
-
-                return false;
-            }
-
-            Debug.Log(
-                $"GaiaMSLODLoader: Loaded metadata. " +
-                $"Nodes={nodeCount}, " +
-                $"Stars={totalStarCount}, " +
-                $"N_SIGMA={nSigma}, " +
-                $"RootSize={rootSize}"
-            );
-
-            return true;
-        }
-        catch (Exception e)
-        {
-            Debug.LogError(
-                "GaiaMSLODLoader: Failed to read metadata:\n" +
-                e
-            );
-
-            return false;
-        }
-    }
-
-    // --------------------------------------------------------
-    // LOD traversal
+    // LOD / streaming
     // --------------------------------------------------------
 
     private void UpdateStreaming()
     {
-        if (nodes.Count == 0)
+        if (nodeSelector == null ||
+            !nodeSelector.IsReady)
         {
             return;
         }
 
-        desiredNodeIds.Clear();
+        // Recalculate which nodes are currently desired.
+        nodeSelector.UpdateSelection();
 
-        Plane[] frustumPlanes = null;
+        // Start as many loads as the concurrency limit allows.
+        StartPendingLoads();
 
-        if (frustumCulling)
+        // ----------------------------------------------------
+        // Unload nodes that are no longer desired.
+        // ----------------------------------------------------
+
+        IReadOnlyCollection<uint> desiredNodeIds =
+            nodeSelector.DesiredNodeIds;
+
+        List<uint> unload =
+            new List<uint>();
+
+        foreach (uint nodeId in loadedNodes.Keys)
         {
-            frustumPlanes =
-                GeometryUtility.CalculateFrustumPlanes(
-                    targetCamera
+            if (!desiredNodeIds.Contains(
+                    nodeId))
+            {
+                unload.Add(
+                    nodeId
                 );
+            }
         }
 
-        CollectVisibleNodes(
-            rootNodeId,
-            frustumPlanes
-        );
+        foreach (uint nodeId in unload)
+        {
+            UnloadNode(
+                nodeId
+            );
+        }
 
-        // ----------------------------------------------------
-        // Start only a limited number of background loads.
-        // ----------------------------------------------------
+        if (verboseLogging)
+        {
+            LogStreamingState();
+        }
+    }
+
+    private void StartPendingLoads()
+    {
+        if (nodeSelector == null ||
+            !nodeSelector.IsReady)
+        {
+            return;
+        }
+
+        IReadOnlyCollection<uint> desiredNodeIds =
+            nodeSelector.DesiredNodeIds;
 
         int availableLoadSlots =
             Math.Max(
@@ -593,170 +513,35 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
                 loadingNodes.Count
             );
 
-        if (availableLoadSlots > 0)
+        if (availableLoadSlots <= 0)
         {
-            foreach (uint nodeId in desiredNodeIds)
+            return;
+        }
+
+        foreach (uint nodeId in desiredNodeIds)
+        {
+            if (availableLoadSlots <= 0)
             {
-                if (availableLoadSlots <= 0)
-                {
-                    break;
-                }
-
-                if (loadedNodes.ContainsKey(nodeId))
-                {
-                    continue;
-                }
-
-                if (loadingNodes.Contains(nodeId))
-                {
-                    continue;
-                }
-
-                StartBackgroundLoad(nodeId);
-
-                availableLoadSlots--;
+                break;
             }
-        }
 
-        // ----------------------------------------------------
-        // Unload nodes that are no longer desired.
-        // ----------------------------------------------------
-
-        List<uint> unload =
-            new List<uint>();
-
-        foreach (uint nodeId in loadedNodes.Keys)
-        {
-            if (!desiredNodeIds.Contains(nodeId))
-            {
-                unload.Add(nodeId);
-            }
-        }
-
-        foreach (uint nodeId in unload)
-        {
-            UnloadNode(nodeId);
-        }
-
-        // ----------------------------------------------------
-        // Optional logging.
-        // ----------------------------------------------------
-
-        if (verboseLogging)
-        {
-            LogStreamingState();
-        }
-    }
-
-    private void CollectVisibleNodes(
-        int nodeId,
-        Plane[] frustumPlanes)
-    {
-        if (nodeId < 0 ||
-            nodeId >= nodes.Count)
-        {
-            return;
-        }
-
-        LODNode node =
-            nodes[nodeId];
-
-        Bounds bounds =
-            new Bounds(
-                node.center,
-                node.halfSize * 2.0f
-            );
-
-        // ----------------------------------------------------
-        // Frustum culling
-        // ----------------------------------------------------
-
-        if (frustumPlanes != null)
-        {
-            if (!GeometryUtility.TestPlanesAABB(
-                    frustumPlanes,
-                    bounds))
-            {
-                return;
-            }
-        }
-
-        // ----------------------------------------------------
-        // Apparent angular size
-        // ----------------------------------------------------
-
-        double solidAngle =
-            ComputeSolidAngle(bounds);
-
-        double fadeStartThreshold =
-            Math.Max(
-                0.0,
-                solidAngleThreshold -
-                solidAngleFadeRange
-            );
-
-        double preloadThreshold =
-            Math.Max(
-                0.0,
-                fadeStartThreshold -
-                solidAnglePreloadRange
-            );
-
-        if (solidAngle < preloadThreshold)
-        {
-            return;
-        }
-
-        // ----------------------------------------------------
-        // Keep this node only if it actually contains local stars.
-        //
-        // A node with starCount == 0 is only an internal hierarchy
-        // node. Its descendants contain the actual stars.
-        // ----------------------------------------------------
-
-        if (node.starCount > 0)
-        {
-            desiredNodeIds.Add(
-                node.nodeId
-            );
-        }
-
-        // ----------------------------------------------------
-        // Leaf
-        // ----------------------------------------------------
-
-        if (node.childCount == 0)
-        {
-            return;
-        }
-
-        // ----------------------------------------------------
-        // LOD STOP
-        // ----------------------------------------------------
-
-        if (solidAngle < solidAngleThreshold)
-        {
-            return;
-        }
-
-        // ----------------------------------------------------
-        // REFINE
-        // ----------------------------------------------------
-
-        for (int i = 0; i < 8; i++)
-        {
-            int childId =
-                node.children[i];
-
-            if (childId < 0)
+            if (loadedNodes.ContainsKey(
+                    nodeId))
             {
                 continue;
             }
 
-            CollectVisibleNodes(
-                childId,
-                frustumPlanes
+            if (loadingNodes.Contains(
+                    nodeId))
+            {
+                continue;
+            }
+
+            StartBackgroundLoad(
+                nodeId
             );
+
+            availableLoadSlots--;
         }
     }
 
@@ -765,314 +550,16 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
     // --------------------------------------------------------
 
     private float ComputeNodeFade(
-        LODNode node)
+        uint nodeId)
     {
-        double solidAngle =
-            ComputeSolidAngle(
-                new Bounds(
-                    node.center,
-                    node.halfSize * 2.0f
-                )
-            );
-
-        double fadeStartThreshold =
-            Math.Max(
-                0.0,
-                solidAngleThreshold -
-                solidAngleFadeRange
-            );
-
-        if (solidAngle <= fadeStartThreshold)
+        if (nodeSelector == null)
         {
             return 0.0f;
         }
 
-        if (solidAngle >= solidAngleThreshold)
-        {
-            return 1.0f;
-        }
-
-        double t =
-            (solidAngle - fadeStartThreshold)
-            /
-            (solidAngleThreshold - fadeStartThreshold);
-
-        t =
-            Math.Max(
-                0.0,
-                Math.Min(
-                    1.0,
-                    t
-                )
-            );
-
-        double smoothT =
-            t * t * (3.0 - 2.0 * t);
-
-        return (float)smoothT;
-    }
-
-    // --------------------------------------------------------
-    // Solid angle
-    // --------------------------------------------------------
-
-    private double ComputeSolidAngle(
-        Bounds bounds)
-    {
-        Vector3 camera =
-            targetCamera.transform.position;
-
-        if (bounds.Contains(camera))
-        {
-            return 4.0 * Math.PI;
-        }
-
-        Vector3 min =
-            bounds.min;
-
-        Vector3 max =
-            bounds.max;
-
-        Vector3 v000 =
-            new Vector3(
-                min.x,
-                min.y,
-                min.z
-            );
-
-        Vector3 v100 =
-            new Vector3(
-                max.x,
-                min.y,
-                min.z
-            );
-
-        Vector3 v010 =
-            new Vector3(
-                min.x,
-                max.y,
-                min.z
-            );
-
-        Vector3 v110 =
-            new Vector3(
-                max.x,
-                max.y,
-                min.z
-            );
-
-        Vector3 v001 =
-            new Vector3(
-                min.x,
-                min.y,
-                max.z
-            );
-
-        Vector3 v101 =
-            new Vector3(
-                max.x,
-                min.y,
-                max.z
-            );
-
-        Vector3 v011 =
-            new Vector3(
-                min.x,
-                max.y,
-                max.z
-            );
-
-        Vector3 v111 =
-            new Vector3(
-                max.x,
-                max.y,
-                max.z
-            );
-
-        double omega = 0.0;
-
-        omega += TriangleSolidAngle(
-            v000,
-            v100,
-            v110,
-            camera
+        return nodeSelector.ComputeNodeFade(
+            nodeId
         );
-
-        omega += TriangleSolidAngle(
-            v000,
-            v110,
-            v010,
-            camera
-        );
-
-        omega += TriangleSolidAngle(
-            v001,
-            v111,
-            v101,
-            camera
-        );
-
-        omega += TriangleSolidAngle(
-            v001,
-            v011,
-            v111,
-            camera
-        );
-
-        omega += TriangleSolidAngle(
-            v000,
-            v010,
-            v011,
-            camera
-        );
-
-        omega += TriangleSolidAngle(
-            v000,
-            v011,
-            v001,
-            camera
-        );
-
-        omega += TriangleSolidAngle(
-            v100,
-            v101,
-            v111,
-            camera
-        );
-
-        omega += TriangleSolidAngle(
-            v100,
-            v111,
-            v110,
-            camera
-        );
-
-        omega += TriangleSolidAngle(
-            v000,
-            v001,
-            v101,
-            camera
-        );
-
-        omega += TriangleSolidAngle(
-            v000,
-            v101,
-            v100,
-            camera
-        );
-
-        omega += TriangleSolidAngle(
-            v010,
-            v110,
-            v111,
-            camera
-        );
-
-        omega += TriangleSolidAngle(
-            v010,
-            v111,
-            v011,
-            camera
-        );
-
-        return omega;
-    }
-
-    private static double TriangleSolidAngle(
-        Vector3 a,
-        Vector3 b,
-        Vector3 c,
-        Vector3 observer)
-    {
-        double ax =
-            a.x - observer.x;
-
-        double ay =
-            a.y - observer.y;
-
-        double az =
-            a.z - observer.z;
-
-        double bx =
-            b.x - observer.x;
-
-        double by =
-            b.y - observer.y;
-
-        double bz =
-            b.z - observer.z;
-
-        double cx =
-            c.x - observer.x;
-
-        double cy =
-            c.y - observer.y;
-
-        double cz =
-            c.z - observer.z;
-
-        double la =
-            Math.Sqrt(
-                ax * ax +
-                ay * ay +
-                az * az
-            );
-
-        double lb =
-            Math.Sqrt(
-                bx * bx +
-                by * by +
-                bz * bz
-            );
-
-        double lc =
-            Math.Sqrt(
-                cx * cx +
-                cy * cy +
-                cz * cz
-            );
-
-        if (la <= double.Epsilon ||
-            lb <= double.Epsilon ||
-            lc <= double.Epsilon)
-        {
-            return 2.0 * Math.PI;
-        }
-
-        double triple =
-            ax * (by * cz - bz * cy) +
-            ay * (bz * cx - bx * cz) +
-            az * (bx * cy - by * cx);
-
-        triple =
-            Math.Abs(triple);
-
-        double ab =
-            ax * bx +
-            ay * by +
-            az * bz;
-
-        double bc =
-            bx * cx +
-            by * cy +
-            bz * cz;
-
-        double ca =
-            cx * ax +
-            cy * ay +
-            cz * az;
-
-        double denominator =
-            la * lb * lc +
-            ab * lc +
-            bc * la +
-            ca * lb;
-
-        return 2.0 *
-            Math.Atan2(
-                triple,
-                denominator
-            );
     }
 
     // --------------------------------------------------------
@@ -1082,7 +569,9 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
     private void StartBackgroundLoad(
         uint nodeId)
     {
-        loadingNodes.Add(nodeId);
+        loadingNodes.Add(
+            nodeId
+        );
 
         GaiaClusterFilterSettings filterSettings =
             GetCurrentFilterSettings();
@@ -1100,7 +589,9 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
                     )
             );
 
-        loadingTasks.Add(task);
+        loadingTasks.Add(
+            task
+        );
     }
 
     private NodeLoadResult ReadNodeFromDisk(
@@ -1117,7 +608,10 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
         result.filterRevision =
             filterRevision;
 
-        if (nodeId >= nodes.Count)
+        if (nodeSelector == null ||
+            !nodeSelector.TryGetNodeInfo(
+                nodeId,
+                out MSLODNodeSelector.MSLODNodeInfo node))
         {
             result.success = false;
 
@@ -1127,12 +621,15 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
             return result;
         }
 
-        LODNode node =
-            nodes[(int)nodeId];
+        uint starCount =
+            node.localContentCount;
 
-        // This is a valid internal node with no stars stored
-        // directly in it. There is intentionally no particle file.
-        if (node.starCount == 0)
+        // ----------------------------------------------------
+        // Valid internal node with no stars directly stored
+        // in it. There is intentionally no particle file.
+        // ----------------------------------------------------
+
+        if (starCount == 0)
         {
             result.success = true;
 
@@ -1151,12 +648,13 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
         string particlePath =
             Path.Combine(
                 projectRoot,
-                lodDirectory,
+                "Data/Gaia/lod",
                 "particles",
                 $"particles_{nodeId:00000000}.bin"
             );
 
-        if (!File.Exists(particlePath))
+        if (!File.Exists(
+                particlePath))
         {
             result.success = false;
 
@@ -1173,7 +671,7 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
             ).Length;
 
         long expectedParticleSize =
-            (long)node.starCount *
+            (long)starCount *
             STAR_GPU_SIZE;
 
         if (particleFileSize !=
@@ -1205,12 +703,13 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
             string sourceIdPath =
                 Path.Combine(
                     projectRoot,
-                    lodDirectory,
+                    "Data/Gaia/lod",
                     "source_ids",
                     $"source_ids_{nodeId:00000000}.bin"
                 );
 
-            if (!File.Exists(sourceIdPath))
+            if (!File.Exists(
+                    sourceIdPath))
             {
                 result.success = false;
 
@@ -1227,7 +726,7 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
                 ).Length;
 
             long expectedSourceIdSize =
-                (long)node.starCount *
+                (long)starCount *
                 SOURCE_ID_SIZE;
 
             if (sourceIdFileSize !=
@@ -1253,7 +752,7 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
         if (!useFilter)
         {
             GaiaStarGPU[] stars =
-                new GaiaStarGPU[node.starCount];
+                new GaiaStarGPU[starCount];
 
             using MemoryStream stream =
                 new MemoryStream(
@@ -1261,11 +760,13 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
                 );
 
             using BinaryReader reader =
-                new BinaryReader(stream);
+                new BinaryReader(
+                    stream
+                );
 
             for (
                 int i = 0;
-                i < node.starCount;
+                i < starCount;
                 i++)
             {
                 stars[i] =
@@ -1275,7 +776,9 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
             }
 
             result.success = true;
-            result.stars = stars;
+
+            result.stars =
+                stars;
 
             result.drawBounds =
                 new Bounds(
@@ -1288,7 +791,7 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
 
         List<GaiaStarGPU> filteredStars =
             new List<GaiaStarGPU>(
-                (int)node.starCount
+                (int)starCount
             );
 
         using MemoryStream particleStream =
@@ -1313,7 +816,7 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
 
         for (
             int i = 0;
-            i < node.starCount;
+            i < starCount;
             i++)
         {
             GaiaStarGPU star =
@@ -1335,6 +838,7 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
         }
 
         result.success = true;
+
         result.stars =
             filteredStars.ToArray();
 
@@ -1351,8 +855,6 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
     // External/background node loading
     //
     // GaiaFarStarCache uses this function.
-    //
-    // It uses the same cluster filtering as the live renderer.
     // --------------------------------------------------------
 
     private GaiaStarGPU[] ReadNodeStarsForExternalUse(
@@ -1360,7 +862,10 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
         GaiaClusterFilterSettings filterSettings,
         int filterRevision)
     {
-        if (nodeId >= nodes.Count)
+        if (nodeSelector == null ||
+            !nodeSelector.TryGetNodeInfo(
+                nodeId,
+                out MSLODNodeSelector.MSLODNodeInfo node))
         {
             throw new ArgumentOutOfRangeException(
                 nameof(nodeId),
@@ -1368,12 +873,10 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
             );
         }
 
-        LODNode node =
-            nodes[(int)nodeId];
+        uint starCount =
+            node.localContentCount;
 
-        // A node with zero local stars has no particle file.
-        // This is valid for internal hierarchy nodes such as the root.
-        if (node.starCount == 0)
+        if (starCount == 0)
         {
             return Array.Empty<GaiaStarGPU>();
         }
@@ -1381,12 +884,13 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
         string particlePath =
             Path.Combine(
                 projectRoot,
-                lodDirectory,
+                "Data/Gaia/lod",
                 "particles",
                 $"particles_{nodeId:00000000}.bin"
             );
 
-        if (!File.Exists(particlePath))
+        if (!File.Exists(
+                particlePath))
         {
             throw new FileNotFoundException(
                 "LOD particle file not found.",
@@ -1400,7 +904,7 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
             ).Length;
 
         long expectedParticleSize =
-            (long)node.starCount *
+            (long)starCount *
             STAR_GPU_SIZE;
 
         if (particleFileSize !=
@@ -1422,7 +926,7 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
         if (!filterSettings.enabled)
         {
             GaiaStarGPU[] stars =
-                new GaiaStarGPU[node.starCount];
+                new GaiaStarGPU[starCount];
 
             using MemoryStream stream =
                 new MemoryStream(
@@ -1430,11 +934,13 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
                 );
 
             using BinaryReader reader =
-                new BinaryReader(stream);
+                new BinaryReader(
+                    stream
+                );
 
             for (
                 int i = 0;
-                i < node.starCount;
+                i < starCount;
                 i++)
             {
                 stars[i] =
@@ -1449,12 +955,13 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
         string sourceIdPath =
             Path.Combine(
                 projectRoot,
-                lodDirectory,
+                "Data/Gaia/lod",
                 "source_ids",
                 $"source_ids_{nodeId:00000000}.bin"
             );
 
-        if (!File.Exists(sourceIdPath))
+        if (!File.Exists(
+                sourceIdPath))
         {
             throw new FileNotFoundException(
                 "LOD source ID sidecar not found.",
@@ -1468,7 +975,7 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
             ).Length;
 
         long expectedSourceIdSize =
-            (long)node.starCount *
+            (long)starCount *
             SOURCE_ID_SIZE;
 
         if (sourceIdFileSize !=
@@ -1489,7 +996,7 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
 
         List<GaiaStarGPU> filteredStars =
             new List<GaiaStarGPU>(
-                (int)node.starCount
+                (int)starCount
             );
 
         using MemoryStream particleStream =
@@ -1514,7 +1021,7 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
 
         for (
             int i = 0;
-            i < node.starCount;
+            i < starCount;
             i++)
         {
             GaiaStarGPU star =
@@ -1526,8 +1033,8 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
                 sourceIdReader.ReadUInt64();
 
             if (ShouldKeepStar(
-                    sourceId,
-                    filterSettings))
+                sourceId,
+                filterSettings))
             {
                 filteredStars.Add(
                     star
@@ -1567,7 +1074,8 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
         for (
             int i = loadingTasks.Count - 1;
             i >= 0;
-            i--)
+            i--
+        )
         {
             Task<NodeLoadResult> task =
                 loadingTasks[i];
@@ -1609,7 +1117,6 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
             }
 
             // The filter changed while this node was loading.
-            // Do not install the stale result.
             if (result.filterRevision !=
                 activeFilterRevision)
             {
@@ -1617,7 +1124,8 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
             }
 
             // Camera may have moved while the file was loading.
-            if (!desiredNodeIds.Contains(
+            // If it is no longer desired, throw the loaded result away.
+            if (!DesiredNodeIds.Contains(
                     result.nodeId))
             {
                 continue;
@@ -1736,7 +1244,7 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
     private void LogStreamingState()
     {
         int desiredCount =
-            desiredNodeIds.Count;
+            DesiredNodeIds.Count;
 
         int loadedCount =
             loadedNodes.Count;
@@ -1744,15 +1252,17 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
         int[] depthCounts =
             new int[32];
 
-        foreach (uint nodeId in desiredNodeIds)
+        foreach (uint nodeId in DesiredNodeIds)
         {
-            if (nodeId >= nodes.Count)
+            if (!TryGetNodeInfo(
+                    nodeId,
+                    out GaiaLODNodeInfo node))
             {
                 continue;
             }
 
             int depth =
-                (int)nodes[(int)nodeId].depth;
+                (int)node.depth;
 
             if (depth >= 0 &&
                 depth < depthCounts.Length)
@@ -1767,7 +1277,8 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
         for (
             int depth = 0;
             depth < depthCounts.Length;
-            depth++)
+            depth++
+        )
         {
             if (depthCounts[depth] > 0)
             {
@@ -1812,6 +1323,7 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
                 $"GaiaMSLODLoader: " +
                 $"Desired={desiredCount}, " +
                 $"Loaded={loadedCount}, " +
+                $"Loading={loadingNodes.Count}, " +
                 $"Stars={totalStars}, " +
                 $"Depths=[{depthSummary}]"
             );
@@ -1850,17 +1362,14 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
                 continue;
             }
 
-            if (node.nodeId >= nodes.Count)
+            if (node.nodeId >= NodeCount)
             {
                 continue;
             }
 
-            LODNode lodNode =
-                nodes[(int)node.nodeId];
-
             float fade =
                 ComputeNodeFade(
-                    lodNode
+                    node.nodeId
                 );
 
             buffers.Add(
@@ -1896,29 +1405,12 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
 
         loadedNodes.Clear();
         loadingNodes.Clear();
-        desiredNodeIds.Clear();
         loadingTasks.Clear();
-        nodes.Clear();
     }
 
     // --------------------------------------------------------
     // Internal types
     // --------------------------------------------------------
-
-    private class LODNode
-    {
-        public uint nodeId;
-
-        public Vector3 center;
-        public Vector3 halfSize;
-
-        public uint depth;
-        public uint starCount;
-        public ulong cumulativeStarCount;
-        public uint childCount;
-
-        public int[] children;
-    }
 
     private class LoadedNode
     {
@@ -1945,7 +1437,7 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
     }
 
     // --------------------------------------------------------
-    // Public node metadata
+    // Public Gaia node metadata
     // --------------------------------------------------------
 
     public struct GaiaLODNodeInfo

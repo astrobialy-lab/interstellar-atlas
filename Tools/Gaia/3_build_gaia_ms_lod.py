@@ -24,7 +24,7 @@ except ImportError as exc:
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
-INPUT_DIR = PROJECT_ROOT / "Data" / "Gaia" / "chunks"
+INPUT_DIR = PROJECT_ROOT / "DataRaw" / "Gaia" / "chunks"
 OUTPUT_DIR = PROJECT_ROOT / "Data" / "Gaia" / "lod"
 BUILD_DIR = PROJECT_ROOT / "Data" / "Gaia" / "lod_building"
 

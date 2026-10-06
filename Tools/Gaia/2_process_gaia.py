@@ -2,6 +2,7 @@ from pathlib import Path
 import csv
 import math
 import struct
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
 # ============================================================
@@ -11,41 +12,13 @@ import struct
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 RAW_DIR = PROJECT_ROOT / "DataRaw" / "Gaia"
-PROCESSED_DIR = PROJECT_ROOT / "Data" / "Gaia"
+PROCESSED_DIR = PROJECT_ROOT / "DataRaw" / "Gaia"
 CHUNKS_DIR = PROCESSED_DIR / "chunks"
 
-CHUNKS_DIR.mkdir(parents=True, exist_ok=True)
-
-
-# ============================================================
-# Distance LOD shells
-# ============================================================
-
-# Distances are in parsecs.
-#
-# Each HEALPix sky region is divided into these radial shells.
-#
-# Example:
-#   shell 0 =   0 - 100 pc
-#   shell 1 = 100 - 250 pc
-#   shell 2 = 250 - 500 pc
-#   ...
-#
-DISTANCE_BINS = [
-    0,
-    100,
-    250,
-    500,
-    1_000,
-    2_000,
-    5_000,
-    10_000,
-    20_000,
-    40_000,
-    math.inf,
-]
-
-NUM_SHELLS = len(DISTANCE_BINS) - 1
+CHUNKS_DIR.mkdir(
+    parents=True,
+    exist_ok=True
+)
 
 
 # ============================================================
@@ -104,34 +77,34 @@ def valid_number(value):
     return math.isfinite(value)
 
 
-def radec_distance_to_xyz(ra_deg, dec_deg, distance_pc):
-
+def radec_distance_to_xyz(
+    ra_deg,
+    dec_deg,
+    distance_pc
+):
     ra = math.radians(ra_deg)
     dec = math.radians(dec_deg)
 
     cos_dec = math.cos(dec)
 
-    x = distance_pc * cos_dec * math.cos(ra)
-    y = distance_pc * cos_dec * math.sin(ra)
-    z = distance_pc * math.sin(dec)
+    x = (
+        distance_pc
+        * cos_dec
+        * math.cos(ra)
+    )
+
+    y = (
+        distance_pc
+        * cos_dec
+        * math.sin(ra)
+    )
+
+    z = (
+        distance_pc
+        * math.sin(dec)
+    )
 
     return x, y, z
-
-
-def get_shell(distance):
-
-    if not valid_number(distance) or distance <= 0:
-        return None
-
-    for i in range(NUM_SHELLS):
-
-        lower = DISTANCE_BINS[i]
-        upper = DISTANCE_BINS[i + 1]
-
-        if lower <= distance < upper:
-            return i
-
-    return None
 
 
 # ============================================================
@@ -190,23 +163,18 @@ def process_healpix(csv_file):
 
     healpix_name = csv_file.stem
 
-    output_dir = CHUNKS_DIR / healpix_name
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    output_files = [
-        output_dir / f"shell_{i:02d}.bin"
-        for i in range(NUM_SHELLS)
-    ]
-
-    # Open all shell files for this HEALPix region.
-    files = [
-        path.open("wb")
-        for path in output_files
-    ]
-
-    shell_counts = [0] * NUM_SHELLS
+    # Example:
+    # healpix_00000.csv
+    #
+    # becomes:
+    # healpix_00000.bin
+    output_file = (
+        CHUNKS_DIR /
+        f"{healpix_name}.bin"
+    )
 
     total_rows = 0
+    written_rows = 0
     skipped_position = 0
 
     try:
@@ -219,154 +187,161 @@ def process_healpix(csv_file):
 
             reader = csv.DictReader(f)
 
-            for row in reader:
+            with output_file.open("wb") as out:
 
-                total_rows += 1
+                for row in reader:
 
-                # ------------------------------------------------
-                # Basic Gaia values
-                # ------------------------------------------------
+                    total_rows += 1
 
-                source_id = int(row["source_id"])
+                    # ------------------------------------------------
+                    # Basic Gaia values
+                    # ------------------------------------------------
 
-                ra = safe_float(row["ra"])
-                dec = safe_float(row["dec"])
+                    source_id = int(
+                        row["source_id"]
+                    )
 
-                g_mag = safe_float(
-                    row["phot_g_mean_mag"]
-                )
+                    ra = safe_float(
+                        row["ra"]
+                    )
 
-                bp_rp = safe_float(
-                    row["bp_rp"]
-                )
+                    dec = safe_float(
+                        row["dec"]
+                    )
 
-                distance = safe_float(
-                    row["distance_gspphot"]
-                )
+                    g_mag = safe_float(
+                        row["phot_g_mean_mag"]
+                    )
 
-                # ------------------------------------------------
-                # Position
-                # ------------------------------------------------
+                    bp_rp = safe_float(
+                        row["bp_rp"]
+                    )
 
-                if not (
-                    valid_number(ra)
-                    and valid_number(dec)
-                    and valid_number(distance)
-                    and distance > 0
-                ):
+                    distance = safe_float(
+                        row["distance_gspphot"]
+                    )
 
-                    skipped_position += 1
-                    continue
+                    # ------------------------------------------------
+                    # Position
+                    # ------------------------------------------------
 
-                # ------------------------------------------------
-                # Distance shell
-                # ------------------------------------------------
+                    if not (
+                        valid_number(ra)
+                        and valid_number(dec)
+                        and valid_number(distance)
+                        and distance > 0
+                    ):
 
-                shell = get_shell(distance)
+                        skipped_position += 1
+                        continue
 
-                if shell is None:
-                    skipped_position += 1
-                    continue
+                    # ------------------------------------------------
+                    # Cartesian position
+                    # ------------------------------------------------
 
-                # ------------------------------------------------
-                # Cartesian position
-                # ------------------------------------------------
+                    x, y, z = radec_distance_to_xyz(
+                        ra,
+                        dec,
+                        distance
+                    )
 
-                x, y, z = radec_distance_to_xyz(
-                    ra,
-                    dec,
-                    distance
-                )
+                    # ------------------------------------------------
+                    # GSP-Phot
+                    # ------------------------------------------------
 
-                # ------------------------------------------------
-                # GSP-Phot
-                # ------------------------------------------------
+                    teff = safe_float(
+                        row["teff_gspphot"]
+                    )
 
-                teff = safe_float(
-                    row["teff_gspphot"]
-                )
+                    logg = safe_float(
+                        row["logg_gspphot"]
+                    )
 
-                logg = safe_float(
-                    row["logg_gspphot"]
-                )
+                    metallicity = safe_float(
+                        row["mh_gspphot"]
+                    )
 
-                metallicity = safe_float(
-                    row["mh_gspphot"]
-                )
+                    radius = safe_float(
+                        row["radius_gspphot"]
+                    )
 
-                radius = safe_float(
-                    row["radius_gspphot"]
-                )
+                    a0 = safe_float(
+                        row["azero_gspphot"]
+                    )
 
-                a0 = safe_float(
-                    row["azero_gspphot"]
-                )
+                    ag = safe_float(
+                        row["ag_gspphot"]
+                    )
 
-                ag = safe_float(
-                    row["ag_gspphot"]
-                )
+                    abp = safe_float(
+                        row["abp_gspphot"]
+                    )
 
-                abp = safe_float(
-                    row["abp_gspphot"]
-                )
+                    arp = safe_float(
+                        row["arp_gspphot"]
+                    )
 
-                arp = safe_float(
-                    row["arp_gspphot"]
-                )
+                    ebp_rp = safe_float(
+                        row["ebpminrp_gspphot"]
+                    )
 
-                ebp_rp = safe_float(
-                    row["ebpminrp_gspphot"]
-                )
+                    # ------------------------------------------------
+                    # Flags
+                    # ------------------------------------------------
 
-                # ------------------------------------------------
-                # Flags
-                # ------------------------------------------------
+                    flags = 0
 
-                flags = 0
+                    if valid_number(teff):
+                        flags |= HAS_GSPPHOT
 
-                if valid_number(teff):
-                    flags |= HAS_GSPPHOT
+                    # ------------------------------------------------
+                    # Write immediately
+                    # ------------------------------------------------
 
-                # ------------------------------------------------
-                # Write immediately
-                # ------------------------------------------------
+                    data = pack_star(
+                        source_id,
 
-                data = pack_star(
-                    source_id,
+                        x,
+                        y,
+                        z,
 
-                    x,
-                    y,
-                    z,
+                        g_mag,
+                        bp_rp,
 
-                    g_mag,
-                    bp_rp,
+                        teff,
+                        logg,
+                        metallicity,
+                        radius,
 
-                    teff,
-                    logg,
-                    metallicity,
-                    radius,
+                        a0,
+                        ag,
+                        abp,
+                        arp,
+                        ebp_rp,
 
-                    a0,
-                    ag,
-                    abp,
-                    arp,
-                    ebp_rp,
+                        flags,
+                    )
 
-                    flags,
-                )
+                    out.write(data)
 
-                files[shell].write(data)
+                    written_rows += 1
 
-                shell_counts[shell] += 1
+    except Exception:
 
-    finally:
+        # Remove incomplete output if this HEALPix failed.
+        if output_file.exists():
+            output_file.unlink()
 
-        for f in files:
-            f.close()
+        raise
 
-    print(f"Finished {csv_file.name}", f"  rows: {total_rows:,}", f"  skipped: {skipped_position:,}")
+    print(
+        f"Finished {csv_file.name}"
+        f"  rows: {total_rows:,}"
+        f"  written: {written_rows:,}"
+        f"  skipped: {skipped_position:,}"
+    )
 
-    return shell_counts
+    return written_rows, skipped_position
 
 
 # ============================================================
@@ -374,8 +349,6 @@ def process_healpix(csv_file):
 # ============================================================
 
 if __name__ == "__main__":
-
-    from concurrent.futures import ThreadPoolExecutor, as_completed
 
     print("======================================")
     print("Gaia processing")
@@ -389,7 +362,8 @@ if __name__ == "__main__":
     if not csv_files:
 
         raise RuntimeError(
-            f"No Gaia CSV files found in:\n{RAW_DIR}"
+            f"No Gaia CSV files found in:\n"
+            f"{RAW_DIR}"
         )
 
     print(
@@ -397,58 +371,68 @@ if __name__ == "__main__":
     )
 
     print(
-        f"Distance shells: {NUM_SHELLS}"
+        "Output: one .bin file per HEALPix."
     )
 
     print()
 
-    total_counts = [0] * NUM_SHELLS
+    total_written = 0
+    total_skipped = 0
 
-    with ThreadPoolExecutor(max_workers=10) as executor:
+    with ThreadPoolExecutor(
+        max_workers=10
+    ) as executor:
 
         futures = {
             executor.submit(
                 process_healpix,
                 csv_file
-            ): (i, csv_file)
+            ): (
+                i,
+                csv_file
+            )
 
-            for i, csv_file in enumerate(csv_files, 1)
+            for i, csv_file
+            in enumerate(
+                csv_files,
+                1
+            )
         }
 
-        for future in as_completed(futures):
+        for future in as_completed(
+            futures
+        ):
 
             i, csv_file = futures[future]
 
             try:
 
-                counts = future.result()
+                written, skipped = (
+                    future.result()
+                )
 
-                for shell, count in enumerate(counts):
-                    total_counts[shell] += count
-
-                # print(
-                #     f"[{i}/{len(csv_files)}] "
-                #     f"finished {csv_file.name}"
-                # )
+                total_written += written
+                total_skipped += skipped
 
             except Exception as e:
 
                 print(
                     f"[{i}/{len(csv_files)}] "
-                    f"ERROR processing {csv_file.name}: {e}"
+                    f"ERROR processing "
+                    f"{csv_file.name}: {e}"
                 )
 
+    print()
     print("======================================")
     print("Finished")
     print("======================================")
 
     print()
 
-    for i, count in enumerate(total_counts):
+    print(
+        f"Stars written:   {total_written:,}"
+    )
 
-        print(
-            f"shell {i:02d}: "
-            f"{DISTANCE_BINS[i]:g} - "
-            f"{DISTANCE_BINS[i + 1]:g} pc : "
-            f"{count:,}"
-        )
+    print(
+        f"Stars skipped:   {total_skipped:,}"
+    )

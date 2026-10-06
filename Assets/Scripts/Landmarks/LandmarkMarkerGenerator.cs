@@ -1,11 +1,14 @@
 using System.Globalization;
-using System.Collections.Generic;
 using UnityEngine;
 
 public class LandmarkMarkerGenerator : MonoBehaviour
 {
     [Header("Source Data")]
     public TextAsset landmarkCsv;
+
+    [Header("Marker Root")]
+    [Tooltip("All generated landmark markers will be created under this object.")]
+    public GameObject markersRoot;
 
     [Header("Marker Prefabs")]
     public GameObject cloudMarkerPrefab;
@@ -47,13 +50,23 @@ public class LandmarkMarkerGenerator : MonoBehaviour
     )]
     public float nearbyStarOffset = 0.35f;
 
-    private readonly List<GameObject> generatedMarkers =
-        new List<GameObject>();
-
     private bool markersVisible = true;
 
     private void Start()
     {
+        if (markersRoot == null)
+        {
+            Debug.LogError(
+                "LandmarkMarkerGenerator: " +
+                "No Markers object assigned."
+            );
+
+            return;
+        }
+
+        markersVisible =
+            markersRoot.activeSelf;
+
         GenerateLandmarkMarkers();
     }
 
@@ -61,23 +74,30 @@ public class LandmarkMarkerGenerator : MonoBehaviour
     {
         if (landmarkCsv == null)
         {
-            Debug.LogError("No landmark CSV assigned.");
+            Debug.LogError(
+                "No landmark CSV assigned."
+            );
+
             return;
         }
 
-        string[] lines = landmarkCsv.text.Split('\n');
+        string[] lines =
+            landmarkCsv.text.Split('\n');
+
         int created = 0;
 
         for (int i = 1; i < lines.Length; i++)
         {
-            string line = lines[i].Trim();
+            string line =
+                lines[i].Trim();
 
             if (string.IsNullOrEmpty(line))
             {
                 continue;
             }
 
-            string[] parts = line.Split(',');
+            string[] parts =
+                line.Split(',');
 
             if (parts.Length < 8)
             {
@@ -88,7 +108,9 @@ public class LandmarkMarkerGenerator : MonoBehaviour
                 continue;
             }
 
-            string name = parts[0].Trim();
+            string name =
+                parts[0].Trim();
+
             string typeCode =
                 parts[2].Trim().ToLowerInvariant();
 
@@ -149,7 +171,11 @@ public class LandmarkMarkerGenerator : MonoBehaviour
                 parts[7].Trim();
 
             Vector3 markerPosition =
-                new Vector3(x, y, z);
+                new Vector3(
+                    x,
+                    y,
+                    z
+                );
 
             markerPosition =
                 AdjustNearbyStarPosition(
@@ -157,14 +183,13 @@ public class LandmarkMarkerGenerator : MonoBehaviour
                     typeCode
                 );
 
-            GameObject marker = Instantiate(
-                markerPrefab,
-                markerPosition,
-                Quaternion.identity,
-                transform
-            );
-
-            generatedMarkers.Add(marker);
+            GameObject marker =
+                Instantiate(
+                    markerPrefab,
+                    markerPosition,
+                    Quaternion.identity,
+                    markersRoot.transform
+                );
 
             marker.transform.localScale =
                 Vector3.one * markerScale;
@@ -192,33 +217,43 @@ public class LandmarkMarkerGenerator : MonoBehaviour
 
     public void ToggleMarkers()
     {
-        SetMarkersVisible(!markersVisible);
+        SetMarkersVisible(
+            !markersVisible
+        );
     }
 
-    public void SetMarkersVisible(bool visible)
+    public void SetMarkersVisible(
+        bool visible
+    )
     {
-        markersVisible = visible;
+        markersVisible =
+            visible;
 
-        foreach (GameObject marker in generatedMarkers)
+        // Toggle all generated markers at once.
+        if (markersRoot != null)
         {
-            if (marker != null)
-            {
-                marker.SetActive(visible);
-            }
+            markersRoot.SetActive(
+                visible
+            );
         }
 
         if (coordinateSystemRoot != null)
         {
-            coordinateSystemRoot.SetActive(visible);
+            coordinateSystemRoot.SetActive(
+                visible
+            );
         }
 
         if (orientationCompassRoot != null)
         {
-            orientationCompassRoot.SetActive(visible);
+            orientationCompassRoot.SetActive(
+                visible
+            );
         }
 
         Debug.Log(
-            "Landmark markers visible: " + markersVisible
+            "Landmark markers visible: " +
+            markersVisible
         );
     }
 
@@ -232,18 +267,26 @@ public class LandmarkMarkerGenerator : MonoBehaviour
             return originalPosition;
         }
 
-        if (originalPosition.magnitude >= nearbyStarThreshold)
+        if (
+            originalPosition.magnitude >=
+            nearbyStarThreshold
+        )
         {
             return originalPosition;
         }
 
-        if (originalPosition.sqrMagnitude < 0.0001f)
+        if (
+            originalPosition.sqrMagnitude <
+            0.0001f
+        )
         {
-            return Vector3.right * nearbyStarOffset;
+            return Vector3.right *
+                nearbyStarOffset;
         }
 
         return originalPosition +
-            originalPosition.normalized * nearbyStarOffset;
+            originalPosition.normalized *
+            nearbyStarOffset;
     }
 
     private GameObject GetMarkerPrefab(

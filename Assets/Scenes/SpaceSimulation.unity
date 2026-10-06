@@ -1535,7 +1535,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::DesktopDebugController
   moveSpeed: 3
   speedChangeFactor: 10
-  cameraTransform: {fileID: 0}
+  cameraTransform: {fileID: 330585546}
   mouseSensitivity: 0.1
   maxLookAngle: 89
   rollSpeed: 60
@@ -1548,6 +1548,8 @@ MonoBehaviour:
   landmarkLayerMask:
     serializedVersion: 2
     m_Bits: 4294967295
+  orientation: {fileID: 1666570262}
+  msLODBoundsVisualizer: {fileID: 618384818}
 --- !u!114 &475100220
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1563,9 +1565,11 @@ MonoBehaviour:
   dustCloudGenerator: {fileID: 1085639424}
   landmarkPopup: {fileID: 1765479602}
   landmarkMarkerGenerator: {fileID: 2109148596}
+  orientation: {fileID: 1666570262}
   xrOrigin: {fileID: 475100218}
   headsetCamera: {fileID: 330585546}
   rightControllerTransform: {fileID: 0}
+  msLODBoundsVisualizer: {fileID: 618384818}
   moveSpeed: 2
   speedChangeFactor: 2
   turnSpeed: 60
@@ -1795,12 +1799,12 @@ Transform:
   m_GameObject: {fileID: 586631262}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: -10}
+  m_LocalPosition: {x: -328.18097, y: 0, z: -13676.947}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 1534227109}
-  m_Father: {fileID: 0}
+  m_Father: {fileID: 902951635}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &586631266
 MonoBehaviour:
@@ -1832,16 +1836,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 36dd962b2be45994d9ae240c4877bba4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::GaiaMSLODLoader
-  lodDirectory: Data/Gaia/lod
-  targetCamera: {fileID: 330585545}
+  nodeSelector: {fileID: 902951634}
   clusterFilter: {fileID: 586631269}
-  solidAngleThreshold: 0.00024
-  solidAngleFadeRange: 0.00012
-  solidAnglePreloadRange: 0.00006
-  frustumCulling: 1
   streamUpdateDistance: 1
   streamUpdateAngle: 2
-  maxConcurrentLoads: 16
+  maxConcurrentLoads: 100
   verboseLogging: 0
 --- !u!114 &586631268
 MonoBehaviour:
@@ -2144,6 +2143,56 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 599154058}
   m_CullTransparentMesh: 1
+--- !u!1 &618384817
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 618384819}
+  - component: {fileID: 618384818}
+  m_Layer: 0
+  m_Name: MSLODNodesVisualizer
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &618384818
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 618384817}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3bb98745f3d4ad74bb19d7696ba828f9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::GaiaMSLODBoundsVisualizer
+  msLODLoader: {fileID: 586631267}
+  nodeSelector: {fileID: 0}
+  maxDesiredNodesToDraw: 100000
+  maxLoadedNodesToDraw: 100000
+  lineWidth: 0.2
+  baseMaterial: {fileID: 0}
+--- !u!4 &618384819
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 618384817}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: -328.18097, y: 0, z: -13676.947}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 902951635}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &621298340
 GameObject:
   m_ObjectHideFlags: 0
@@ -3128,6 +3177,58 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 889246190}
   m_CullTransparentMesh: 1
+--- !u!1 &902951633
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 902951635}
+  - component: {fileID: 902951634}
+  m_Layer: 0
+  m_Name: MSLODNodes
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &902951634
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 902951633}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1733f3167acc6d64c8cf387e092c1dfe, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MSLODNodeSelector
+  metadataDirectory: Data/Gaia/lod
+  targetCamera: {fileID: 330585545}
+  solidAngleThreshold: 0.005
+  solidAngleFadeRange: 0.0025
+  solidAnglePreloadRange: 0.00125
+  verboseLogging: 0
+--- !u!4 &902951635
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 902951633}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 328.18097, y: 0, z: 13666.947}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 586631264}
+  - {fileID: 618384819}
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &938372574
 GameObject:
   m_ObjectHideFlags: 0
@@ -10093,6 +10194,84 @@ RectTransform:
   m_CorrespondingSourceObject: {fileID: 8620736955965912419, guid: 54de786d1d753bd47b95e34075782852, type: 3}
   m_PrefabInstance: {fileID: 9182925079152791504}
   m_PrefabAsset: {fileID: 0}
+--- !u!1 &1666570262
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1666570266}
+  - component: {fileID: 1666570265}
+  - component: {fileID: 1666570263}
+  m_Layer: 0
+  m_Name: Orientation
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 0
+--- !u!114 &1666570263
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1666570262}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 563f9968f69714d5aa8b2af8a9a7926f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::GalacticOrientationCompass
+  viewerCamera: {fileID: 330585546}
+  localPosition: {x: 0, y: 0, z: 1}
+  compassScale: 0.5
+  axisLength: 0.16
+  axisWidth: 0.012
+  galacticXColor: {r: 1, g: 0.2, b: 0.2, a: 1}
+  galacticYColor: {r: 0.2, g: 1, b: 0.3, a: 1}
+  galacticZColor: {r: 0.25, g: 0.55, b: 1, a: 1}
+  baseAxisMaterial: {fileID: 0}
+  alwaysDrawOnTop: 1
+--- !u!114 &1666570265
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1666570262}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2148a14782ffe469fabe5524c515f1d3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::GalacticCoordinateHUD
+  viewerCamera: {fileID: 330585546}
+  parsecsPerUnityUnit: 50
+  viewportX: 0.82
+  viewportY: 0.13
+  distanceFromCamera: 1.2
+  localEulerAngles: {x: 0, y: 0, z: 0}
+  localScale: {x: 0.14, y: 0.14, z: 0.14}
+  textBoxSize: {x: 10, y: 2.5}
+  fontSize: 3.2
+  textColor: {r: 1, g: 1, b: 1, a: 1}
+  alwaysDrawOnTop: 1
+--- !u!4 &1666570266
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1666570262}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 328.18097, y: 0, z: 13666.947}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &1704876742
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -10707,6 +10886,37 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1820920989}
   m_CullTransparentMesh: 1
+--- !u!1 &1832397275
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1832397276}
+  m_Layer: 0
+  m_Name: MarkersRoot
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 0
+--- !u!4 &1832397276
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1832397275}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 2109148597}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &1842126661
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -11831,6 +12041,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::NewMonoBehaviourScript
   landmarkCsv: {fileID: 4900000, guid: aec42a8f7dc35d048ac86afc0567fa3d, type: 3}
+  markersRoot: {fileID: 1832397275}
   cloudMarkerPrefab: {fileID: 6192945478437891419, guid: 1e8811a9db66247d7a868d0cf781c385, type: 3}
   starMarkerPrefab: {fileID: 6192945478437891419, guid: b266b8fdf86da4b87b923bd4c5de0c4c, type: 3}
   nebulaMarkerPrefab: {fileID: 6192945478437891419, guid: 4c44e384801c1427bb6174880ec72245, type: 3}
@@ -11855,7 +12066,8 @@ Transform:
   m_LocalPosition: {x: 1.12934, y: 0, z: -7.5454}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
-  m_Children: []
+  m_Children:
+  - {fileID: 1832397276}
   m_Father: {fileID: 376260064}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &130500635075967279
@@ -17637,7 +17849,8 @@ SceneRoots:
   - {fileID: 475100218}
   - {fileID: 2029389524}
   - {fileID: 1085639423}
-  - {fileID: 586631264}
   - {fileID: 999081171}
   - {fileID: 376260064}
   - {fileID: 2087614914}
+  - {fileID: 1666570266}
+  - {fileID: 902951635}
