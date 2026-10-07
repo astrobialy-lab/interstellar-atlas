@@ -1071,7 +1071,7 @@ Camera:
     width: 1
     height: 1
   near clip plane: 0.01
-  far clip plane: 1000
+  far clip plane: 3.4028235e+38
   field of view: 60
   orthographic: 0
   orthographic size: 5
@@ -1765,7 +1765,6 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 586631264}
-  - component: {fileID: 586631263}
   - component: {fileID: 586631267}
   - component: {fileID: 586631266}
   - component: {fileID: 586631269}
@@ -1776,25 +1775,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &586631263
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 586631262}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: ec20d591e27cba54faa2ffc9410d2497, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::GaiaIndexReader
-  indexRelativePath: Data/Gaia/index.bin
-  <Version>k__BackingField: 0
-  <HealpixLevel>k__BackingField: 0
-  <ShellCount>k__BackingField: 0
-  <ChunkCount>k__BackingField: 0
-  <Chunks>k__BackingField: []
-  stringTable: []
 --- !u!4 &586631264
 Transform:
   m_ObjectHideFlags: 0
@@ -1804,12 +1784,13 @@ Transform:
   m_GameObject: {fileID: 586631262}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -328.18097, y: 0, z: -13676.947}
+  m_LocalPosition: {x: 0, y: 0, z: -10}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 1534227109}
-  m_Father: {fileID: 902951635}
+  - {fileID: 618384819}
+  m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &586631266
 MonoBehaviour:
@@ -1841,7 +1822,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 36dd962b2be45994d9ae240c4877bba4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::GaiaMSLODLoader
-  nodeSelector: {fileID: 902951634}
+  metadataDirectory: Data/Gaia/lod
+  targetCamera: {fileID: 330585545}
+  solidAngleThreshold: 0.5
+  solidAngleFadeRange: 0.25
+  solidAnglePreloadRange: 0.125
+  frustumCulling: 1
   clusterFilter: {fileID: 586631269}
   streamUpdateDistance: 1
   streamUpdateAngle: 2
@@ -2137,7 +2123,7 @@ GameObject:
   - component: {fileID: 618384819}
   - component: {fileID: 618384818}
   m_Layer: 0
-  m_Name: MSLODNodesVisualizer
+  m_Name: GaiaMSLODNodesVisualizer
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -2156,7 +2142,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::GaiaMSLODBoundsVisualizer
   msLODLoader: {fileID: 586631267}
-  nodeSelector: {fileID: 0}
   maxDesiredNodesToDraw: 100000000
   maxLoadedNodesToDraw: 100000000
   lineWidth: 0.2
@@ -2170,11 +2155,11 @@ Transform:
   m_GameObject: {fileID: 618384817}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -328.18097, y: 0, z: -13676.947}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 902951635}
+  m_Father: {fileID: 586631264}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &621298340
 GameObject:
@@ -3160,59 +3145,6 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 889246190}
   m_CullTransparentMesh: 1
---- !u!1 &902951633
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 902951635}
-  - component: {fileID: 902951634}
-  m_Layer: 0
-  m_Name: MSLODNodes
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!114 &902951634
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 902951633}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 1733f3167acc6d64c8cf387e092c1dfe, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::MSLODNodeSelector
-  metadataDirectory: Data/Gaia/lod
-  targetCamera: {fileID: 330585545}
-  solidAngleThreshold: 0.05
-  solidAngleFadeRange: 0.025
-  solidAnglePreloadRange: 0.0125
-  frustumCulling: 1
-  verboseLogging: 0
---- !u!4 &902951635
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 902951633}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 328.18097, y: 0, z: 13666.947}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children:
-  - {fileID: 586631264}
-  - {fileID: 618384819}
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &938372574
 GameObject:
   m_ObjectHideFlags: 0
@@ -17837,4 +17769,4 @@ SceneRoots:
   - {fileID: 376260064}
   - {fileID: 2087614914}
   - {fileID: 1666570266}
-  - {fileID: 902951635}
+  - {fileID: 586631264}

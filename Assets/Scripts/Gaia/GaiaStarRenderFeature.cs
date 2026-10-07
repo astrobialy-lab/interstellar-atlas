@@ -610,6 +610,15 @@ public class GaiaStarRenderFeature :
                 computeData.viewProj1 =
                     viewProjRight;
 
+                // NEW:
+                // Pass the actual left/right eye positions to the
+                // compute shader so brightness can depend on distance.
+                computeData.eyePosition0 =
+                    eyePositionLeft;
+
+                computeData.eyePosition1 =
+                    eyePositionRight;
+
                 builder.UseBuffer(
                     computeData.luminance,
                     AccessFlags.Write
@@ -1201,6 +1210,28 @@ public class GaiaStarRenderFeature :
             );
 
             // ============================================================
+            // NEW:
+            // Pass the actual eye positions to the compute shader.
+            // The compute shader uses these to calculate:
+            //
+            //     distanceFactor = 100 / d^2
+            //
+            // corresponding to (10 pc / d)^2.
+            // ============================================================
+
+            context.cmd.SetComputeVectorParam(
+                data.computeShader,
+                EyePosition0ID,
+                data.eyePosition0
+            );
+
+            context.cmd.SetComputeVectorParam(
+                data.computeShader,
+                EyePosition1ID,
+                data.eyePosition1
+            );
+
+            // ============================================================
             // Rasterize only the currently selected LOD nodes.
             // No far-cache cutoff or distance cutoff is applied here.
             // ============================================================
@@ -1564,6 +1595,12 @@ public class GaiaStarRenderFeature :
 
             public Matrix4x4 viewProj0;
             public Matrix4x4 viewProj1;
+
+            // NEW:
+            // Camera/eye positions used by the compute shader
+            // for inverse-square distance attenuation.
+            public Vector4 eyePosition0;
+            public Vector4 eyePosition1;
         }
 
         private class GlobalTexturePassData

@@ -21,6 +21,9 @@ RWStructuredBuffer<uint> _StarColorLuminance;
 float4x4 _ViewProj0;
 float4x4 _ViewProj1;
 
+float4 _EyePosition0;
+float4 _EyePosition1;
+
 
 uint _Width;
 uint _Height;
@@ -233,24 +236,40 @@ void RasterizeKernel(
 
 
     // ============================================================
-    // Brightness
+    // Intrinsic brightness
+    //
+    // star.magnitude = absolute G magnitude M_G.
+    //
+    // M_G is defined at 10 parsecs:
+    //
+    //     intrinsicFlux ∝ 10^(-0.4 M_G)
+    //
+    // At the current observer distance d:
+    //
+    //     flux(d) ∝ 10^(-0.4 M_G) * (10 / d)^2
+    //
+    // Positions are stored in parsecs.
     // ============================================================
 
-    float luminance =
+    float intrinsicLuminance =
         pow(
             10.0,
             -0.4 * star.magnitude
         )
-        * _BrightnessMultiplier
-        * _LOD_Fade;
+        * _BrightnessMultiplier;
 
 
-    if (luminance <= 0.0)
+    if (intrinsicLuminance <= 0.0)
         return;
 
 
     // ============================================================
     // Colour
+    //
+    // bpRp is now the intrinsic / dereddened BP-RP:
+    //
+    //     (BP-RP)_0 =
+    //         (BP-RP) - E(BP-RP)
     // ============================================================
 
     float bpRpNormalized =
@@ -262,6 +281,46 @@ void RasterizeKernel(
 
     // ============================================================
     // Eye 0
+    // ============================================================
+
+    float3 delta0 =
+        star.position -
+        _EyePosition0.xyz;
+
+
+    float distanceSquared0 =
+        dot(
+            delta0,
+            delta0
+        );
+
+
+    // Prevent division by zero.
+    distanceSquared0 =
+        max(
+            distanceSquared0,
+            1.0e-12
+        );
+
+
+    // (10 pc / d)^2 = 100 / d^2
+    float distanceFactor0 =
+        100.0 /
+        distanceSquared0;
+
+
+    float luminance0 =
+        intrinsicLuminance *
+        distanceFactor0 *
+        _LOD_Fade;
+
+
+    if (luminance0 <= 0.0)
+        return;
+
+
+    // ============================================================
+    // Eye 0 projection
     // ============================================================
 
     float4 clip0 =
@@ -352,7 +411,7 @@ void RasterizeKernel(
                 AddContribution(
                     p00,
                     0,
-                    luminance * w00,
+                    luminance0 * w00,
                     bpRpNormalized
                 );
             }
@@ -366,7 +425,7 @@ void RasterizeKernel(
                 AddContribution(
                     p10,
                     0,
-                    luminance * w10,
+                    luminance0 * w10,
                     bpRpNormalized
                 );
             }
@@ -380,7 +439,7 @@ void RasterizeKernel(
                 AddContribution(
                     p01,
                     0,
-                    luminance * w01,
+                    luminance0 * w01,
                     bpRpNormalized
                 );
             }
@@ -394,7 +453,7 @@ void RasterizeKernel(
                 AddContribution(
                     p11,
                     0,
-                    luminance * w11,
+                    luminance0 * w11,
                     bpRpNormalized
                 );
             }
@@ -408,139 +467,172 @@ void RasterizeKernel(
 
     if (_EyeCount > 1)
     {
-        float4 clip1 =
-            mul(
-                _ViewProj1,
-                float4(
-                    star.position,
-                    1.0
-                )
+        float3 delta1 =
+            star.position -
+            _EyePosition1.xyz;
+
+
+        float distanceSquared1 =
+            dot(
+                delta1,
+                delta1
             );
 
 
-        if (clip1.w > 0.0)
+        distanceSquared1 =
+            max(
+                distanceSquared1,
+                1.0e-12
+            );
+
+
+        float distanceFactor1 =
+            100.0 /
+            distanceSquared1;
+
+
+        float luminance1 =
+            intrinsicLuminance *
+            distanceFactor1 *
+            _LOD_Fade;
+
+
+        if (luminance1 > 0.0)
         {
-            float3 ndc1 =
-                clip1.xyz /
-                clip1.w;
-
-
-            if (ndc1.x >= -1.0 &&
-                ndc1.x <= 1.0 &&
-                ndc1.y >= -1.0 &&
-                ndc1.y <= 1.0)
-            {
-                float2 screenPos1 =
-                    float2(
-                        (ndc1.x * 0.5 + 0.5) * _Width,
-                        (-ndc1.y * 0.5 + 0.5) * _Height
+            float4 clip1 =
+                mul(
+                    _ViewProj1,
+                    float4(
+                        star.position,
+                        1.0
                     )
-                    - 0.5;
+                );
 
 
-                int2 basePixel1 =
-                    int2(
-                        floor(screenPos1)
-                    );
+            if (clip1.w > 0.0)
+            {
+                float3 ndc1 =
+                    clip1.xyz /
+                    clip1.w;
 
 
-                float2 frac1 =
-                    frac(screenPos1);
-
-
-                float wx =
-                    frac1.x;
-
-                float wy =
-                    frac1.y;
-
-
-                float w00 =
-                    (1.0 - wx) *
-                    (1.0 - wy);
-
-                float w10 =
-                    wx *
-                    (1.0 - wy);
-
-                float w01 =
-                    (1.0 - wx) *
-                    wy;
-
-                float w11 =
-                    wx *
-                    wy;
-
-
-                int2 p00 =
-                    basePixel1;
-
-                int2 p10 =
-                    basePixel1 +
-                    int2(1, 0);
-
-                int2 p01 =
-                    basePixel1 +
-                    int2(0, 1);
-
-                int2 p11 =
-                    basePixel1 +
-                    int2(1, 1);
-
-
-                if (p00.x >= 0 &&
-                    p00.x < (int)_Width &&
-                    p00.y >= 0 &&
-                    p00.y < (int)_Height)
+                if (ndc1.x >= -1.0 &&
+                    ndc1.x <= 1.0 &&
+                    ndc1.y >= -1.0 &&
+                    ndc1.y <= 1.0)
                 {
-                    AddContribution(
-                        p00,
-                        1,
-                        luminance * w00,
-                        bpRpNormalized
-                    );
-                }
+                    float2 screenPos1 =
+                        float2(
+                            (ndc1.x * 0.5 + 0.5) * _Width,
+                            (-ndc1.y * 0.5 + 0.5) * _Height
+                        )
+                        - 0.5;
 
 
-                if (p10.x >= 0 &&
-                    p10.x < (int)_Width &&
-                    p10.y >= 0 &&
-                    p10.y < (int)_Height)
-                {
-                    AddContribution(
-                        p10,
-                        1,
-                        luminance * w10,
-                        bpRpNormalized
-                    );
-                }
+                    int2 basePixel1 =
+                        int2(
+                            floor(screenPos1)
+                        );
 
 
-                if (p01.x >= 0 &&
-                    p01.x < (int)_Width &&
-                    p01.y >= 0 &&
-                    p01.y < (int)_Height)
-                {
-                    AddContribution(
-                        p01,
-                        1,
-                        luminance * w01,
-                        bpRpNormalized
-                    );
-                }
+                    float2 frac1 =
+                        frac(screenPos1);
 
 
-                if (p11.x >= 0 &&
-                    p11.x < (int)_Width &&
-                    p11.y >= 0 &&
-                    p11.y < (int)_Height)
-                {
-                    AddContribution(
-                        p11,
-                        1,
-                        luminance * w11,
-                        bpRpNormalized
-                    );
+                    float wx =
+                        frac1.x;
+
+                    float wy =
+                        frac1.y;
+
+
+                    float w00 =
+                        (1.0 - wx) *
+                        (1.0 - wy);
+
+                    float w10 =
+                        wx *
+                        (1.0 - wy);
+
+                    float w01 =
+                        (1.0 - wx) *
+                        wy;
+
+                    float w11 =
+                        wx *
+                        wy;
+
+
+                    int2 p00 =
+                        basePixel1;
+
+                    int2 p10 =
+                        basePixel1 +
+                        int2(1, 0);
+
+                    int2 p01 =
+                        basePixel1 +
+                        int2(0, 1);
+
+                    int2 p11 =
+                        basePixel1 +
+                        int2(1, 1);
+
+
+                    if (p00.x >= 0 &&
+                        p00.x < (int)_Width &&
+                        p00.y >= 0 &&
+                        p00.y < (int)_Height)
+                    {
+                        AddContribution(
+                            p00,
+                            1,
+                            luminance1 * w00,
+                            bpRpNormalized
+                        );
+                    }
+
+
+                    if (p10.x >= 0 &&
+                        p10.x < (int)_Width &&
+                        p10.y >= 0 &&
+                        p10.y < (int)_Height)
+                    {
+                        AddContribution(
+                            p10,
+                            1,
+                            luminance1 * w10,
+                            bpRpNormalized
+                        );
+                    }
+
+
+                    if (p01.x >= 0 &&
+                        p01.x < (int)_Width &&
+                        p01.y >= 0 &&
+                        p01.y < (int)_Height)
+                    {
+                        AddContribution(
+                            p01,
+                            1,
+                            luminance1 * w01,
+                            bpRpNormalized
+                        );
+                    }
+
+
+                    if (p11.x >= 0 &&
+                        p11.x < (int)_Width &&
+                        p11.y >= 0 &&
+                        p11.y < (int)_Height)
+                    {
+                        AddContribution(
+                            p11,
+                            1,
+                            luminance1 * w11,
+                            bpRpNormalized
+                        );
+                    }
                 }
             }
         }

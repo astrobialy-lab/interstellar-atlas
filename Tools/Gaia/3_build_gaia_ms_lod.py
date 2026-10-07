@@ -24,7 +24,7 @@ except ImportError as exc:
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
-INPUT_DIR = PROJECT_ROOT / "DataRaw" / "Gaia" / "chunks"
+INPUT_DIR = PROJECT_ROOT / "DataRaw" / "Gaia" / "processed"
 OUTPUT_DIR = PROJECT_ROOT / "Data" / "Gaia" / "lod"
 BUILD_DIR = PROJECT_ROOT / "Data" / "Gaia" / "lod_building"
 
@@ -49,15 +49,8 @@ SORT_RUN_STARS = 2_000_000
 # Number of records loaded from the final sorted stream at once.
 PROCESS_BATCH_STARS = 2_000_000
 
-# Number of sorted runs merged simultaneously.
-MERGE_FAN_IN = 128
-
-# Records buffered from each input run.
-# 128 * 16,384 * 32 bytes ≈ 64 MiB.
-MERGE_BUFFER_STARS = 16_384
-
-# Output buffer.
-MERGE_OUTPUT_STARS = 1_000_000
+# Input blocks used by the pairwise external merges.
+MERGE_BLOCK_STARS = 262_144
 
 # Final output partitioning.
 #
@@ -411,11 +404,11 @@ def create_sorted_runs(files):
 
                 run_paths.append(run_path)
 
-                # print(
-                #     f"  Wrote sorted run "
-                #     f"{run_id:,}: "
-                #     f"{valid_count:,} stars"
-                # )
+                print(
+                    f"  Wrote sorted run "
+                    f"{run_id:,}: "
+                    f"{valid_count:,} stars"
+                )
 
                 run_id += 1
 
@@ -466,563 +459,182 @@ def create_sorted_runs(files):
 
 
 # ============================================================
-# Numba multi-way merge
+# Numba two-way merge
 # ============================================================
 
 @njit
-def kway_merge_buffers(
-    buffers,
-    lengths,
-    positions,
-    active,
-    heap_streams,
+def merge_until_one_exhausted(
+    a,
+    b,
     output
 ):
-    """
-    Merge multiple sorted in-memory buffers.
 
-    Each stream is represented by:
-        buffers[stream]
-        positions[stream]
-        lengths[stream]
-
-    A binary min-heap stores the stream whose current record
-    has the smallest absolute magnitude.
-
-    Returns:
-        output_count
-        exhausted_stream
-
-    exhausted_stream:
-        >= 0 : that stream's buffer was exhausted and needs refill
-        -1   : output buffer filled before any stream exhausted
-        -2   : all currently loaded buffers were exhausted
-    """
-
-    k = buffers.shape[0]
-
-    # --------------------------------------------------------
-    # Build initial heap from current stream heads
-    # --------------------------------------------------------
-
-    heap_size = 0
-
-    for stream in range(k):
-
-        if (
-            active[stream]
-            and
-            positions[stream] < lengths[stream]
-        ):
-
-            i = heap_size
-
-            heap_streams[i] = stream
-
-            heap_size += 1
-
-            # Bubble up.
-            while i > 0:
-
-                parent = (
-                    i - 1
-                ) >> 1
-
-                parent_stream = (
-                    heap_streams[parent]
-                )
-
-                current_stream = (
-                    heap_streams[i]
-                )
-
-                parent_key = buffers[
-                    parent_stream,
-                    positions[parent_stream]
-                ]["abs_mag"]
-
-                current_key = buffers[
-                    current_stream,
-                    positions[current_stream]
-                ]["abs_mag"]
-
-                if parent_key <= current_key:
-                    break
-
-                heap_streams[parent] = (
-                    current_stream
-                )
-
-                heap_streams[i] = (
-                    parent_stream
-                )
-
-                i = parent
-
-    # --------------------------------------------------------
-    # Merge
-    # --------------------------------------------------------
-
-    output_count = 0
+    i = 0
+    j = 0
+    k = 0
 
     while (
-        heap_size > 0
-        and
-        output_count < output.shape[0]
+        i < a.shape[0]
+        and j < b.shape[0]
     ):
 
-        # Smallest current record.
-        stream = heap_streams[0]
+        # Left run wins ties.
+        if (
+            a[i]["abs_mag"]
+            <=
+            b[j]["abs_mag"]
+        ):
 
-        output[output_count] = buffers[
-            stream,
-            positions[stream]
-        ]
+            output[k] = a[i]
+            i += 1
 
-        output_count += 1
+        else:
 
-        positions[stream] += 1
+            output[k] = b[j]
+            j += 1
 
-        # ----------------------------------------------------
-        # Remove root from heap
-        # ----------------------------------------------------
+        k += 1
 
-        heap_size -= 1
-
-        if heap_size > 0:
-
-            heap_streams[0] = (
-                heap_streams[heap_size]
-            )
-
-            i = 0
-
-            while True:
-
-                left = (
-                    2 * i + 1
-                )
-
-                if left >= heap_size:
-                    break
-
-                right = left + 1
-
-                child = left
-
-                if right < heap_size:
-
-                    left_stream = (
-                        heap_streams[left]
-                    )
-
-                    right_stream = (
-                        heap_streams[right]
-                    )
-
-                    left_key = buffers[
-                        left_stream,
-                        positions[left_stream]
-                    ]["abs_mag"]
-
-                    right_key = buffers[
-                        right_stream,
-                        positions[right_stream]
-                    ]["abs_mag"]
-
-                    if right_key < left_key:
-                        child = right
-
-                current_stream = (
-                    heap_streams[i]
-                )
-
-                child_stream = (
-                    heap_streams[child]
-                )
-
-                current_key = buffers[
-                    current_stream,
-                    positions[current_stream]
-                ]["abs_mag"]
-
-                child_key = buffers[
-                    child_stream,
-                    positions[child_stream]
-                ]["abs_mag"]
-
-                if current_key <= child_key:
-                    break
-
-                heap_streams[i] = (
-                    child_stream
-                )
-
-                heap_streams[child] = (
-                    current_stream
-                )
-
-                i = child
-
-        # ----------------------------------------------------
-        # This stream's buffer is empty.
-        #
-        # Python will refill it before calling us again.
-        # ----------------------------------------------------
-
-        if positions[stream] >= lengths[stream]:
-
-            return (
-                output_count,
-                stream
-            )
-
-        # ----------------------------------------------------
-        # Put stream back into heap
-        # ----------------------------------------------------
-
-        i = heap_size
-
-        heap_streams[i] = stream
-
-        heap_size += 1
-
-        while i > 0:
-
-            parent = (
-                i - 1
-            ) >> 1
-
-            parent_stream = (
-                heap_streams[parent]
-            )
-
-            current_stream = (
-                heap_streams[i]
-            )
-
-            parent_key = buffers[
-                parent_stream,
-                positions[parent_stream]
-            ]["abs_mag"]
-
-            current_key = buffers[
-                current_stream,
-                positions[current_stream]
-            ]["abs_mag"]
-
-            if parent_key <= current_key:
-                break
-
-            heap_streams[parent] = (
-                current_stream
-            )
-
-            heap_streams[i] = (
-                parent_stream
-            )
-
-            i = parent
-
-    # --------------------------------------------------------
-    # Heap empty
-    # --------------------------------------------------------
-
-    if heap_size == 0:
-
-        return (
-            output_count,
-            -2
-        )
-
-    return (
-        output_count,
-        -1
-    )
+    return k, i, j
 
 
-def merge_many_runs(
-    run_paths,
+def merge_two_runs(
+    left_path,
+    right_path,
     output_path
 ):
-    """
-    Merge N sorted runs into one sorted run.
 
-    Uses:
-        MERGE_FAN_IN
-        MERGE_BUFFER_STARS
-        MERGE_OUTPUT_STARS
+    left_size = (
+        left_path.stat().st_size
+        //
+        SORT_DTYPE.itemsize
+    )
 
-    This is a true multi-way external merge.
-    """
+    right_size = (
+        right_path.stat().st_size
+        //
+        SORT_DTYPE.itemsize
+    )
 
-    run_count = len(run_paths)
+    total_size = (
+        left_size +
+        right_size
+    )
 
-    if run_count == 0:
-        raise RuntimeError(
-            "No runs supplied to merge."
+    output_buffer = np.empty(
+        MERGE_BLOCK_STARS * 2,
+        dtype=SORT_DTYPE
+    )
+
+    with (
+        left_path.open("rb") as left_file,
+        right_path.open("rb") as right_file,
+        output_path.open("wb") as output_file
+    ):
+
+        a = np.fromfile(
+            left_file,
+            dtype=SORT_DTYPE,
+            count=MERGE_BLOCK_STARS
         )
 
-    if run_count == 1:
-
-        run_paths[0].replace(
-            output_path
+        b = np.fromfile(
+            right_file,
+            dtype=SORT_DTYPE,
+            count=MERGE_BLOCK_STARS
         )
-
-        return
-
-    # --------------------------------------------------------
-    # Open all input streams
-    # --------------------------------------------------------
-
-    files = [
-        path.open("rb")
-        for path in run_paths
-    ]
-
-    try:
-
-        buffers = np.empty(
-            (
-                run_count,
-                MERGE_BUFFER_STARS
-            ),
-            dtype=SORT_DTYPE
-        )
-
-        lengths = np.zeros(
-            run_count,
-            dtype=np.int64
-        )
-
-        positions = np.zeros(
-            run_count,
-            dtype=np.int64
-        )
-
-        active = np.zeros(
-            run_count,
-            dtype=np.bool_
-        )
-
-        heap_streams = np.empty(
-            run_count,
-            dtype=np.int32
-        )
-
-        output = np.empty(
-            MERGE_OUTPUT_STARS,
-            dtype=SORT_DTYPE
-        )
-
-        # ----------------------------------------------------
-        # Expected record count
-        # ----------------------------------------------------
-
-        expected_records = 0
-
-        for i, path in enumerate(run_paths):
-
-            file_size = path.stat().st_size
-
-            if (
-                file_size %
-                SORT_DTYPE.itemsize
-                != 0
-            ):
-
-                raise RuntimeError(
-                    f"Invalid run size:\n{path}"
-                )
-
-            expected_records += (
-                file_size //
-                SORT_DTYPE.itemsize
-            )
-
-        # ----------------------------------------------------
-        # Initial buffer fill
-        # ----------------------------------------------------
-
-        for i, f in enumerate(files):
-
-            data = np.fromfile(
-                f,
-                dtype=SORT_DTYPE,
-                count=MERGE_BUFFER_STARS
-            )
-
-            count = len(data)
-
-            if count > 0:
-
-                buffers[
-                    i,
-                    :count
-                ] = data
-
-                lengths[i] = count
-
-                positions[i] = 0
-
-                active[i] = True
-
-        # ----------------------------------------------------
-        # Merge
-        # ----------------------------------------------------
 
         written = 0
 
-        with output_path.open("wb") as output_file:
+        while (
+            len(a) > 0
+            and len(b) > 0
+        ):
 
-            while np.any(active):
-
-                (
-                    count,
-                    exhausted_stream
-                ) = kway_merge_buffers(
-                    buffers,
-                    lengths,
-                    positions,
-                    active,
-                    heap_streams,
-                    output
+            count, consumed_a, consumed_b = (
+                merge_until_one_exhausted(
+                    a,
+                    b,
+                    output_buffer
                 )
-
-                if count > 0:
-
-                    output[
-                        :count
-                    ].tofile(
-                        output_file
-                    )
-
-                    written += count
-
-                # ------------------------------------------------
-                # One input buffer needs refilling
-                # ------------------------------------------------
-
-                if exhausted_stream >= 0:
-
-                    stream = exhausted_stream
-
-                    data = np.fromfile(
-                        files[stream],
-                        dtype=SORT_DTYPE,
-                        count=MERGE_BUFFER_STARS
-                    )
-
-                    count = len(data)
-
-                    positions[stream] = 0
-
-                    if count > 0:
-
-                        buffers[
-                            stream,
-                            :count
-                        ] = data
-
-                        lengths[stream] = count
-
-                        active[stream] = True
-
-                    else:
-
-                        lengths[stream] = 0
-
-                        active[stream] = False
-
-                # ------------------------------------------------
-                # All currently loaded buffers exhausted.
-                # Refill all remaining files.
-                # ------------------------------------------------
-
-                elif exhausted_stream == -2:
-
-                    for stream in range(run_count):
-
-                        if not active[stream]:
-                            continue
-
-                        data = np.fromfile(
-                            files[stream],
-                            dtype=SORT_DTYPE,
-                            count=MERGE_BUFFER_STARS
-                        )
-
-                        count = len(data)
-
-                        positions[stream] = 0
-
-                        if count > 0:
-
-                            buffers[
-                                stream,
-                                :count
-                            ] = data
-
-                            lengths[stream] = count
-
-                        else:
-
-                            lengths[stream] = 0
-
-                            active[stream] = False
-
-                # ------------------------------------------------
-                # Output buffer filled.
-                # Positions are already preserved.
-                # ------------------------------------------------
-
-                elif exhausted_stream == -1:
-
-                    pass
-
-                # ------------------------------------------------
-                # Safety check
-                # ------------------------------------------------
-
-                elif count == 0:
-
-                    raise RuntimeError(
-                        "Multi-way merge made no progress."
-                    )
-
-        if written != expected_records:
-
-            raise RuntimeError(
-                "Multi-way merge size mismatch.\n"
-                f"Expected: {expected_records:,}\n"
-                f"Written:  {written:,}"
             )
 
-    finally:
+            output_buffer[
+                :count
+            ].tofile(
+                output_file
+            )
 
-        for f in files:
-            f.close()
+            written += count
+
+            if consumed_a == len(a):
+
+                a = np.fromfile(
+                    left_file,
+                    dtype=SORT_DTYPE,
+                    count=MERGE_BLOCK_STARS
+                )
+
+            else:
+
+                a = a[consumed_a:]
+
+            if consumed_b == len(b):
+
+                b = np.fromfile(
+                    right_file,
+                    dtype=SORT_DTYPE,
+                    count=MERGE_BLOCK_STARS
+                )
+
+            else:
+
+                b = b[consumed_b:]
+
+        while len(a) > 0:
+
+            a.tofile(output_file)
+
+            written += len(a)
+
+            a = np.fromfile(
+                left_file,
+                dtype=SORT_DTYPE,
+                count=MERGE_BLOCK_STARS
+            )
+
+        while len(b) > 0:
+
+            b.tofile(output_file)
+
+            written += len(b)
+
+            b = np.fromfile(
+                right_file,
+                dtype=SORT_DTYPE,
+                count=MERGE_BLOCK_STARS
+            )
+
+    if written != total_size:
+        raise RuntimeError(
+            "Merge size mismatch.\n"
+            f"Expected: {total_size:,}\n"
+            f"Written:  {written:,}"
+        )
+
+    gc.collect()
 
 
 def merge_all_runs(run_paths):
     """
-    Multi-pass multi-way external merge.
+    Pairwise external merge.
 
-    With 491,520 runs and MERGE_FAN_IN=128:
-
-        pass 0:
-            491,520 -> 3,840
-
-        pass 1:
-              3,840 -> 30
-
-        pass 2:
-                 30 -> 1
+    Each pass approximately doubles run size.
+    Old input runs are deleted after their merge succeeds.
     """
 
-    current = list(run_paths)
-
     pass_id = 0
+    current = list(run_paths)
 
     while len(current) > 1:
 
@@ -1034,93 +646,53 @@ def merge_all_runs(run_paths):
 
         next_runs = []
 
-        group_count = (
-            (
-                len(current)
-                +
-                MERGE_FAN_IN
-                -
-                1
-            )
-            //
-            MERGE_FAN_IN
-        )
-
-        for group_index, start in enumerate(
-            range(
-                0,
-                len(current),
-                MERGE_FAN_IN
-            )
+        for i in range(
+            0,
+            len(current),
+            2
         ):
+            print(i, "/", len(current))
 
-            group = current[
-                start:
-                start + MERGE_FAN_IN
-            ]
+            left = current[i]
 
-            # A single leftover run can simply
-            # be carried into the next pass.
-            if len(group) == 1:
-
-                next_runs.append(
-                    group[0]
-                )
-
+            if i + 1 >= len(current):
+                next_runs.append(left)
                 continue
+
+            right = current[i + 1]
 
             output = (
                 RUN_DIR /
-                f"merge_{pass_id:03d}_"
-                f"{group_index:08d}.bin"
+                f"merge_{pass_id:03d}_{i // 2:08d}.bin"
             )
 
-            merge_many_runs(
-                group,
+            merge_two_runs(
+                left,
+                right,
                 output
             )
 
-            # Only delete inputs after the merge
-            # has successfully completed.
-            for path in group:
-                path.unlink()
+            left.unlink()
+            right.unlink()
 
-            next_runs.append(
-                output
-            )
-
-            if (
-                group_index == 0
-                or
-                group_index + 1 == group_count
-                or
-                (group_index + 1) % 10 == 0
-            ):
-
-                print(
-                    f"  Merged groups: "
-                    f"{group_index + 1:,}/"
-                    f"{group_count:,}"
-                )
+            next_runs.append(output)
 
         current = next_runs
-
         pass_id += 1
 
     if not current:
-
         raise RuntimeError(
             "No sorted run remains."
         )
 
     return current[0]
 
+
 # ============================================================
 # Hierarchy state
 # ============================================================
 
 def create_hierarchy_state():
-
     capacity = max(
         1,
         NODE_INITIAL_CAPACITY
@@ -1403,7 +975,9 @@ def build_hierarchy_batch_numba(
                         :capacity
                     ] = star_counts
 
-                    star_counts = new_star_counts
+                    star_counts = (
+                        new_star_counts
+                    )
 
                     new_children = np.full(
                         (new_capacity, 8),
@@ -1426,7 +1000,9 @@ def build_hierarchy_batch_numba(
 
                 node_count += 1
 
-                node_lookup[key] = child_id
+                node_lookup[key] = (
+                    child_id
+                )
 
                 parent_ids[
                     child_id
@@ -1524,12 +1100,16 @@ def write_partition_batch(
         dtype=PARTITION_DTYPE
     )
 
-    partition["node_id"] = np.asarray(
-        star_node_ids,
-        dtype=np.uint32
+    partition["node_id"] = (
+        np.asarray(
+            star_node_ids,
+            dtype=np.uint32
+        )
     )
 
-    partition["source_id"] = records["source_id"]
+    partition["source_id"] = (
+        records["source_id"]
+    )
 
     partition["x"] = records["x"]
     partition["y"] = records["y"]
@@ -1549,7 +1129,6 @@ def write_partition_batch(
     )
 
     ordered = partition[order]
-
     ordered_bucket_ids = (
         bucket_ids[order]
     )
@@ -1580,7 +1159,6 @@ def write_partition_batch(
         )
 
         with path.open("ab") as f:
-
             ordered[
                 start:end
             ].tofile(f)
@@ -1711,7 +1289,6 @@ def build_hierarchy_from_sorted_run(
                 or processed == total_star_count
                 or batch_number % 5 == 0
             ):
-
                 print(
                     f"  Processed "
                     f"{processed:,}/{total_star_count:,} "
@@ -1723,20 +1300,39 @@ def build_hierarchy_from_sorted_run(
             del star_node_ids
 
     if processed != total_star_count:
-
         raise RuntimeError(
             "Final sorted stream size mismatch.\n"
             f"Expected: {total_star_count:,}\n"
             f"Processed: {processed:,}"
         )
 
-    parent_ids = parent_ids[:node_count]
-    depths = depths[:node_count]
-    cell_x = cell_x[:node_count]
-    cell_y = cell_y[:node_count]
-    cell_z = cell_z[:node_count]
-    star_counts = star_counts[:node_count]
-    children = children[:node_count]
+    parent_ids = (
+        parent_ids[:node_count]
+    )
+
+    depths = (
+        depths[:node_count]
+    )
+
+    cell_x = (
+        cell_x[:node_count]
+    )
+
+    cell_y = (
+        cell_y[:node_count]
+    )
+
+    cell_z = (
+        cell_z[:node_count]
+    )
+
+    star_counts = (
+        star_counts[:node_count]
+    )
+
+    children = (
+        children[:node_count]
+    )
 
     assigned_count = int(
         np.sum(
@@ -1746,7 +1342,6 @@ def build_hierarchy_from_sorted_run(
     )
 
     if assigned_count != total_star_count:
-
         raise RuntimeError(
             "LOD star count mismatch.\n"
             f"Assigned: {assigned_count:,}\n"
@@ -1801,9 +1396,13 @@ def write_final_node_files(
     star_counts
 ):
 
-    particle_dir = directory / "particles"
+    particle_dir = (
+        directory / "particles"
+    )
 
-    source_id_dir = directory / "source_ids"
+    source_id_dir = (
+        directory / "source_ids"
+    )
 
     particle_dir.mkdir(
         parents=True,
@@ -1843,7 +1442,6 @@ def write_final_node_files(
         )
 
         if len(data) == 0:
-
             bucket_path.unlink()
             continue
 
@@ -1871,11 +1469,9 @@ def write_final_node_files(
                     data["node_id"][end]
                 ) == node_id
             ):
-
                 end += 1
 
             if node_id < 0 or node_id >= node_count:
-
                 raise RuntimeError(
                     f"Invalid node ID {node_id} "
                     f"in {bucket_path}"
@@ -1888,7 +1484,6 @@ def write_final_node_files(
             )
 
             if count != expected:
-
                 raise RuntimeError(
                     f"Node {node_id} star-count mismatch.\n"
                     f"Partition: {count}\n"
@@ -1942,7 +1537,6 @@ def write_final_node_files(
             or bucket_index == len(bucket_paths)
             or bucket_index % 20 == 0
         ):
-
             print(
                 f"  Buckets: "
                 f"{bucket_index:,}/{len(bucket_paths):,}"
@@ -1951,19 +1545,11 @@ def write_final_node_files(
         del data
         del order
 
-    # Nodes with zero local stars do not need a particle file.
-    # The root node is one such node: it stores the cumulative
-    # star count for the hierarchy but does not directly own stars.
+    expected_seen = star_counts > 0
 
-    required = (
-        star_counts > 0
-    )
+    if not np.array_equal(seen, expected_seen):
 
-    missing = np.flatnonzero(
-        required & ~seen
-    )
-
-    if len(missing) > 0:
+        missing = np.flatnonzero(expected_seen & ~seen)
 
         raise RuntimeError(
             "Some non-empty hierarchy nodes did not receive "
@@ -1983,9 +1569,11 @@ def compute_cumulative_counts(
     star_counts
 ):
 
-    cumulative = star_counts.astype(
-        np.uint64,
-        copy=True
+    cumulative = (
+        star_counts.astype(
+            np.uint64,
+            copy=True
+        )
     )
 
     for node_id in range(
@@ -2030,9 +1618,11 @@ def write_metadata(
         "metadata.bin"
     )
 
-    cumulative = compute_cumulative_counts(
-        parent_ids,
-        star_counts
+    cumulative = (
+        compute_cumulative_counts(
+            parent_ids,
+            star_counts
+        )
     )
 
     with path.open("wb") as f:
@@ -2077,8 +1667,7 @@ def write_metadata(
 
                 minimum = (
                     root_min
-                    +
-                    np.array(
+                    + np.array(
                         [
                             cell_x[node_id],
                             cell_y[node_id],
@@ -2098,7 +1687,9 @@ def write_metadata(
                 node_size * 0.5
             )
 
-            child_ids = children[node_id]
+            child_ids = (
+                children[node_id]
+            )
 
             child_count = int(
                 np.count_nonzero(
@@ -2286,14 +1877,12 @@ def main():
     )
 
     if root_size <= 0.0:
-
         raise RuntimeError(
             "All valid stars have identical positions."
         )
 
     root_min = (
-        center
-        -
+        center -
         root_size * 0.5
     ).astype(
         np.float32
@@ -2301,7 +1890,7 @@ def main():
 
     # --------------------------------------------------------
     # Pass 2:
-    # multi-way external merge
+    # externally merge all sorted runs
     # --------------------------------------------------------
 
     print()
@@ -2315,8 +1904,10 @@ def main():
         "=========================================="
     )
 
-    final_sorted_run = merge_all_runs(
-        run_paths
+    final_sorted_run = (
+        merge_all_runs(
+            run_paths
+        )
     )
 
     print()
@@ -2327,7 +1918,7 @@ def main():
 
     # --------------------------------------------------------
     # Pass 3:
-    # build hierarchy incrementally
+    # build hierarchy incrementally and partition output
     # --------------------------------------------------------
 
     print()
@@ -2395,7 +1986,6 @@ def main():
     )
 
     # Temp directories should now be empty.
-
     if RUN_DIR.exists():
         shutil.rmtree(RUN_DIR)
 
@@ -2407,15 +1997,13 @@ def main():
     # --------------------------------------------------------
 
     if OUTPUT_DIR.exists():
+
         shutil.rmtree(
             OUTPUT_DIR
         )
 
-    # Windows can occasionally keep the old directory handle
-    # around briefly, so use move instead of rename.
-    shutil.move(
-        str(BUILD_DIR),
-        str(OUTPUT_DIR)
+    BUILD_DIR.rename(
+        OUTPUT_DIR
     )
 
     # --------------------------------------------------------

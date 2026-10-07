@@ -1,23 +1,23 @@
 from pathlib import Path
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 from astroquery.gaia import Gaia
 import time
 import os
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
-RAW_DIR = PROJECT_ROOT / "DataRaw" / "Gaia"
+RAW_DIR = PROJECT_ROOT / "DataRaw" / "Gaia3"
 RAW_DIR.mkdir(parents=True, exist_ok=True)
 
 CREDENTIALS_FILE = PROJECT_ROOT.parent / "gaia_credentials.txt"
 
 # HEALPix partition level used to split the Gaia data into manageable files.
-# The Level doesnt matters because the data is split by cubes later.
+# The level doesn't matter because the data is split by cubes later.
 LEVEL = 3
 NPIXELS = 12 * 4**LEVEL
 DIVISOR = 2 ** (59 - 2 * LEVEL)
 
-MAX_WORKERS = 5
+MAX_WORKERS = 3
 
 
 def download_healpix(healpix):
@@ -37,11 +37,9 @@ def download_healpix(healpix):
 
     if output_file.exists():
 
-        # Basic sanity check: file must not be empty.
         if output_file.stat().st_size > 0:
             return
 
-        # Empty final file is not considered valid.
         print(f"WARNING {healpix}: final file is empty, deleting it")
         output_file.unlink()
 
@@ -75,51 +73,30 @@ def download_healpix(healpix):
 
         -- GSP-Phot stellar estimates
         ap.teff_gspphot,
-        ap.teff_gspphot_lower,
-        ap.teff_gspphot_upper,
-
         ap.logg_gspphot,
-        ap.logg_gspphot_lower,
-        ap.logg_gspphot_upper,
-
         ap.mh_gspphot,
-        ap.mh_gspphot_lower,
-        ap.mh_gspphot_upper,
 
         ap.distance_gspphot,
-        ap.distance_gspphot_lower,
-        ap.distance_gspphot_upper,
-
         ap.radius_gspphot,
-        ap.radius_gspphot_lower,
-        ap.radius_gspphot_upper,
 
         -- Estimated extinction
         ap.azero_gspphot,
-
         ap.ag_gspphot,
-        ap.ag_gspphot_lower,
-        ap.ag_gspphot_upper,
-
         ap.abp_gspphot,
-        ap.abp_gspphot_lower,
-        ap.abp_gspphot_upper,
-
         ap.arp_gspphot,
-        ap.arp_gspphot_lower,
-        ap.arp_gspphot_upper,
-
         ap.ebpminrp_gspphot,
-        ap.ebpminrp_gspphot_lower,
-        ap.ebpminrp_gspphot_upper,
 
         -- Absolute magnitude
         ap.mg_gspphot,
-        ap.mg_gspphot_lower,
-        ap.mg_gspphot_upper,
 
         -- Which synthetic stellar library was selected
-        ap.libname_gspphot
+        ap.libname_gspphot,
+
+        -- FLAME stellar properties
+        ap.mass_flame,
+        ap.age_flame,
+        ap.lum_flame,
+        ap.evolstage_flame
 
     FROM gaiadr3.gaia_source AS g
 
@@ -130,8 +107,10 @@ def download_healpix(healpix):
         g.source_id >= {source_id_min}
         AND g.source_id < {source_id_max}
 
-        AND g.phot_g_mean_mag IS NOT NULL
+        AND ap.distance_gspphot IS NOT NULL
+        AND ap.lum_flame IS NOT NULL
         AND g.bp_rp IS NOT NULL
+        AND ap.ebpminrp_gspphot IS NOT NULL
     """
 
     # ---------------------------------------------------------
@@ -176,10 +155,6 @@ def download_healpix(healpix):
 
         # -----------------------------------------------------
         # Mark as COMPLETED
-        #
-        # os.replace() is atomic on the same filesystem.
-        # Therefore the final .csv appears only after the
-        # temporary file has been completely written.
         # -----------------------------------------------------
 
         os.replace(temp_file, output_file)
@@ -192,16 +167,9 @@ def download_healpix(healpix):
             f"{elapsed:.1f} min"
         )
 
-        return
-
     except Exception:
-
         # Keep the .part file so you can see that this partition
         # did NOT finish successfully.
-        #
-        # It will be deleted automatically at the beginning of
-        # the next attempt.
-
         raise
 
 

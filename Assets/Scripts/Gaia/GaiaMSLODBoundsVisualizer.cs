@@ -4,11 +4,8 @@ using UnityEngine;
 public class GaiaMSLODBoundsVisualizer : MonoBehaviour
 {
     [Header("References")]
-    [Tooltip("Gaia MS-LOD loader providing the loaded node set.")]
+    [Tooltip("Gaia MS-LOD loader providing the desired, loaded, and node metadata.")]
     public GaiaMSLODLoader msLODLoader;
-
-    [Tooltip("Shared MS-LOD selector providing the desired node set and metadata.")]
-    public MSLODNodeSelector nodeSelector;
 
     [Header("Display")]
     [Tooltip("Maximum number of desired-but-not-loaded nodes to draw.")]
@@ -32,6 +29,7 @@ public class GaiaMSLODBoundsVisualizer : MonoBehaviour
     private Material desiredMaterial;
     private Material loadedMaterial;
 
+
     // --------------------------------------------------------
     // Unity
     // --------------------------------------------------------
@@ -43,13 +41,8 @@ public class GaiaMSLODBoundsVisualizer : MonoBehaviour
             msLODLoader =
                 FindAnyObjectByType<GaiaMSLODLoader>();
         }
-
-        if (nodeSelector == null)
-        {
-            nodeSelector =
-                FindAnyObjectByType<MSLODNodeSelector>();
-        }
     }
+
 
     // --------------------------------------------------------
     // Toggle refresh
@@ -71,12 +64,6 @@ public class GaiaMSLODBoundsVisualizer : MonoBehaviour
                 FindAnyObjectByType<GaiaMSLODLoader>();
         }
 
-        if (nodeSelector == null)
-        {
-            nodeSelector =
-                FindAnyObjectByType<MSLODNodeSelector>();
-        }
-
         if (msLODLoader == null)
         {
             Debug.LogWarning(
@@ -87,21 +74,11 @@ public class GaiaMSLODBoundsVisualizer : MonoBehaviour
             return;
         }
 
-        if (nodeSelector == null)
+        if (!msLODLoader.IsReady)
         {
             Debug.LogWarning(
                 "GaiaMSLODBoundsVisualizer: " +
-                "MSLODNodeSelector not found."
-            );
-
-            return;
-        }
-
-        if (!nodeSelector.IsReady)
-        {
-            Debug.LogWarning(
-                "GaiaMSLODBoundsVisualizer: " +
-                "MSLODNodeSelector is not ready yet."
+                "GaiaMSLODLoader is not ready yet."
             );
 
             return;
@@ -115,6 +92,7 @@ public class GaiaMSLODBoundsVisualizer : MonoBehaviour
     {
         RefreshBounds();
     }
+
 
     // --------------------------------------------------------
     // Build
@@ -138,11 +116,11 @@ public class GaiaMSLODBoundsVisualizer : MonoBehaviour
         CreateMaterials();
 
         // ----------------------------------------------------
-        // Get the actual MS-LOD state.
+        // Get actual MS-LOD state.
         // ----------------------------------------------------
 
         IReadOnlyCollection<uint> desiredNodes =
-            nodeSelector.DesiredNodeIds;
+            msLODLoader.DesiredNodeIds;
 
         IReadOnlyCollection<uint> loadedNodes =
             msLODLoader.LoadedNodeIds;
@@ -151,6 +129,7 @@ public class GaiaMSLODBoundsVisualizer : MonoBehaviour
             new HashSet<uint>(
                 loadedNodes
             );
+
 
         // ----------------------------------------------------
         // Draw loaded nodes first.
@@ -167,9 +146,9 @@ public class GaiaMSLODBoundsVisualizer : MonoBehaviour
                 break;
             }
 
-            if (!nodeSelector.TryGetNodeInfo(
+            if (!msLODLoader.TryGetNodeInfo(
                     nodeId,
-                    out MSLODNodeSelector.MSLODNodeInfo node))
+                    out GaiaMSLODLoader.GaiaLODNodeInfo node))
             {
                 continue;
             }
@@ -182,6 +161,7 @@ public class GaiaMSLODBoundsVisualizer : MonoBehaviour
 
             loadedDrawn++;
         }
+
 
         // ----------------------------------------------------
         // Draw desired-but-not-loaded nodes.
@@ -204,9 +184,9 @@ public class GaiaMSLODBoundsVisualizer : MonoBehaviour
                 continue;
             }
 
-            if (!nodeSelector.TryGetNodeInfo(
+            if (!msLODLoader.TryGetNodeInfo(
                     nodeId,
-                    out MSLODNodeSelector.MSLODNodeInfo node))
+                    out GaiaMSLODLoader.GaiaLODNodeInfo node))
             {
                 continue;
             }
@@ -227,12 +207,13 @@ public class GaiaMSLODBoundsVisualizer : MonoBehaviour
         );
     }
 
+
     // --------------------------------------------------------
     // Node bounds
     // --------------------------------------------------------
 
     private void CreateNodeBounds(
-        MSLODNodeSelector.MSLODNodeInfo node,
+        GaiaMSLODLoader.GaiaLODNodeInfo node,
         Material material,
         string stateName)
     {
@@ -327,6 +308,7 @@ public class GaiaMSLODBoundsVisualizer : MonoBehaviour
         line.sortingOrder = 0;
     }
 
+
     // --------------------------------------------------------
     // Materials
     // --------------------------------------------------------
@@ -399,6 +381,7 @@ public class GaiaMSLODBoundsVisualizer : MonoBehaviour
         return material;
     }
 
+
     // --------------------------------------------------------
     // Cleanup
     // --------------------------------------------------------
@@ -458,6 +441,7 @@ public class GaiaMSLODBoundsVisualizer : MonoBehaviour
             loadedMaterial = null;
         }
     }
+
 
     // --------------------------------------------------------
     // Enable / Disable

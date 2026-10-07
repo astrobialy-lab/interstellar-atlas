@@ -1,67 +1,10 @@
-- get his script that converts to csv of data.
-
-- ask for his scripts that process dust and pull + process landmarks
-
-- add stars
-- he mentioned that he loads only random 20% of the data. optimize and load all
-- make clouds beautiful if needed
-
 - correct the README of gaia data
 
-- implement LOD to start after getting basics
-
-- increase MAX_DISTANCE_PC when downloading from gaia to get all of the stars
-
-- ask them for the python file that converts the raw Germany team data into a csv (and place it where I process gaia data)
-
-- modify process to process all csv files, and there was also something missing about parent
-
-- processing so many csv files is heavy, is there a way for me from the start to download the data appropriately for the LOD? ik it has 10,000 stars limit
-
-- their storage is with 8, so maybe its better to download data with level 8?
-
-- his data located at Assets/data, mine is at Data. place properly
-
-- the Level is used in download but also in the calculating player location for LOD.
+- make build apk to account for stuff under Data as well
 
 - move the sun marker to standard land markers (add to csv? but he has some script)
 
-- ask about the galactic compass (they have script)
-
-- button 2 cycles particle size, buttons 4,5 decrease and increase the size. whats the point? ask him
-
-- they want me to add options to teleport between landmarks. i think i will do it with zoom out - zoom in effect.
-
-Later: move the actual star data into GPU StructuredBuffers for rendering.
-
-Gaia provides both the observed star data (after extintion + scaterring) and the estimated real star color and properties.
-We use the estimated real properties + apply our own extintion + scaterring in the simulation.
-So check after everything the difference between the observed values and our results.
-
-
-we have:
-10,797,428 total stars
-6,530,732 without 3D position
-4,266,696 with 3D position
-so 6.5 mil of them dont have GSP-Phot distances thus not used. fix the prob and use the data
-
-
-- group the stars by clusters in order to filter for young/old clusters (a db/csv file they gave)
-
-
-- add to references the method thats used to display stars from CosmoScout VR: https://elib.dlr.de/215930/1/egs20251029.pdf
-
-- fix the photometry like in the paper for displaying stars
-
-
-- Replace shared camera projection with proper per-eye XR view/projection matrices.
-
-
 - fix the stars fading. when moving close or away from the stars, they should fade in and out at the rage of the angle. but they actually pop in and out when moving around
-
-- update the readme, rn it talks about the rendering of the stars, but also add the LOD system used
-
-- make so that the far stars cache distance would depend on the players speed. and the mslod part always has a star limit so it doesnt cares if the volume is too big
 
 - update Clusters_README
 
@@ -70,18 +13,28 @@ so 6.5 mil of them dont have GSP-Phot distances thus not used. fix the prob and 
 
 - remove InputActionReference menuToggleAction, InputActionReference menuSelectAction from VRMenuController.cs
 
-- the bins load kinda buggy, when i look directly on them the whole chunk disappears, but when i look sideways it appears
 
-- fix fast travel bug: cant look around when selecting destination with a mouse
+- make dust nodes visible similar to star nodes (by a press of another button)
 
-
-- when doing dust MSLOD, no need to recalculate the chunk vieable angle. i can use same as stars:
-  make sure to build the lod of dust same structure as the lod of stars, and when whatever dept stars are displayed, use the same nodes for dust
-
-- make so the nodes display color would also depends whether the dust was rendered or still rendering (4 colors in total)
-
-- make so that it displays the far blocks as light blocks + top bright stars. ccuz when i fly far away i dont see the real mess that there is
+- make so that it displays the far blocks as light blocks + top bright stars. cuz when i fly far away i dont see the real mess that there is
 
 - update the Tools/Dust script 2_..
 
 - change landmark icons
+
+- use the brightness per node (calculatet at step 3 and use when rendering) for calculating light scaterring on dust
+
+- all of the distance-skipped stars in Tools/Gaia step 2 can be rendered in a far away sphere sprite instead of completely discarded.
+- if star is skipped by brightness, can use phot_g_mean_mag instead of mg_gspphot.
+- also can use color:
+                    if valid_number(ebp_rp):
+                        bp_rp_intrinsic = bp_rp - ebp_rp
+                    else:
+                        bp_rp_intrinsic = bp_rp
+
+- increase/descrease resolution automatically to remain stable fps (maybe change max threads that can ran in parallel when loading stars)
+
+- display stars using brightness lum_flame, and maybe add feature to scroll the visible band over different wavelengths.
+- add feature to filter stars by: mass_flame, age_flame, evolstage_flame
+
+- make auto-brightness: when standing close to a star or stars cluster (many light) reduce the brightness constant automatically

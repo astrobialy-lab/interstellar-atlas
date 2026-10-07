@@ -11,9 +11,9 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
-RAW_DIR = PROJECT_ROOT / "DataRaw" / "Gaia"
+RAW_DIR = PROJECT_ROOT / "DataRaw" / "Gaia" / "downloaded"
 PROCESSED_DIR = PROJECT_ROOT / "DataRaw" / "Gaia"
-CHUNKS_DIR = PROCESSED_DIR / "chunks"
+CHUNKS_DIR = PROCESSED_DIR / "processed"
 
 CHUNKS_DIR.mkdir(
     parents=True,
@@ -31,8 +31,8 @@ CHUNKS_DIR.mkdir(
 # float32 y
 # float32 z
 #
-# float32 G magnitude
-# float32 BP-RP
+# float32 absolute_g_mag (mg_gspphot)
+# float32 intrinsic BP-RP
 #
 # float32 Teff
 # float32 logg
@@ -69,7 +69,7 @@ def safe_float(value):
 
     try:
         return float(value)
-    except ValueError:
+    except (ValueError, TypeError):
         return math.nan
 
 
@@ -116,8 +116,8 @@ def pack_star(
     x,
     y,
     z,
-    g_mag,
-    bp_rp,
+    absolute_g_mag,
+    bp_rp_intrinsic,
     teff,
     logg,
     metallicity,
@@ -137,8 +137,8 @@ def pack_star(
         float(y),
         float(z),
 
-        float(g_mag),
-        float(bp_rp),
+        float(absolute_g_mag),
+        float(bp_rp_intrinsic),
 
         float(teff),
         float(logg),
@@ -175,7 +175,7 @@ def process_healpix(csv_file):
 
     total_rows = 0
     written_rows = 0
-    skipped_position = 0
+    skipped = 0
 
     try:
 
@@ -209,12 +209,16 @@ def process_healpix(csv_file):
                         row["dec"]
                     )
 
-                    g_mag = safe_float(
-                        row["phot_g_mean_mag"]
+                    absolute_g_mag = safe_float(
+                        row["mg_gspphot"]
                     )
 
                     bp_rp = safe_float(
                         row["bp_rp"]
+                    )
+
+                    ebp_rp = safe_float(
+                        row["ebpminrp_gspphot"]
                     )
 
                     distance = safe_float(
@@ -231,8 +235,34 @@ def process_healpix(csv_file):
                         and valid_number(distance)
                         and distance > 0
                     ):
+                        skipped += 1
+                        continue
 
-                        skipped_position += 1
+                    # ------------------------------------------------
+                    # Brightness
+                    # ------------------------------------------------
+
+                    if not valid_number(
+                        absolute_g_mag
+                    ):
+                        skipped += 1
+                        continue
+
+                    # ------------------------------------------------
+                    # Color
+                    #
+                    # Require BOTH observed BP-RP and
+                    # E(BP-RP) so intrinsic color can be computed.
+                    # ------------------------------------------------
+
+                    if not (valid_number(bp_rp) and valid_number(ebp_rp)):
+                        skipped += 1
+                        continue
+
+                    bp_rp_intrinsic = bp_rp - ebp_rp
+
+                    if not valid_number(bp_rp_intrinsic):
+                        skipped += 1
                         continue
 
                     # ------------------------------------------------
@@ -281,9 +311,8 @@ def process_healpix(csv_file):
                         row["arp_gspphot"]
                     )
 
-                    ebp_rp = safe_float(
-                        row["ebpminrp_gspphot"]
-                    )
+                    # ebp_rp was already read above because it is
+                    # needed to calculate the intrinsic color.
 
                     # ------------------------------------------------
                     # Flags
@@ -305,8 +334,8 @@ def process_healpix(csv_file):
                         y,
                         z,
 
-                        g_mag,
-                        bp_rp,
+                        absolute_g_mag,
+                        bp_rp_intrinsic,
 
                         teff,
                         logg,
@@ -338,10 +367,10 @@ def process_healpix(csv_file):
         f"Finished {csv_file.name}"
         f"  rows: {total_rows:,}"
         f"  written: {written_rows:,}"
-        f"  skipped: {skipped_position:,}"
+        f"  skipped: {skipped:,}"
     )
 
-    return written_rows, skipped_position
+    return written_rows, skipped
 
 
 # ============================================================
