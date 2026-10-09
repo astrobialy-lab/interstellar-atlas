@@ -1,17 +1,14 @@
 using System;
 using TMPro;
-using UnityEditor.PackageManager.UI;
 using UnityEngine;
 using UnityEngine.Rendering;
+using System.Globalization;
 
 public class GalacticCoordinateHUD : MonoBehaviour
 {
     [Header("References")]
     [Tooltip("Usually XR Origin / Camera Offset / Main Camera.")]
     public Transform viewerCamera;
-
-    [Header("Scale")]
-    public float parsecsPerUnityUnit = 50.0f;
 
     [Header("HUD Placement")]
     [Tooltip("Horizontal viewport position. 0 = left, 1 = right.")]
@@ -96,14 +93,10 @@ public class GalacticCoordinateHUD : MonoBehaviour
             }
         }
 
-        // Unity world origin = Galactic coordinate origin (Sun).
-        Vector3 galacticPosition =
-            UnityToGalactic(viewerCamera.position)
-            * parsecsPerUnityUnit;
+        Vector3 galacticPosition = UnityToGalactic(viewerCamera.position);
 
         // Viewing direction in Galactic coordinates.
-        Vector3 galacticForward =
-            UnityToGalactic(viewerCamera.forward).normalized;
+        Vector3 galacticForward = UnityToGalactic(viewerCamera.forward).normalized;
 
         float longitude = Mathf.Atan2(
             galacticForward.y,
@@ -146,16 +139,16 @@ public class GalacticCoordinateHUD : MonoBehaviour
         }
 
         coordinateText.text =
-            $"View:      l={longitude:000.0} deg   " +
-            $"b={latitude:+00.0;-00.0;0.0} deg\n" +
-            $"Position:  X={galacticPosition.x:+0;-0;0} pc   " +
-            $"Y={galacticPosition.y:+0;-0;0} pc   " +
-            $"Z={galacticPosition.z:+0;-0;0} pc\n" +
-            $"           l={positionLongitude:000.0} deg   " +
-            $"b={positionLatitude:+00.0;-00.0;0.0} deg   " +
-            $"d={radialDistance:0} pc";
+            $"View: l={longitude:000.0} deg, " + $"b={latitude:+00.0;-00.0;0.0} deg\n" +
+            $"Position: X={FormatPc(galacticPosition.x)} pc, " + $"Y={FormatPc(galacticPosition.y)} pc, " + $"Z={FormatPc(galacticPosition.z)} pc\n" +
+            $"l={positionLongitude:000.0} deg, " + $"b={positionLatitude:+00.0;-00.0;0.0} deg, " + $"d={radialDistance.ToString("#,0", CultureInfo.InvariantCulture)} pc";
 
         UpdateHUDPosition();
+    }
+
+    private static string FormatPc(float value)
+    {
+        return value.ToString("+#,0;-#,0;0", CultureInfo.InvariantCulture);
     }
 
     private void ResolveReferences()
@@ -310,10 +303,13 @@ public class GalacticCoordinateHUD : MonoBehaviour
 
     private Vector3 UnityToGalactic(Vector3 unityVector)
     {
-        // Xgal = Unity X, Ygal = Unity Z, Zgal = Unity Y.
+        // Standard Galactic axes:
+        // +X = Galactic center
+        // +Y = Galactic rotation direction
+        // +Z = Galactic north
         return new Vector3(
             unityVector.x,
-            unityVector.z,
+            -unityVector.z,
             unityVector.y
         );
     }

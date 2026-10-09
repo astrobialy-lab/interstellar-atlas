@@ -32,9 +32,14 @@
                     else:
                         bp_rp_intrinsic = bp_rp
 
-- increase/descrease resolution automatically to remain stable fps (maybe change max threads that can ran in parallel when loading stars)
+- increase/descrease resolution automatically to remain stable fps (maybe change max threads that can ran in parallel when loading stars).
+  based on fps or rendered/waiting nodes i can automatically change the number of threads running.
+  i cant change the degree resolution cuz it will reset all of the nodes thats rendered.
+  but i can but the degree resolution in settings, and manage the number of threads automatically.
 
 - display stars using brightness lum_flame, and maybe add feature to scroll the visible band over different wavelengths.
 - add feature to filter stars by: mass_flame, age_flame, evolstage_flame
 
 - make auto-brightness: when standing close to a star or stars cluster (many light) reduce the brightness constant automatically
+
+- make both sun and landmarks very visible

@@ -1,5 +1,6 @@
-using System.Globalization;
+using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
@@ -10,8 +11,9 @@ public class FastTravelMenu : MonoBehaviour
     [Header("Player")]
     public VRPlayerController playerController;
 
-    [Header("Source Data")]
-    public TextAsset landmarkCsv;
+    [Header("Binary Source Data")]
+    [Tooltip("Path relative to the project root in the Editor, or next to the built game's data folder in a desktop build.")]
+    public string landmarkBinaryRelativePath = "Data/Landmarks/landmarks.bin";
 
     [Header("UI")]
     public GameObject landmarkButtonPrefab;
@@ -21,295 +23,195 @@ public class FastTravelMenu : MonoBehaviour
     [Header("Menu")]
     public GameObject menuRoot;
 
-    private readonly List<LandmarkEntry> landmarks =
-        new List<LandmarkEntry>();
-
-    private readonly List<Button> buttons =
-        new List<Button>();
+    private readonly List<LandmarkEntry> landmarks = new List<LandmarkEntry>();
+    private readonly List<Button> buttons = new List<Button>();
 
     private bool stickReleased = true;
-
-    // Prevents the same input that opens the menu
-    // from immediately activating the first destination.
     private int ignoreSelectionFrame = -1;
 
     private class LandmarkEntry
     {
         public string name;
         public string typeCode;
-        public Vector3 position;
+        public Vector3 position; // Already converted to Unity XYZ by the Python converter.
     }
 
     private void Start()
     {
-        GenerateLandmarkButtons();
-
         if (menuRoot != null)
-        {
             menuRoot.SetActive(false);
+
+        StartCoroutine(LoadBinaryAndGenerateButtons());
+    }
+
+    private IEnumerator LoadBinaryAndGenerateButtons()
+    {
+        string path = ResolveLandmarkBinaryPath();
+        if (string.IsNullOrEmpty(path))
+        {
+            yield break;
         }
+
+        byte[] bytes;
+        try
+        {
+            bytes = File.ReadAllBytes(path);
+        }
+        catch (System.Exception ex)
+        {
+            Debug.LogError(
+                $"FastTravelMenu: Could not read landmark binary '{path}': {ex.Message}"
+            );
+            yield break;
+        }
+
+        List<LandmarkBinaryRecord> records;
+        try
+        {
+            records = LandmarkBinaryReader.Read(bytes);
+        }
+        catch (System.Exception ex)
+        {
+            Debug.LogError($"FastTravelMenu: Invalid landmark binary: {ex.Message}");
+            yield break;
+        }
+
+        GenerateLandmarkButtons(records);
+        Debug.Log($"FastTravelMenu: Loaded {records.Count:N0} landmarks from '{path}'.");
+    }
+
+    private string ResolveLandmarkBinaryPath()
+    {
+#if UNITY_EDITOR
+        // Project root is the parent of Assets; use the one canonical Data/ file.
+        string projectRoot = Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
+        return Path.GetFullPath(Path.Combine(projectRoot, landmarkBinaryRelativePath));
+#elif UNITY_ANDROID
+        // Unity does not automatically package a project-root Data/ folder into an Android build.
+        Debug.LogError(
+            "FastTravelMenu: The landmark binary is stored in project-root Data/Landmarks, " +
+            "which Unity does not include in Android builds automatically. " +
+            "Your Android build pipeline must package this external Data folder for runtime access."
+        );
+        return null;
+#else
+        // For desktop players, expect Data/ beside the executable's <Game>_Data directory.
+        DirectoryInfo gameDataParent = Directory.GetParent(Application.dataPath);
+        if (gameDataParent == null)
+        {
+            Debug.LogError("FastTravelMenu: Could not determine the desktop build directory.");
+            return null;
+        }
+        return Path.GetFullPath(Path.Combine(gameDataParent.FullName, landmarkBinaryRelativePath));
+#endif
     }
 
     private void Update()
     {
-        if (!IsOpen() ||
-            EventSystem.current == null)
-        {
+        if (!IsOpen() || EventSystem.current == null)
             return;
-        }
 
-        GameObject selected =
-            EventSystem.current.currentSelectedGameObject;
-
+        GameObject selected = EventSystem.current.currentSelectedGameObject;
         if (selected == null)
-        {
             return;
-        }
 
-        Button button =
-            selected.GetComponent<Button>();
-
-        if (button == null ||
-            !buttons.Contains(button))
-        {
+        Button button = selected.GetComponent<Button>();
+        if (button == null || !buttons.Contains(button))
             return;
-        }
 
         ScrollToButton(button);
     }
 
-    private void GenerateLandmarkButtons()
+    private void GenerateLandmarkButtons(IList<LandmarkBinaryRecord> records)
     {
-        if (landmarkCsv == null)
-        {
-            Debug.LogError(
-                "FastTravelMenu: No landmark CSV assigned."
-            );
-
-            return;
-        }
-
         if (landmarkButtonPrefab == null)
         {
-            Debug.LogError(
-                "FastTravelMenu: No landmark button prefab assigned."
-            );
-
+            Debug.LogError("FastTravelMenu: No landmark button prefab assigned.");
             return;
         }
 
         if (content == null)
         {
-            Debug.LogError(
-                "FastTravelMenu: No Content transform assigned."
-            );
-
+            Debug.LogError("FastTravelMenu: No Content transform assigned.");
             return;
         }
 
-        string[] lines =
-            landmarkCsv.text.Split('\n');
-
-        for (int i = 1; i < lines.Length; i++)
+        foreach (LandmarkBinaryRecord record in records)
         {
-            string line =
-                lines[i].Trim();
-
-            if (string.IsNullOrEmpty(line))
-            {
-                continue;
-            }
-
-            string[] parts =
-                line.Split(',');
-
-            if (parts.Length < 8)
-            {
-                Debug.LogWarning(
-                    $"Skipping malformed landmark row {i + 1}: {line}"
-                );
-
-                continue;
-            }
-
-            string name =
-                parts[0].Trim();
-
-            string typeCode =
-                parts[2].Trim().ToLowerInvariant();
+            string typeCode = (record.Type ?? string.Empty).Trim().ToLowerInvariant();
 
             // The Local Bubble is not a travel destination.
-            if (typeCode == "bubble")
-            {
+            if (typeCode == "bubble" || typeCode.Contains("bubble"))
                 continue;
-            }
 
-            bool validX =
-                float.TryParse(
-                    parts[3],
-                    NumberStyles.Float,
-                    CultureInfo.InvariantCulture,
-                    out float x
-                );
-
-            bool validY =
-                float.TryParse(
-                    parts[4],
-                    NumberStyles.Float,
-                    CultureInfo.InvariantCulture,
-                    out float y
-                );
-
-            bool validZ =
-                float.TryParse(
-                    parts[5],
-                    NumberStyles.Float,
-                    CultureInfo.InvariantCulture,
-                    out float z
-                );
-
-            if (!validX || !validY || !validZ)
+            landmarks.Add(new LandmarkEntry
             {
-                Debug.LogWarning(
-                    $"Invalid coordinates for landmark '{name}'."
-                );
+                name = record.Name,
+                typeCode = typeCode,
+                position = record.UnityPosition
+            });
 
-                continue;
-            }
-
-            LandmarkEntry landmark =
-                new LandmarkEntry
-                {
-                    name = name,
-                    typeCode = typeCode,
-                    position = new Vector3(x, y, z)
-                };
-
-            landmarks.Add(landmark);
-
-            GameObject buttonObject =
-                Instantiate(
-                    landmarkButtonPrefab,
-                    content
-                );
+            GameObject buttonObject = Instantiate(landmarkButtonPrefab, content);
 
             RectTransform rect = buttonObject.GetComponent<RectTransform>();
-
             if (rect != null)
             {
-                rect.SetSizeWithCurrentAnchors(
-                    RectTransform.Axis.Horizontal,
-                    580f
-                );
+                rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, 580f);
             }
 
-            buttonObject.name =
-                $"LandmarkButton_{name}";
+            buttonObject.name = $"LandmarkButton_{record.Name}";
 
-            Button button =
-                buttonObject.GetComponent<Button>();
-
+            Button button = buttonObject.GetComponent<Button>();
             if (button == null)
             {
                 Debug.LogError(
-                    $"Button prefab '{landmarkButtonPrefab.name}' " +
-                    "does not have a Button component."
+                    $"Button prefab '{landmarkButtonPrefab.name}' does not have a Button component."
                 );
-
                 Destroy(buttonObject);
-
-                landmarks.RemoveAt(
-                    landmarks.Count - 1
-                );
-
+                landmarks.RemoveAt(landmarks.Count - 1);
                 continue;
             }
 
-            TMP_Text text =
-                buttonObject.GetComponentInChildren<TMP_Text>();
-
+            TMP_Text text = buttonObject.GetComponentInChildren<TMP_Text>();
             if (text != null)
-            {
-                text.text = name;
-            }
+                text.text = record.Name;
 
-            /*
-             * Let Unity handle navigation between buttons.
-             */
-            Navigation navigation =
-                button.navigation;
+            Navigation navigation = button.navigation;
+            navigation.mode = Navigation.Mode.Automatic;
+            button.navigation = navigation;
 
-            navigation.mode =
-                Navigation.Mode.Automatic;
-
-            button.navigation =
-                navigation;
-
-            int index =
-                landmarks.Count - 1;
-
-            button.onClick.AddListener(
-                () => SelectLandmark(index)
-            );
-
+            int index = landmarks.Count - 1;
+            button.onClick.AddListener(() => SelectLandmark(index));
             buttons.Add(button);
         }
     }
 
-    /*
-     * Desktop W/S and arrow-key navigation.
-     *
-     * EventSystem remains the single source of truth.
-     */
+    // Desktop W/S and arrow-key navigation.
     public void MoveSelection(int direction)
     {
-        if (buttons.Count == 0 ||
-            EventSystem.current == null)
-        {
+        if (buttons.Count == 0 || EventSystem.current == null)
             return;
-        }
 
-        GameObject currentObject =
-            EventSystem.current.currentSelectedGameObject;
+        GameObject currentObject = EventSystem.current.currentSelectedGameObject;
+        Button currentButton = currentObject != null
+            ? currentObject.GetComponent<Button>()
+            : null;
 
-        Button currentButton =
-            currentObject != null
-                ? currentObject.GetComponent<Button>()
-                : null;
-
-        int currentIndex =
-            currentButton != null
-                ? buttons.IndexOf(currentButton)
-                : -1;
-
+        int currentIndex = currentButton != null ? buttons.IndexOf(currentButton) : -1;
         if (currentIndex < 0)
-        {
             currentIndex = 0;
-        }
 
-        int newIndex =
-            currentIndex + direction;
-
+        int newIndex = currentIndex + direction;
         if (newIndex < 0)
-        {
             newIndex = buttons.Count - 1;
-        }
-
         if (newIndex >= buttons.Count)
-        {
             newIndex = 0;
-        }
 
-        EventSystem.current.SetSelectedGameObject(
-            buttons[newIndex].gameObject
-        );
-
+        EventSystem.current.SetSelectedGameObject(buttons[newIndex].gameObject);
         buttons[newIndex].Select();
     }
 
-    /*
-     * VR stick navigation.
-     */
+    // VR stick navigation.
     public void HandleStickNavigation(Vector2 stick)
     {
         if (Mathf.Abs(stick.y) < 0.3f)
@@ -319,69 +221,41 @@ public class FastTravelMenu : MonoBehaviour
         }
 
         if (!stickReleased)
-        {
             return;
-        }
 
         if (stick.y > 0.3f)
-        {
             MoveSelection(-1);
-        }
         else if (stick.y < -0.3f)
-        {
             MoveSelection(1);
-        }
 
         stickReleased = false;
     }
 
-    /*
-     * Keeps the currently selected Button visible.
-     */
+    // Keeps the currently selected button visible.
     private void ScrollToButton(Button button)
     {
-        if (scrollRect == null ||
-            scrollRect.content == null ||
-            button == null)
-        {
+        if (scrollRect == null || scrollRect.content == null || button == null)
             return;
-        }
 
-        RectTransform viewport =
-            scrollRect.viewport;
-
+        RectTransform viewport = scrollRect.viewport;
         if (viewport == null)
-        {
             return;
-        }
 
-        RectTransform contentRect =
-            scrollRect.content;
-
-        RectTransform selectedRect =
-            button.GetComponent<RectTransform>();
-
+        RectTransform contentRect = scrollRect.content;
+        RectTransform selectedRect = button.GetComponent<RectTransform>();
         if (selectedRect == null)
-        {
             return;
-        }
 
         Canvas.ForceUpdateCanvases();
 
-        Bounds selectedBounds =
-            RectTransformUtility.CalculateRelativeRectTransformBounds(
-                contentRect,
-                selectedRect
-            );
+        Bounds selectedBounds = RectTransformUtility.CalculateRelativeRectTransformBounds(
+            contentRect,
+            selectedRect
+        );
 
-        float contentHeight =
-            contentRect.rect.height;
-
-        float viewportHeight =
-            viewport.rect.height;
-
-        float scrollableHeight =
-            contentHeight - viewportHeight;
+        float contentHeight = contentRect.rect.height;
+        float viewportHeight = viewport.rect.height;
+        float scrollableHeight = contentHeight - viewportHeight;
 
         if (scrollableHeight <= 0f)
         {
@@ -389,171 +263,93 @@ public class FastTravelMenu : MonoBehaviour
             return;
         }
 
-        float contentTop =
-            contentRect.rect.yMax;
-
-        float selectedCenter =
-            selectedBounds.center.y;
-
-        float scrollAmount =
-            contentTop -
-            viewportHeight * 0.5f -
-            selectedCenter;
-
-        float normalizedPosition =
-            1f -
-            scrollAmount / scrollableHeight;
-
-        scrollRect.verticalNormalizedPosition =
-            Mathf.Clamp01(normalizedPosition);
+        float contentTop = contentRect.rect.yMax;
+        float selectedCenter = selectedBounds.center.y;
+        float scrollAmount = contentTop - viewportHeight * 0.5f - selectedCenter;
+        float normalizedPosition = 1f - scrollAmount / scrollableHeight;
+        scrollRect.verticalNormalizedPosition = Mathf.Clamp01(normalizedPosition);
     }
 
-    /*
-     * Select the Button currently selected by the EventSystem.
-     */
+    // Select the button currently selected by the EventSystem.
     public void SelectCurrentLandmark()
     {
-        if (Time.frameCount == ignoreSelectionFrame)
-        {
+        if (Time.frameCount == ignoreSelectionFrame || EventSystem.current == null)
             return;
-        }
 
-        if (EventSystem.current == null)
-        {
-            return;
-        }
-
-        GameObject selectedObject =
-            EventSystem.current.currentSelectedGameObject;
-
+        GameObject selectedObject = EventSystem.current.currentSelectedGameObject;
         if (selectedObject == null)
-        {
             return;
-        }
 
-        Button selectedButton =
-            selectedObject.GetComponent<Button>();
-
+        Button selectedButton = selectedObject.GetComponent<Button>();
         if (selectedButton == null)
-        {
             return;
-        }
 
-        int index =
-            buttons.IndexOf(selectedButton);
-
+        int index = buttons.IndexOf(selectedButton);
         if (index < 0)
-        {
             return;
-        }
 
         SelectLandmark(index);
     }
 
     private void SelectLandmark(int index)
     {
-        /*
-         * Prevent a mouse click or VR/keyboard submit
-         * occurring in the same frame that opened the menu
-         * from activating the first destination.
-         */
+        // Ignore a selection event occurring in the frame the menu opened.
         if (Time.frameCount == ignoreSelectionFrame)
-        {
             return;
-        }
 
-        if (index < 0 ||
-            index >= landmarks.Count)
-        {
+        if (index < 0 || index >= landmarks.Count)
             return;
-        }
 
-        LandmarkEntry landmark =
-            landmarks[index];
-
+        LandmarkEntry landmark = landmarks[index];
         if (playerController != null)
         {
             CloseMenu();
-
             playerController.enabled = true;
-
-            playerController.StartFastTravel(
-                landmark.position
-            );
+            playerController.StartFastTravel(landmark.position);
         }
         else
         {
-            Debug.LogError(
-                "FastTravelMenu: Player Controller is not assigned."
-            );
+            Debug.LogError("FastTravelMenu: Player Controller is not assigned.");
         }
     }
 
     public bool IsOpen()
     {
-        return menuRoot != null &&
-               menuRoot.activeSelf;
+        return menuRoot != null && menuRoot.activeSelf;
     }
 
     public void OpenMenu()
     {
         if (menuRoot == null)
-        {
             return;
-        }
 
         menuRoot.SetActive(true);
-
-        /*
-         * Ignore any selection event occurring in the
-         * same frame that the menu was opened.
-         */
         ignoreSelectionFrame = Time.frameCount;
-
         Canvas.ForceUpdateCanvases();
 
-        /*
-         * First destination is selected/highlighted.
-         */
-        if (buttons.Count > 0 &&
-            EventSystem.current != null)
+        if (buttons.Count > 0 && EventSystem.current != null)
         {
             EventSystem.current.SetSelectedGameObject(null);
-
-            EventSystem.current.SetSelectedGameObject(
-                buttons[0].gameObject
-            );
-
+            EventSystem.current.SetSelectedGameObject(buttons[0].gameObject);
             buttons[0].Select();
-
             ScrollToButton(buttons[0]);
         }
     }
 
     public void CloseMenu()
     {
-        if (menuRoot == null)
-        {
-            return;
-        }
-
-        menuRoot.SetActive(false);
+        if (menuRoot != null)
+            menuRoot.SetActive(false);
     }
 
     public void ToggleMenu()
     {
         if (menuRoot == null)
-        {
             return;
-        }
 
         if (menuRoot.activeSelf)
-        {
             CloseMenu();
-        }
         else
-        {
             OpenMenu();
-        }
     }
 }

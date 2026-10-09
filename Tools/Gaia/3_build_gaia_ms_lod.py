@@ -404,11 +404,11 @@ def create_sorted_runs(files):
 
                 run_paths.append(run_path)
 
-                print(
-                    f"  Wrote sorted run "
-                    f"{run_id:,}: "
-                    f"{valid_count:,} stars"
-                )
+                # print(
+                #     f"  Wrote sorted run "
+                #     f"{run_id:,}: "
+                #     f"{valid_count:,} stars"
+                # )
 
                 run_id += 1
 

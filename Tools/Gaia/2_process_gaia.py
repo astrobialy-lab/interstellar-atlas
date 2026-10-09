@@ -2,8 +2,9 @@ from pathlib import Path
 import csv
 import math
 import struct
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
+MAX_WORKERS = 20
 
 # ============================================================
 # Paths
@@ -82,30 +83,51 @@ def radec_distance_to_xyz(
     dec_deg,
     distance_pc
 ):
+    """
+    Convert Gaia ICRS RA/Dec into Sun-centered
+    Galactic Cartesian coordinates, in parsecs.
+
+    Axes:
+        +X: Galactic center (l = 0°, b = 0°)
+        +Y: Galactic longitude l = 90°
+        +Z: North Galactic Pole (b = 90°)
+    """
+
     ra = math.radians(ra_deg)
     dec = math.radians(dec_deg)
 
     cos_dec = math.cos(dec)
 
-    x = (
-        distance_pc
-        * cos_dec
-        * math.cos(ra)
+    # ICRS equatorial Cartesian unit vector
+    x_eq = cos_dec * math.cos(ra)
+    y_eq = cos_dec * math.sin(ra)
+    z_eq = math.sin(dec)
+
+    # Rotate from ICRS equatorial axes to Galactic axes
+    x_gal = (
+        -0.0548755604162154 * x_eq
+        -0.8734370902348850 * y_eq
+        -0.4838350155487132 * z_eq
     )
 
-    y = (
-        distance_pc
-        * cos_dec
-        * math.sin(ra)
+    y_gal = (
+        +0.4941094278755837 * x_eq
+        -0.4448296299600112 * y_eq
+        +0.7469822444972180 * z_eq
     )
 
-    z = (
-        distance_pc
-        * math.sin(dec)
+    z_gal = (
+        -0.8676661490190047 * x_eq
+        -0.1980763734312015 * y_eq
+        +0.4559837761750669 * z_eq
     )
 
-    return x, y, z
-
+    # Scale the unit vector by the distance in parsecs
+    return (
+        distance_pc * x_gal,
+        distance_pc * z_gal,
+        -distance_pc * y_gal
+    )
 
 # ============================================================
 # Binary writer
@@ -408,8 +430,8 @@ if __name__ == "__main__":
     total_written = 0
     total_skipped = 0
 
-    with ThreadPoolExecutor(
-        max_workers=10
+    with ProcessPoolExecutor(
+        max_workers=MAX_WORKERS
     ) as executor:
 
         futures = {

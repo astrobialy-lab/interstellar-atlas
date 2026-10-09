@@ -3,6 +3,7 @@
 # ignore Gaia data while processing, the final product moves to Assets
 DataRaw/
 Data/Gaia/
+Data/Dust/
 trash/
 
 # pernosnal
