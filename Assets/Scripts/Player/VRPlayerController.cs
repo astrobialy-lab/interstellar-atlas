@@ -3,7 +3,6 @@ using UnityEngine.XR;
 
 public class VRPlayerController : MonoBehaviour
 {
-    public DustCloudGenerator dustCloudGenerator;
     public LandmarkPopup landmarkPopup;
     public LandmarkMarkerGenerator landmarkMarkerGenerator;
 
@@ -51,16 +50,10 @@ public class VRPlayerController : MonoBehaviour
 
     private bool previousLeftX = false;
     private bool previousLeftY = false;
-    private bool previousA = false;
     private bool previousB = false;
-
-    private bool previousLeftTrigger = false;
-    private bool previousLeftGrip = false;
 
     private bool previousRightTrigger = false;
     private bool previousRightGrip = false;
-
-    private bool usingQualityParticleCount = true;
 
     private void Start()
     {
@@ -179,17 +172,6 @@ public class VRPlayerController : MonoBehaviour
         HandleSpeedControls(
             leftHand
         );
-
-        if (dustCloudGenerator != null)
-        {
-            HandleColorControls(
-                leftHand
-            );
-
-            HandleParticleCountControls(
-                rightHand
-            );
-        }
 
         HandleMSLODBoundsControls(
             rightHand
@@ -313,44 +295,6 @@ public class VRPlayerController : MonoBehaviour
             leftY;
     }
 
-    private void HandleColorControls(
-        InputDevice leftHand
-    )
-    {
-        bool leftTriggerPressed = false;
-        bool leftGripPressed = false;
-
-        leftHand.TryGetFeatureValue(
-            CommonUsages.triggerButton,
-            out leftTriggerPressed
-        );
-
-        leftHand.TryGetFeatureValue(
-            CommonUsages.gripButton,
-            out leftGripPressed
-        );
-
-        if (leftTriggerPressed &&
-            !previousLeftTrigger)
-        {
-            dustCloudGenerator
-                .NextColorScheme();
-        }
-
-        if (leftGripPressed &&
-            !previousLeftGrip)
-        {
-            dustCloudGenerator
-                .CycleParticleSizeMultiplier();
-        }
-
-        previousLeftTrigger =
-            leftTriggerPressed;
-
-        previousLeftGrip =
-            leftGripPressed;
-    }
-
     private void HandleParticleCountControls(
         InputDevice rightHand
     )
@@ -368,23 +312,6 @@ public class VRPlayerController : MonoBehaviour
             out buttonB
         );
 
-        // A = toggle particle count
-        if (buttonA && !previousA)
-        {
-            usingQualityParticleCount =
-                !usingQualityParticleCount;
-
-            int particleCount =
-                usingQualityParticleCount
-                    ? qualityParticleCount
-                    : performanceParticleCount;
-
-            dustCloudGenerator
-                .SetParticleCount(
-                    particleCount
-                );
-        }
-
         // B = toggle landmark markers and Orientation
         if (buttonB && !previousB)
         {
@@ -401,9 +328,6 @@ public class VRPlayerController : MonoBehaviour
                 );
             }
         }
-
-        previousA =
-            buttonA;
 
         previousB =
             buttonB;

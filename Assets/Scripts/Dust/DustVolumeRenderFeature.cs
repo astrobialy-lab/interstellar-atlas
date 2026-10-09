@@ -12,8 +12,7 @@ public class DustVolumeRenderFeature
 
 
     [Header("Render")]
-    public RenderPassEvent renderPassEvent =
-        RenderPassEvent.AfterRenderingTransparents;
+    public RenderPassEvent renderPassEvent = RenderPassEvent.BeforeRenderingTransparents;
 
 
     private Material material;

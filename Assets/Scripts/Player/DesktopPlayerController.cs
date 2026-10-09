@@ -15,11 +15,6 @@ public class DesktopPlayerController : MonoBehaviour
     [Header("Camera Roll")]
     public float rollSpeed = 60.0f;
 
-    [Header("Dust")]
-    public DustCloudGenerator dustCloudGenerator;
-    public int performanceParticleCount = 16000;
-    public int qualityParticleCount = 20000;
-
     [Header("Landmarks")]
     public LandmarkMarkerGenerator landmarkMarkerGenerator;
     public LandmarkPopup landmarkPopup;
@@ -31,8 +26,6 @@ public class DesktopPlayerController : MonoBehaviour
 
     [Header("MS-LOD Debug")]
     public GaiaMSLODBoundsVisualizer msLODBoundsVisualizer;
-
-    private bool usingQualityParticleCount = true;
 
     // Camera pitch and roll are stored independently.
     private float cameraPitch = 0f;
@@ -243,53 +236,6 @@ public class DesktopPlayerController : MonoBehaviour
             Debug.Log(
                 $"Movement speed decreased to {moveSpeed}"
             );
-        }
-
-        if (dustCloudGenerator != null)
-        {
-            // 1 = next color scheme
-            if (Keyboard.current.digit1Key.wasPressedThisFrame)
-            {
-                dustCloudGenerator.NextColorScheme();
-            }
-
-            // 2 = cycle particle size
-            if (Keyboard.current.digit2Key.wasPressedThisFrame)
-            {
-                dustCloudGenerator.CycleParticleSizeMultiplier();
-            }
-
-            // 3 = toggle particle count
-            if (Keyboard.current.digit3Key.wasPressedThisFrame)
-            {
-                usingQualityParticleCount =
-                    !usingQualityParticleCount;
-
-                int particleCount =
-                    usingQualityParticleCount
-                        ? qualityParticleCount
-                        : performanceParticleCount;
-
-                dustCloudGenerator.SetParticleCount(
-                    particleCount
-                );
-            }
-
-            // 4 = decrease particle size
-            if (Keyboard.current.digit4Key.wasPressedThisFrame)
-            {
-                dustCloudGenerator.AdjustParticleSizeMultiplier(
-                    -0.2f
-                );
-            }
-
-            // 5 = increase particle size
-            if (Keyboard.current.digit5Key.wasPressedThisFrame)
-            {
-                dustCloudGenerator.AdjustParticleSizeMultiplier(
-                    0.2f
-                );
-            }
         }
 
         // 6 = toggle landmark markers and Orientation

@@ -206,13 +206,30 @@ Shader "Hidden/Dust/Volume"
                 return tExit > tEnter;
             }
 
-            float3 ReconstructWorldRay(float2 ndc, float4x4 inverseViewProj, float3 eyePosition)
+            float3 ReconstructWorldRay(
+                float2 ndc,
+                float4x4 inverseViewProj,
+                float3 eyePosition)
             {
-                float4 clipPosition = float4(ndc.x, ndc.y, 1.0, 1.0);
+                // Avoid unprojecting the near plane: at large world
+                // coordinates, its tiny offset from the camera loses precision.
+                #if UNITY_REVERSED_Z
+                    const float rayDepth = 0.0001;
+                #else
+                    const float rayDepth = 0.9999;
+                #endif
+
+                float4 clipPosition = float4(
+                    ndc.x, ndc.y, rayDepth, 1.0
+                );
+
                 float4 worldH = mul(inverseViewProj, clipPosition);
+
                 if (abs(worldH.w) < 1e-6)
                     return float3(0.0, 0.0, 1.0);
+
                 float3 worldPosition = worldH.xyz / worldH.w;
+
                 return normalize(worldPosition - eyePosition);
             }
 
