@@ -13,7 +13,7 @@ GameObject:
   - component: {fileID: -8178449184827889380}
   - component: {fileID: 2595736202359337631}
   m_Layer: 0
-  m_Name: Cloudmarker 1
+  m_Name: Cloudmarker5
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -83,8 +83,8 @@ SpriteRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_MaskInteraction: 0
-  m_Sprite: {fileID: 21300000, guid: 50f2b3977859247adbf92b16a91acee1, type: 3}
-  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_Sprite: {fileID: 21300000, guid: 4009a27eebf9a1d4289626c231543903, type: 3}
+  m_Color: {r: 1, g: 0, b: 0.9318119, a: 1}
   m_FlipX: 0
   m_FlipY: 0
   m_DrawMode: 0

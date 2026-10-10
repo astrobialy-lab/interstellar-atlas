@@ -20,10 +20,6 @@
 
 - update the Tools/Dust script 2_..
 
-- change landmark icons
-
-- use the brightness per node (calculatet at step 3 and use when rendering) for calculating light scaterring on dust
-
 - all of the distance-skipped stars in Tools/Gaia step 2 can be rendered in a far away sphere sprite instead of completely discarded.
 - if star is skipped by brightness, can use phot_g_mean_mag instead of mg_gspphot.
 - also can use color:

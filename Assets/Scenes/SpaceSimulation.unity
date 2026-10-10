@@ -7197,13 +7197,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::NewMonoBehaviourScript
   landmarkBinaryRelativePath: Data/Landmarks/landmarks.bin
   markersRoot: {fileID: 1832397275}
-  cloudMarkerPrefab: {fileID: 6192945478437891419, guid: 532dd091c6d09fd48a187f090650b077, type: 3}
-  starMarkerPrefab: {fileID: 6192945478437891419, guid: b266b8fdf86da4b87b923bd4c5de0c4c, type: 3}
-  nebulaMarkerPrefab: {fileID: 6192945478437891419, guid: 4c44e384801c1427bb6174880ec72245, type: 3}
-  clusterMarkerPrefab: {fileID: 6192945478437891419, guid: f4b2f89794cb04a85a3ac8dbf36ed85c, type: 3}
-  associationMarkerPrefab: {fileID: 6192945478437891419, guid: c079a50f9a0804934b9f6bc8e4a59633, type: 3}
+  cloudMarkerPrefab: {fileID: 6192945478437891419, guid: 4c44e384801c1427bb6174880ec72245, type: 3}
+  starMarkerPrefab: {fileID: 6192945478437891419, guid: 0c446dcf4d3007f48beeadc17619b1d8, type: 3}
+  nebulaMarkerPrefab: {fileID: 6192945478437891419, guid: 8864130be5c790645b1407ed3adc26c4, type: 3}
+  clusterMarkerPrefab: {fileID: 6192945478437891419, guid: ec5c80618217a134f8afe3fa9925e28e, type: 3}
+  associationMarkerPrefab: {fileID: 6192945478437891419, guid: 92e2f1cbd0c03b643a831323dda7ec78, type: 3}
   landmarkPopup: {fileID: 1765479602}
-  markerScale: 1
+  markerScale: 3
   markerColliderSize: {x: 5, y: 5, z: 5}
   nearbyStarThreshold: 0.5
   nearbyStarOffset: 0.35
@@ -12036,8 +12036,8 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: -0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
+  m_LocalScale: {x: 0.3, y: 0.3, z: 0.3}
+  m_ConstrainProportionsScale: 1
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
