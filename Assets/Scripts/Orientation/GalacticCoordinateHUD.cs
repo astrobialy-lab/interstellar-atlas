@@ -1,14 +1,16 @@
-using System;
+using System.Globalization;
 using TMPro;
 using UnityEngine;
 using UnityEngine.Rendering;
-using System.Globalization;
 
 public class GalacticCoordinateHUD : MonoBehaviour
 {
     [Header("References")]
     [Tooltip("Usually XR Origin / Camera Offset / Main Camera.")]
     public Transform viewerCamera;
+
+    [Tooltip("Assign the UI Canvas from your hierarchy.")]
+    public Canvas uiCanvas;
 
     [Header("HUD Placement")]
     [Tooltip("Horizontal viewport position. 0 = left, 1 = right.")]
@@ -19,23 +21,29 @@ public class GalacticCoordinateHUD : MonoBehaviour
     [Range(0f, 1f)]
     public float viewportY = 0.13f;
 
-    [Tooltip("Distance of the HUD in front of the camera.")]
+    [Tooltip("Distance in front of the camera, used by World Space canvases.")]
     public float distanceFromCamera = 1.2f;
 
+    [Tooltip("Rotation offset, used by World Space canvases.")]
     public Vector3 localEulerAngles = Vector3.zero;
-    public Vector3 localScale = Vector3.one * 0.14f;
-    public Vector2 textBoxSize = new Vector2(10.0f, 2.5f);
-    public float fontSize = 3.2f;
+
+    [Tooltip("Text box size in canvas UI units.")]
+    public Vector2 textBoxSize = new Vector2(850f, 150f);
+
+    [Tooltip("UI font size.")]
+    public float fontSize = 24f;
+
     public Color textColor = Color.white;
 
-    [Header("Overlay Rendering")]
-    [Tooltip("Draw the HUD over dust and other scene geometry.")]
+    [Header("Rendering")]
+    [Tooltip("Try to render the text over scene geometry, including dust.")]
     public bool alwaysDrawOnTop = true;
 
-    private TextMeshPro coordinateText;
-    private GameObject hudObject;
+    private TextMeshProUGUI coordinateText;
+    private RectTransform textRect;
     private Material overlayMaterial;
     private Camera viewerUnityCamera;
+    private bool warnedMissingCanvas;
 
     private void Awake()
     {
@@ -45,25 +53,25 @@ public class GalacticCoordinateHUD : MonoBehaviour
 
     private void OnEnable()
     {
-        if (hudObject != null)
+        if (coordinateText != null)
         {
-            hudObject.SetActive(true);
+            coordinateText.gameObject.SetActive(true);
         }
     }
 
     private void OnDisable()
     {
-        if (hudObject != null)
+        if (coordinateText != null)
         {
-            hudObject.SetActive(false);
+            coordinateText.gameObject.SetActive(false);
         }
     }
 
     private void OnDestroy()
     {
-        if (hudObject != null)
+        if (coordinateText != null)
         {
-            Destroy(hudObject);
+            Destroy(coordinateText.gameObject);
         }
 
         if (overlayMaterial != null)
@@ -76,27 +84,36 @@ public class GalacticCoordinateHUD : MonoBehaviour
     {
         if (
             viewerCamera == null ||
-            coordinateText == null ||
-            viewerUnityCamera == null
+            viewerUnityCamera == null ||
+            uiCanvas == null ||
+            coordinateText == null
         )
         {
             ResolveReferences();
-            CreateHUD();
+
+            if (uiCanvas != null && coordinateText == null)
+            {
+                CreateHUD();
+            }
 
             if (
                 viewerCamera == null ||
-                coordinateText == null ||
-                viewerUnityCamera == null
+                viewerUnityCamera == null ||
+                uiCanvas == null ||
+                coordinateText == null
             )
             {
                 return;
             }
         }
 
-        Vector3 galacticPosition = UnityToGalactic(viewerCamera.position);
+        // Viewer position in Galactic Cartesian coordinates.
+        Vector3 galacticPosition =
+            UnityToGalactic(viewerCamera.position);
 
         // Viewing direction in Galactic coordinates.
-        Vector3 galacticForward = UnityToGalactic(viewerCamera.forward).normalized;
+        Vector3 galacticForward =
+            UnityToGalactic(viewerCamera.forward).normalized;
 
         float longitude = Mathf.Atan2(
             galacticForward.y,
@@ -112,7 +129,7 @@ public class GalacticCoordinateHUD : MonoBehaviour
             Mathf.Clamp(galacticForward.z, -1f, 1f)
         ) * Mathf.Rad2Deg;
 
-        // Position expressed in Galactic spherical coordinates.
+        // Viewer position expressed in Galactic spherical coordinates.
         float radialDistance = galacticPosition.magnitude;
 
         float positionLongitude = Mathf.Atan2(
@@ -139,16 +156,26 @@ public class GalacticCoordinateHUD : MonoBehaviour
         }
 
         coordinateText.text =
-            $"View: l={longitude:000.0} deg, " + $"b={latitude:+00.0;-00.0;0.0} deg\n" +
-            $"Position: X={FormatPc(galacticPosition.x)} pc, " + $"Y={FormatPc(galacticPosition.y)} pc, " + $"Z={FormatPc(galacticPosition.z)} pc\n" +
-            $"l={positionLongitude:000.0} deg, " + $"b={positionLatitude:+00.0;-00.0;0.0} deg, " + $"d={radialDistance.ToString("#,0", CultureInfo.InvariantCulture)} pc";
+            $"View: l={longitude:000.0} deg, " +
+            $"b={latitude:+00.0;-00.0;0.0} deg\n" +
+
+            $"Position: X={FormatPc(galacticPosition.x)} pc, " +
+            $"Y={FormatPc(galacticPosition.y)} pc, " +
+            $"Z={FormatPc(galacticPosition.z)} pc\n" +
+
+            $"l={positionLongitude:000.0} deg, " +
+            $"b={positionLatitude:+00.0;-00.0;0.0} deg, " +
+            $"d={radialDistance.ToString("#,0", CultureInfo.InvariantCulture)} pc";
 
         UpdateHUDPosition();
     }
 
     private static string FormatPc(float value)
     {
-        return value.ToString("+#,0;-#,0;0", CultureInfo.InvariantCulture);
+        return value.ToString(
+            "+#,0;-#,0;0",
+            CultureInfo.InvariantCulture
+        );
     }
 
     private void ResolveReferences()
@@ -160,105 +187,132 @@ public class GalacticCoordinateHUD : MonoBehaviour
 
         if (viewerUnityCamera == null && viewerCamera != null)
         {
-            viewerUnityCamera =
-                viewerCamera.GetComponent<Camera>();
+            viewerUnityCamera = viewerCamera.GetComponent<Camera>();
         }
+
+        if (uiCanvas == null)
+        {
+            // Prefer the Canvas you created in the hierarchy.
+            GameObject canvasObject = GameObject.Find("UI Canvas");
+
+            if (canvasObject != null)
+            {
+                uiCanvas = canvasObject.GetComponent<Canvas>();
+            }
+
+            // Fallback if the Canvas has a different name.
+            if (uiCanvas == null)
+            {
+                uiCanvas = FindAnyObjectByType<Canvas>();
+            }
+        }
+    }
+
+    private void CreateHUD()
+    {
+        if (uiCanvas == null || coordinateText != null)
+        {
+            if (uiCanvas == null && !warnedMissingCanvas)
+            {
+                Debug.LogWarning(
+                    "GalacticCoordinateHUD: Assign your UI Canvas in the Inspector."
+                );
+
+                warnedMissingCanvas = true;
+            }
+
+            return;
+        }
+
+        warnedMissingCanvas = false;
+
+        GameObject hudObject = new GameObject(
+            "Galactic Coordinate HUD",
+            typeof(RectTransform),
+            typeof(TextMeshProUGUI)
+        );
+
+        hudObject.transform.SetParent(uiCanvas.transform, false);
+
+        coordinateText = hudObject.GetComponent<TextMeshProUGUI>();
+        textRect = coordinateText.rectTransform;
+
+        coordinateText.fontSize = fontSize;
+        coordinateText.color = textColor;
+        coordinateText.alignment = TextAlignmentOptions.Center;
+        coordinateText.raycastTarget = false;
+        coordinateText.text = "Galactic coordinates loading...";
+
+        textRect.sizeDelta = textBoxSize;
+
+        ConfigureOverlayRendering();
+        UpdateHUDPosition();
     }
 
     private void UpdateHUDPosition()
     {
         if (
-            hudObject == null ||
+            textRect == null ||
+            uiCanvas == null ||
+            viewerCamera == null ||
             viewerUnityCamera == null
         )
         {
             return;
         }
 
-        Vector3 viewportPosition =
-            new Vector3(
-                viewportX,
-                viewportY,
-                distanceFromCamera
-            );
+        textRect.sizeDelta = textBoxSize;
 
-        Vector3 worldPosition =
-            viewerUnityCamera.ViewportToWorldPoint(
-                viewportPosition
-            );
-
-        hudObject.transform.position = worldPosition;
-
-        hudObject.transform.rotation =
-            viewerCamera.rotation *
-            Quaternion.Euler(localEulerAngles);
-
-        // Use the Inspector-controlled localScale value.
-        hudObject.transform.localScale = localScale;
-    }
-
-    private void CreateHUD()
-    {
-        if (viewerCamera == null || hudObject != null)
+        if (uiCanvas.renderMode == RenderMode.WorldSpace)
         {
-            return;
+            // Position the text at a point in front of the VR camera.
+            Vector3 worldPosition =
+                viewerUnityCamera.ViewportToWorldPoint(
+                    new Vector3(
+                        viewportX,
+                        viewportY,
+                        distanceFromCamera
+                    )
+                );
+
+            textRect.position = worldPosition;
+
+            textRect.rotation =
+                viewerCamera.rotation *
+                Quaternion.Euler(localEulerAngles);
         }
+        else
+        {
+            // Position the text relative to the Canvas.
+            Vector2 anchor = new Vector2(viewportX, viewportY);
 
-        hudObject =
-            new GameObject("Galactic Coordinate HUD");
-
-        hudObject.transform.SetParent(
-            viewerCamera,
-            true
-        );
-
-        coordinateText =
-            hudObject.AddComponent<TextMeshPro>();
-
-        coordinateText.fontSize = fontSize;
-        coordinateText.color = textColor;
-        coordinateText.alignment =
-            TextAlignmentOptions.Center;
-
-        coordinateText.rectTransform.sizeDelta =
-            textBoxSize;
-
-        coordinateText.text =
-            "Galactic coordinates loading...";
-
-        ConfigureOverlayRendering();
-        UpdateHUDPosition();
+            textRect.anchorMin = anchor;
+            textRect.anchorMax = anchor;
+            textRect.pivot = new Vector2(0.5f, 0.5f);
+            textRect.anchoredPosition = Vector2.zero;
+        }
     }
 
     private void ConfigureOverlayRendering()
     {
-        Renderer textRenderer =
-            coordinateText.GetComponent<Renderer>();
-
-        if (textRenderer != null)
-        {
-            textRenderer.sortingOrder = short.MaxValue;
-        }
-
-        if (!alwaysDrawOnTop)
+        if (!alwaysDrawOnTop || coordinateText == null)
         {
             return;
         }
 
-        Material sourceMaterial =
-            coordinateText.fontSharedMaterial;
+        Material sourceMaterial = coordinateText.fontSharedMaterial;
 
         if (sourceMaterial == null)
         {
             Debug.LogWarning(
                 "The Galactic HUD has no TextMeshPro material."
             );
+
             return;
         }
 
-        overlayMaterial =
-            new Material(sourceMaterial);
-
+        // Use a copy so the shared TMP font material is not modified.
+        overlayMaterial = new Material(sourceMaterial);
         overlayMaterial.renderQueue = 5000;
 
         if (overlayMaterial.HasProperty("_ZTestMode"))
@@ -277,11 +331,7 @@ public class GalacticCoordinateHUD : MonoBehaviour
             );
         }
 
-        if (
-            overlayMaterial.HasProperty(
-                "unity_GUIZTestMode"
-            )
-        )
+        if (overlayMaterial.HasProperty("unity_GUIZTestMode"))
         {
             overlayMaterial.SetFloat(
                 "unity_GUIZTestMode",
@@ -291,14 +341,10 @@ public class GalacticCoordinateHUD : MonoBehaviour
 
         if (overlayMaterial.HasProperty("_ZWrite"))
         {
-            overlayMaterial.SetFloat(
-                "_ZWrite",
-                0f
-            );
+            overlayMaterial.SetFloat("_ZWrite", 0f);
         }
 
-        coordinateText.fontSharedMaterial =
-            overlayMaterial;
+        coordinateText.fontSharedMaterial = overlayMaterial;
     }
 
     private Vector3 UnityToGalactic(Vector3 unityVector)

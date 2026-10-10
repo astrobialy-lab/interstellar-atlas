@@ -19,6 +19,8 @@ public class VRPlayerController : MonoBehaviour
 
     [Header("MS-LOD Debug")]
     public GaiaMSLODBoundsVisualizer msLODBoundsVisualizer;
+    [Header("Dust Debug")]
+    public DustLODBoundsVisualizer dustLODBoundsVisualizer;
 
     [Header("Dust")]
     public DustLODLoader dustLODLoader;
@@ -53,8 +55,8 @@ public class VRPlayerController : MonoBehaviour
 
     private bool previousLeftX = false;
     private bool previousLeftY = false;
-    private bool previousB = false;
     private bool previousLeftStickClick = false;
+    private bool previousRightStickClick = false;
 
     private bool previousRightTrigger = false;
     private bool previousRightGrip = false;
@@ -65,6 +67,11 @@ public class VRPlayerController : MonoBehaviour
         {
             msLODBoundsVisualizer =
                 FindAnyObjectByType<GaiaMSLODBoundsVisualizer>();
+        }
+        if (dustLODBoundsVisualizer == null)
+        {
+            dustLODBoundsVisualizer =
+                FindAnyObjectByType<DustLODBoundsVisualizer>();
         }
 
         if (dustLODLoader == null)
@@ -181,6 +188,7 @@ public class VRPlayerController : MonoBehaviour
         HandleSpeedControls(leftHand);
         HandleScatteringToggle(leftHand);
         HandleMSLODBoundsControls(rightHand);
+        HandleDustLODBoundsControls(rightHand);
         HandleLandmarkSelection(rightHand);
     }
 
@@ -299,38 +307,6 @@ public class VRPlayerController : MonoBehaviour
         previousLeftStickClick = leftStickClicked;
     }
 
-    private void HandleParticleCountControls(InputDevice rightHand)
-    {
-        bool buttonA = false;
-        bool buttonB = false;
-
-        rightHand.TryGetFeatureValue(
-            CommonUsages.primaryButton,
-            out buttonA
-        );
-
-        rightHand.TryGetFeatureValue(
-            CommonUsages.secondaryButton,
-            out buttonB
-        );
-
-        // B = toggle landmark markers and Orientation
-        if (buttonB && !previousB)
-        {
-            if (landmarkMarkerGenerator != null)
-            {
-                landmarkMarkerGenerator.ToggleMarkers();
-            }
-
-            if (orientation != null)
-            {
-                orientation.SetActive(!orientation.activeSelf);
-            }
-        }
-
-        previousB = buttonB;
-    }
-
     private void HandleMSLODBoundsControls(InputDevice rightHand)
     {
         bool rightGripPressed = false;
@@ -350,6 +326,39 @@ public class VRPlayerController : MonoBehaviour
         }
 
         previousRightGrip = rightGripPressed;
+    }
+
+    private void HandleDustLODBoundsControls(InputDevice rightHand)
+    {
+        bool rightStickClicked = false;
+
+        rightHand.TryGetFeatureValue(
+            CommonUsages.primary2DAxisClick,
+            out rightStickClicked
+        );
+
+        // Right thumbstick click = toggle dust LOD bounds.
+        if (rightStickClicked && !previousRightStickClick)
+        {
+            if (dustLODBoundsVisualizer == null)
+            {
+                dustLODBoundsVisualizer =
+                    FindAnyObjectByType<DustLODBoundsVisualizer>();
+            }
+
+            if (dustLODBoundsVisualizer != null)
+            {
+                dustLODBoundsVisualizer.ToggleBounds();
+            }
+            else
+            {
+                Debug.LogWarning(
+                    "VRPlayerController: No DustLODBoundsVisualizer found."
+                );
+            }
+        }
+
+        previousRightStickClick = rightStickClicked;
     }
 
     private void HandleLandmarkSelection(InputDevice rightHand)

@@ -466,6 +466,8 @@ Q / E: roll
 5: toggle dust scattering
 6: show / hide landmarks and orientation
 7: select landmark
+8: show / hide Gaia LOD nodes
+9: show / hide dust LOD bricks
 Escape / M: open menu / close current menu or popup
 
 VR:
@@ -478,6 +480,8 @@ B: show / hide landmarks and orientation
 Left Trigger: next color scheme
 Left Grip: cycle particle thickness
 Left Stick Click: toggle dust scattering
+Right Grip: show / hide Gaia LOD nodes
+Right Stick Click: show / hide dust LOD bricks
 Right Trigger: select landmark
 Y: open menu / close current menu or popup
 X: select"

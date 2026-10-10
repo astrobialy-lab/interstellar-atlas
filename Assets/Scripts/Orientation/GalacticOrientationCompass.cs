@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.Rendering;
+using UnityEngine.UI;
 
 public class GalacticOrientationCompass : MonoBehaviour
 {
@@ -8,13 +8,12 @@ public class GalacticOrientationCompass : MonoBehaviour
     [Tooltip("Usually XR Origin / Camera Offset / Main Camera.")]
     public Transform viewerCamera;
 
+    [Tooltip("Assign the UI Canvas from your hierarchy.")]
+    public Canvas uiCanvas;
+
     [Header("HUD Placement")]
-    [Tooltip(
-        "Position relative to the viewer camera. " +
-        "X=0 and Y=0 places the compass at the center of the view."
-    )]
-    public Vector3 localPosition =
-        new Vector3(0f, 0f, 1.0f);
+    [Tooltip("Position relative to the viewer camera.")]
+    public Vector3 localPosition = new Vector3(0f, 0f, 1.0f);
 
     [Tooltip("Overall size of the compass.")]
     public float compassScale = 0.3f;
@@ -33,26 +32,37 @@ public class GalacticOrientationCompass : MonoBehaviour
     public Color galacticZColor =
         new Color(0.25f, 0.55f, 1.0f, 1.0f);
 
-    [Header("Overlay Rendering")]
-    [Tooltip("Optional unlit material used for the axis sticks.")]
-    public Material baseAxisMaterial;
+    private readonly List<Image> axisImages =
+        new List<Image>();
 
-    [Tooltip("Draw the compass over dust and other scene geometry.")]
-    public bool alwaysDrawOnTop = true;
+    private readonly List<RectTransform> axisRects =
+        new List<RectTransform>();
 
-    private readonly List<LineRenderer> axisLines =
-        new List<LineRenderer>();
+    // Galactic axes expressed in Unity world coordinates.
+    // +Xgal = Unity +X
+    // +Ygal = Unity +Z
+    // +Zgal = Unity +Y
+    private readonly Vector3[] axisDirections =
+    {
+        Vector3.right,
+        Vector3.forward,
+        Vector3.up
+    };
 
     private GameObject compassAnchor;
-    private Transform axisRoot;
+    private RectTransform compassRect;
+    private RectTransform canvasRect;
 
-    private bool isBuilding = false;
+    private Camera viewerUnityCamera;
 
-    private float lastCompassScale = -1f;
+    private Texture2D whiteTexture;
+    private Sprite whiteSprite;
+
+    private bool isBuilding;
 
     private void Awake()
     {
-        ResolveCamera();
+        ResolveReferences();
         BuildCompass();
     }
 
@@ -74,324 +84,325 @@ public class GalacticOrientationCompass : MonoBehaviour
 
     private void OnDestroy()
     {
-        if (compassAnchor != null)
+        ClearCompass();
+
+        if (whiteSprite != null)
         {
-            Destroy(compassAnchor);
+            Destroy(whiteSprite);
         }
 
-        axisLines.Clear();
+        if (whiteTexture != null)
+        {
+            Destroy(whiteTexture);
+        }
     }
 
     private void LateUpdate()
     {
-        if (viewerCamera == null)
-        {
-            ResolveCamera();
+        ResolveReferences();
 
-            if (viewerCamera == null)
-            {
-                return;
-            }
+        if (viewerCamera == null || viewerUnityCamera == null ||
+            uiCanvas == null)
+        {
+            return;
         }
 
-        // Only rebuild if the compass was actually destroyed.
-        if (compassAnchor == null || axisRoot == null)
+        if (compassAnchor == null || compassRect == null)
         {
             BuildCompass();
-
-            if (compassAnchor == null || axisRoot == null)
-            {
-                return;
-            }
         }
 
-        compassAnchor.transform.localPosition =
-            localPosition;
-
-        compassAnchor.transform.localScale =
-            Vector3.one * compassScale;
-
-        // Update line thickness only when compassScale changes.
-        if (!Mathf.Approximately(
-            lastCompassScale,
-            compassScale))
+        if (compassAnchor == null || compassRect == null)
         {
-            UpdateAxisWidths();
-            lastCompassScale = compassScale;
+            return;
         }
 
-        axisRoot.localRotation = Quaternion.Inverse(viewerCamera.rotation);
+        UpdateCompass();
     }
 
     [ContextMenu("Rebuild Compass")]
     public void RebuildCompass()
     {
-        if (isBuilding)
-        {
-            return;
-        }
-
-        isBuilding = true;
-
         ClearCompass();
         BuildCompass();
-
-        isBuilding = false;
     }
 
-    private void BuildCompass()
-    {
-        if (compassAnchor != null && axisRoot != null)
-        {
-            return;
-        }
-
-        if (isBuilding)
-        {
-            return;
-        }
-
-        ResolveCamera();
-
-        if (viewerCamera == null)
-        {
-            Debug.LogWarning(
-                "GalacticOrientationCompass could not find the Main Camera."
-            );
-            return;
-        }
-
-        isBuilding = true;
-
-        compassAnchor =
-            new GameObject(
-                "Galactic Orientation Compass HUD"
-            );
-
-        compassAnchor.transform.SetParent(
-            viewerCamera,
-            false
-        );
-
-        compassAnchor.transform.localPosition =
-            localPosition;
-
-        compassAnchor.transform.localRotation =
-            Quaternion.identity;
-
-        compassAnchor.transform.localScale =
-            Vector3.one * compassScale;
-
-        GameObject rootObject =
-            new GameObject("Axis Triad");
-
-        axisRoot = rootObject.transform;
-
-        axisRoot.SetParent(
-            compassAnchor.transform,
-            false
-        );
-
-        axisLines.Clear();
-
-        // Standard heliocentric Galactic Cartesian coordinates:
-        // +Xgal -> Unity +X
-        // +Ygal -> Unity +Z
-        // +Zgal -> Unity +Y
-        CreateAxisStick(
-            "Galactic X",
-            Vector3.right,
-            galacticXColor
-        );
-
-        CreateAxisStick(
-            "Galactic Y",
-            Vector3.forward,
-            galacticYColor
-        );
-
-        CreateAxisStick(
-            "Galactic Z",
-            Vector3.up,
-            galacticZColor
-        );
-
-        UpdateAxisWidths();
-
-        lastCompassScale = compassScale;
-
-        isBuilding = false;
-    }
-
-    private void UpdateAxisWidths()
-    {
-        float scaledWidth =
-            axisWidth * Mathf.Max(0f, compassScale);
-
-        foreach (LineRenderer line in axisLines)
-        {
-            if (line == null)
-            {
-                continue;
-            }
-
-            line.startWidth = scaledWidth;
-            line.endWidth = scaledWidth;
-        }
-    }
-
-    private void ResolveCamera()
+    private void ResolveReferences()
     {
         if (viewerCamera == null && Camera.main != null)
         {
             viewerCamera = Camera.main.transform;
         }
+
+        if (viewerUnityCamera == null && viewerCamera != null)
+        {
+            viewerUnityCamera =
+                viewerCamera.GetComponent<Camera>();
+        }
+
+        if (uiCanvas == null)
+        {
+            GameObject canvasObject = GameObject.Find("UI Canvas");
+
+            if (canvasObject != null)
+            {
+                uiCanvas = canvasObject.GetComponent<Canvas>();
+            }
+
+            if (uiCanvas == null)
+            {
+                uiCanvas = FindAnyObjectByType<Canvas>();
+            }
+        }
+
+        if (uiCanvas != null)
+        {
+            canvasRect = uiCanvas.transform as RectTransform;
+        }
     }
 
-    private void CreateAxisStick(
-        string axisName,
-        Vector3 direction,
-        Color color
-    )
+    private void BuildCompass()
     {
-        GameObject axisObject =
-            new GameObject(axisName);
+        if (isBuilding || compassAnchor != null)
+        {
+            return;
+        }
 
-        axisObject.transform.SetParent(
-            axisRoot,
+        ResolveReferences();
+
+        if (viewerCamera == null || viewerUnityCamera == null ||
+            uiCanvas == null || canvasRect == null)
+        {
+            return;
+        }
+
+        isBuilding = true;
+
+        CreateWhiteSprite();
+
+        compassAnchor = new GameObject(
+            "Galactic Orientation Compass HUD",
+            typeof(RectTransform)
+        );
+
+        compassAnchor.transform.SetParent(
+            uiCanvas.transform,
             false
         );
 
-        Material axisMaterial =
-            CreateOverlayMaterial(color);
+        compassRect =
+            compassAnchor.GetComponent<RectTransform>();
 
-        LineRenderer line =
-            axisObject.AddComponent<LineRenderer>();
+        // Use the Canvas center as the anchor reference.
+        compassRect.anchorMin = new Vector2(0.5f, 0.5f);
+        compassRect.anchorMax = new Vector2(0.5f, 0.5f);
+        compassRect.pivot = new Vector2(0.5f, 0.5f);
+        compassRect.sizeDelta = Vector2.zero;
+        compassRect.localScale = Vector3.one;
 
-        line.useWorldSpace = false;
-        line.positionCount = 2;
+        axisImages.Clear();
+        axisRects.Clear();
 
-        line.SetPosition(
-            0,
-            Vector3.zero
-        );
+        CreateAxis("Galactic X", galacticXColor);
+        CreateAxis("Galactic Y", galacticYColor);
+        CreateAxis("Galactic Z", galacticZColor);
 
-        line.SetPosition(
+        isBuilding = false;
+
+        UpdateCompass();
+    }
+
+    private void CreateWhiteSprite()
+    {
+        if (whiteSprite != null)
+        {
+            return;
+        }
+
+        whiteTexture = new Texture2D(
             1,
-            direction * axisLength
+            1,
+            TextureFormat.RGBA32,
+            false
         );
 
-        // Base width. Actual width is scaled by compassScale.
-        line.startWidth = axisWidth * compassScale;
-        line.endWidth = axisWidth * compassScale;
+        whiteTexture.name = "Compass White Pixel";
+        whiteTexture.SetPixel(0, 0, Color.white);
+        whiteTexture.Apply();
 
-        // Flat ends.
-        line.numCapVertices = 0;
-        line.numCornerVertices = 0;
-
-        line.startColor = color;
-        line.endColor = color;
-
-        line.material = axisMaterial;
-        line.sortingOrder = short.MaxValue;
-
-        axisLines.Add(line);
+        whiteSprite = Sprite.Create(
+            whiteTexture,
+            new Rect(0, 0, 1, 1),
+            new Vector2(0.5f, 0.5f),
+            1f
+        );
     }
 
-    private Material CreateOverlayMaterial(Color color)
+    private void CreateAxis(string axisName, Color color)
     {
-        Material material;
-
-        if (baseAxisMaterial != null)
-        {
-            material = new Material(baseAxisMaterial);
-        }
-        else
-        {
-            Shader shader = Shader.Find("Sprites/Default");
-
-            if (shader == null)
-            {
-                shader = Shader.Find(
-                    "Universal Render Pipeline/Unlit"
-                );
-            }
-
-            if (shader == null)
-            {
-                shader = Shader.Find("Unlit/Color");
-            }
-
-            if (shader == null)
-            {
-                Debug.LogError(
-                    "No suitable compass shader was found. " +
-                    "Assign Base Axis Material."
-                );
-
-                return null;
-            }
-
-            material = new Material(shader);
-        }
-
-        ConfigureOverlayMaterial(
-            material,
-            color
+        GameObject axisObject = new GameObject(
+            axisName,
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(Image)
         );
 
-        return material;
+        axisObject.transform.SetParent(
+            compassAnchor.transform,
+            false
+        );
+
+        RectTransform rect =
+            axisObject.GetComponent<RectTransform>();
+
+        rect.anchorMin = new Vector2(0.5f, 0.5f);
+        rect.anchorMax = new Vector2(0.5f, 0.5f);
+        rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.sizeDelta = Vector2.zero;
+
+        Image image = axisObject.GetComponent<Image>();
+
+        image.sprite = whiteSprite;
+        image.color = color;
+        image.raycastTarget = false;
+
+        axisRects.Add(rect);
+        axisImages.Add(image);
     }
 
-    private Material ConfigureOverlayMaterial(
-        Material material,
-        Color color
-    )
+    private void UpdateCompass()
     {
-        material.color = color;
-
-        if (!alwaysDrawOnTop)
+        if (compassRect == null)
         {
-            return material;
+            return;
         }
 
-        material.renderQueue = 5000;
+        // Same camera-relative position as the original compass.
+        Vector3 anchorWorld =
+            viewerCamera.TransformPoint(localPosition);
 
-        if (material.HasProperty("_ZTestMode"))
+        if (!TryWorldToCanvasLocal(
+            anchorWorld,
+            out Vector2 anchorCanvas))
         {
-            material.SetFloat(
-                "_ZTestMode",
-                (float)CompareFunction.Always
+            compassAnchor.SetActive(false);
+            return;
+        }
+
+        compassAnchor.SetActive(true);
+
+        compassRect.anchoredPosition = anchorCanvas;
+
+        float scale = Mathf.Max(0f, compassScale);
+
+        float worldAxisLength = Mathf.Max(0f, axisLength) * scale;
+        float worldAxisWidth = Mathf.Max(0f, axisWidth) * scale;
+
+        // Convert the desired world-space thickness into Canvas units.
+        float canvasWidth = 1f;
+
+        if (TryWorldToCanvasLocal(
+            anchorWorld + viewerCamera.up * worldAxisWidth,
+            out Vector2 widthPoint))
+        {
+            canvasWidth = Vector2.Distance(
+                anchorCanvas,
+                widthPoint
             );
         }
 
-        if (material.HasProperty("_ZTest"))
+        canvasWidth = Mathf.Max(0.1f, canvasWidth);
+
+        for (int i = 0; i < axisImages.Count; i++)
         {
-            material.SetFloat(
-                "_ZTest",
-                (float)CompareFunction.Always
+            Image image = axisImages[i];
+            RectTransform rect = axisRects[i];
+
+            if (image == null || rect == null)
+            {
+                continue;
+            }
+
+            // Project each Galactic axis into the Canvas.
+            Vector3 endpointWorld =
+                anchorWorld +
+                axisDirections[i] * worldAxisLength;
+
+            if (!TryWorldToCanvasLocal(
+                endpointWorld,
+                out Vector2 endpointCanvas))
+            {
+                image.enabled = false;
+                continue;
+            }
+
+            image.enabled = true;
+
+            // Coordinates relative to the compass center.
+            Vector2 delta = endpointCanvas - anchorCanvas;
+
+            float length = delta.magnitude;
+            float angle = Mathf.Atan2(
+                delta.y,
+                delta.x
+            ) * Mathf.Rad2Deg;
+
+            rect.anchoredPosition = delta * 0.5f;
+
+            rect.sizeDelta = new Vector2(
+                length,
+                canvasWidth
             );
+
+            rect.localRotation =
+                Quaternion.Euler(0f, 0f, angle);
+        }
+    }
+
+    private bool TryWorldToCanvasLocal(
+        Vector3 worldPosition,
+        out Vector2 canvasPosition)
+    {
+        canvasPosition = Vector2.zero;
+
+        if (viewerUnityCamera == null ||
+            uiCanvas == null ||
+            canvasRect == null)
+        {
+            return false;
         }
 
-        if (material.HasProperty("unity_GUIZTestMode"))
+        Vector3 screenPosition =
+            viewerUnityCamera.WorldToScreenPoint(worldPosition);
+
+        if (screenPosition.z <= 0f)
         {
-            material.SetFloat(
-                "unity_GUIZTestMode",
-                (float)CompareFunction.Always
+            return false;
+        }
+
+        Camera canvasCamera =
+            uiCanvas.renderMode == RenderMode.ScreenSpaceOverlay
+                ? null
+                : (uiCanvas.worldCamera != null
+                    ? uiCanvas.worldCamera
+                    : viewerUnityCamera);
+
+        return RectTransformUtility
+            .ScreenPointToLocalPointInRectangle(
+                canvasRect,
+                new Vector2(
+                    screenPosition.x,
+                    screenPosition.y
+                ),
+                canvasCamera,
+                out canvasPosition
             );
-        }
-
-        if (material.HasProperty("_ZWrite"))
-        {
-            material.SetFloat("_ZWrite", 0f);
-        }
-
-        return material;
     }
 
     private void ClearCompass()
     {
-        axisLines.Clear();
+        axisImages.Clear();
+        axisRects.Clear();
 
         if (compassAnchor != null)
         {
@@ -406,6 +417,6 @@ public class GalacticOrientationCompass : MonoBehaviour
         }
 
         compassAnchor = null;
-        axisRoot = null;
+        compassRect = null;
     }
 }

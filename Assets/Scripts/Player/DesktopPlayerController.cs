@@ -27,6 +27,9 @@ public class DesktopPlayerController : MonoBehaviour
     [Header("MS-LOD Debug")]
     public GaiaMSLODBoundsVisualizer msLODBoundsVisualizer;
 
+    [Header("Dust Debug")]
+    public DustLODBoundsVisualizer dustLODBoundsVisualizer;
+
     [Header("Dust")]
     public DustLODLoader dustLODLoader;
 
@@ -45,6 +48,12 @@ public class DesktopPlayerController : MonoBehaviour
         {
             msLODBoundsVisualizer =
                 FindAnyObjectByType<GaiaMSLODBoundsVisualizer>();
+        }
+
+        if (dustLODBoundsVisualizer == null)
+        {
+            dustLODBoundsVisualizer =
+                FindAnyObjectByType<DustLODBoundsVisualizer>();
         }
 
         if (dustLODLoader == null)
@@ -291,6 +300,28 @@ public class DesktopPlayerController : MonoBehaviour
             if (msLODBoundsVisualizer != null)
             {
                 msLODBoundsVisualizer.RefreshBounds();
+            }
+        }
+
+        // 9 = toggle dust LOD brick bounds
+        if (Keyboard.current.digit9Key.wasPressedThisFrame)
+        {
+            if (dustLODBoundsVisualizer == null)
+            {
+                dustLODBoundsVisualizer =
+                    FindAnyObjectByType<DustLODBoundsVisualizer>();
+            }
+
+            if (dustLODBoundsVisualizer != null)
+            {
+                dustLODBoundsVisualizer.ToggleBounds();
+            }
+            else
+            {
+                Debug.LogWarning(
+                    "DesktopPlayerController: " +
+                    "No DustLODBoundsVisualizer found."
+                );
             }
         }
     }

@@ -172,6 +172,10 @@ public class DustLODLoader : MonoBehaviour
 
     public GraphicsBuffer PageTableBuffer => pageTableGpu;
     public Texture2DArray BrickPoolTexture => brickPool;
+    public bool IsInitialized => initialized && !disposed;
+    public int LevelCount => levels.Count;
+    public int LoadedBrickCount => loaded.Count;
+    public int DesiredBrickCount => currentDesired.Count;
 
     public void ToggleScattering()
     {
@@ -242,6 +246,81 @@ public class DustLODLoader : MonoBehaviour
     }
 
     public int GetLoadedBrickCount() => loaded.Count;
+
+    public void GetDebugNodeInfo(List<DustLODNodeInfo> output)
+    {
+        if (output == null)
+            return;
+
+        output.Clear();
+
+        if (!initialized || disposed || levels.Count == 0)
+            return;
+
+        // Include every brick that is either requested or loaded.
+        HashSet<BrickKey> keys =
+            new HashSet<BrickKey>(currentDesired);
+
+        foreach (BrickKey key in loaded.Keys)
+            keys.Add(key);
+
+        foreach (BrickKey key in keys)
+        {
+            if (key.level < 0 || key.level >= levels.Count)
+                continue;
+
+            LevelInfo levelInfo = levels[key.level];
+
+            // Brick coordinates are measured in this LOD's voxel grid.
+            int x0 = key.x * ChunkSize;
+            int y0 = key.y * ChunkSize;
+            int z0 = key.z * ChunkSize;
+
+            if (x0 < 0 || y0 < 0 || z0 < 0 ||
+                x0 >= levelInfo.dimensions.x ||
+                y0 >= levelInfo.dimensions.y ||
+                z0 >= levelInfo.dimensions.z)
+            {
+                continue;
+            }
+
+            // Clamp edge bricks to the actual LOD dimensions.
+            int x1 = Mathf.Min(x0 + ChunkSize, levelInfo.dimensions.x);
+            int y1 = Mathf.Min(y0 + ChunkSize, levelInfo.dimensions.y);
+            int z1 = Mathf.Min(z0 + ChunkSize, levelInfo.dimensions.z);
+
+            if (x1 <= x0 || y1 <= y0 || z1 <= z0)
+                continue;
+
+            // Convert this LOD's voxel coordinates to world coordinates.
+            int scale = 1 << key.level;
+
+            Vector3 p0 = CellBoundaryToWorld(
+                x0, y0, z0, scale);
+
+            Vector3 p1 = CellBoundaryToWorld(
+                x1, y1, z1, scale);
+
+            Vector3 min = Vector3.Min(p0, p1);
+            Vector3 max = Vector3.Max(p0, p1);
+
+            Bounds bounds = new Bounds(
+                (min + max) * 0.5f,
+                max - min
+            );
+
+            output.Add(new DustLODNodeInfo
+            {
+                level = key.level,
+                x = key.x,
+                y = key.y,
+                z = key.z,
+                bounds = bounds,
+                isLoaded = loaded.ContainsKey(key),
+                isDesired = currentDesired.Contains(key)
+            });
+        }
+    }
 
     private void Awake()
     {
@@ -749,5 +828,19 @@ public class DustLODLoader : MonoBehaviour
             stagingTexture = null;
         }
         initialized = false;
+    }
+
+    public struct DustLODNodeInfo
+    {
+        public int level;
+
+        public int x;
+        public int y;
+        public int z;
+
+        public Bounds bounds;
+
+        public bool isLoaded;
+        public bool isDesired;
     }
 }
