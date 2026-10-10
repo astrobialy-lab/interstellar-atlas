@@ -1,0 +1,314 @@
+#pragma kernel BuildDustExtinction
+#pragma target 4.5
+
+#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+
+// Keep synchronized with DustExtinctionMap.DistanceSampleCount and GaiaStarRasterizer.compute.
+#define DISTANCE_SAMPLE_COUNT 14
+#define MAX_DISTANCE_PC 4096.0
+
+TEXTURE2D_ARRAY(_BrickPool);
+SAMPLER(sampler_BrickPool);
+StructuredBuffer<int> _PageTable;
+RWTexture2DArray<float> _DustTauOutput;
+
+int _LevelCount;
+int _FallbackLod;
+int _BrickSize;
+int _MaxRaySteps;
+int _OutputWidth;
+int _OutputHeight;
+int _EyeCount;
+int _DistanceSampleCount;
+float _StepMultiplier;
+float _ExtinctionScale;
+
+float4x4 _InvViewProj0;
+float4x4 _InvViewProj1;
+float4 _EyePosition0;
+float4 _EyePosition1;
+
+float3 _VolumeOrigin;
+float3 _BaseStep;
+float3 _VolumeBoundsMin;
+float3 _VolumeBoundsMax;
+
+// Packed Vector4 arrays match DustLODLoader.shaderLevelParams0/1:
+// LevelParams0 = (page offset, brick dims X, brick dims Y, brick dims Z)
+// LevelParams1 = (voxel size pc, LOD switch distance pc, 0, 0)
+float4 _LevelParams0[16];
+float4 _LevelParams1[16];
+
+int GetPageSlot(int level, int3 brick)
+{
+    int result = -1;
+    if (level >= 0 && level < _LevelCount &&
+        brick.x >= 0 && brick.y >= 0 && brick.z >= 0)
+    {
+        int3 brickDims = int3(
+            (int)_LevelParams0[level].y,
+            (int)_LevelParams0[level].z,
+            (int)_LevelParams0[level].w);
+
+        if (brick.x < brickDims.x && brick.y < brickDims.y && brick.z < brickDims.z)
+        {
+            int index = (int)_LevelParams0[level].x + brick.x +
+                brickDims.x * (brick.y + brickDims.y * brick.z);
+            result = _PageTable[index] - 1;
+        }
+    }
+    return result;
+}
+
+float SampleLevelDensity(float3 worldPosition, int level, out bool present)
+{
+    present = false;
+    float result = 0.0;
+
+    if (level >= 0 && level < _LevelCount)
+    {
+        int scale = 1 << level;
+        float3 sourceIndex = (worldPosition - _VolumeOrigin) / _BaseStep;
+        float3 coarseCell = (sourceIndex + 0.5) / scale - 0.5;
+
+        int3 brickDims = int3(
+            (int)_LevelParams0[level].y,
+            (int)_LevelParams0[level].z,
+            (int)_LevelParams0[level].w);
+        int3 coarseDims = brickDims * _BrickSize;
+
+        float3 maxCell = float3(coarseDims.x - 1, coarseDims.y - 1, coarseDims.z - 1);
+        coarseCell = clamp(coarseCell, 0.0, maxCell);
+
+        int3 cellIndex = int3(floor(coarseCell));
+        float3 localFraction = coarseCell - floor(coarseCell);
+
+        // Brick size is fixed at 32 voxels (DustLODLoader.ChunkSize).
+        // Bit operations avoid slow integer vector division on mobile GPUs.
+        int3 brick = cellIndex >> 5;
+        int3 localIndex = cellIndex & 31;
+
+        int slot = GetPageSlot(level, brick);
+        if (slot >= 0)
+        {
+            present = true;
+            float2 uv = (float2(localIndex.x, localIndex.y) + localFraction.xy + 0.5) / (float)_BrickSize;
+            int slice = slot * _BrickSize + localIndex.z;
+            result = SAMPLE_TEXTURE2D_ARRAY_LOD(_BrickPool, sampler_BrickPool, uv, slice, 0).r;
+        }
+    }
+
+    return result;
+}
+
+int ChooseLOD(float distancePc)
+{
+    int fallback = min(_FallbackLod, _LevelCount - 1);
+    for (int level = 0; level < 16; level++)
+    {
+        if (level >= fallback)
+            break;
+        if (distancePc < _LevelParams1[level].y)
+            return level;
+    }
+    return fallback;
+}
+
+float SampleDensity(float3 worldPosition, int desiredLOD, out int usedLOD, out bool hasBrick)
+{
+    usedLOD = clamp(desiredLOD, 0, max(_LevelCount - 1, 0));
+    hasBrick = false;
+    float result = 0.0;
+
+    for (int level = usedLOD; level < 16; level++)
+    {
+        if (level >= _LevelCount)
+            break;
+
+        bool present = false;
+        float density = SampleLevelDensity(worldPosition, level, present);
+        if (present)
+        {
+            usedLOD = level;
+            hasBrick = true;
+            result = density;
+            break;
+        }
+    }
+
+    return result;
+}
+
+bool IntersectBox(float3 origin, float3 direction, float3 boxMin, float3 boxMax,
+    out float tEnter, out float tExit)
+{
+    tEnter = 0.0;
+    tExit = 0.0;
+    float3 safeDirection = direction;
+    safeDirection.x = abs(safeDirection.x) < 1e-6 ? (safeDirection.x < 0.0 ? -1e-6 : 1e-6) : safeDirection.x;
+    safeDirection.y = abs(safeDirection.y) < 1e-6 ? (safeDirection.y < 0.0 ? -1e-6 : 1e-6) : safeDirection.y;
+    safeDirection.z = abs(safeDirection.z) < 1e-6 ? (safeDirection.z < 0.0 ? -1e-6 : 1e-6) : safeDirection.z;
+
+    float3 invDirection = 1.0 / safeDirection;
+    float3 t0 = (boxMin - origin) * invDirection;
+    float3 t1 = (boxMax - origin) * invDirection;
+    float3 lo = min(t0, t1);
+    float3 hi = max(t0, t1);
+
+    tEnter = max(max(lo.x, lo.y), lo.z);
+    tExit = min(min(hi.x, hi.y), hi.z);
+    tEnter = max(tEnter, 0.0);
+    return tExit > tEnter;
+}
+
+float3 ReconstructWorldRay(float2 ndc, float4x4 inverseViewProj, float3 eyePosition)
+{
+    #if UNITY_REVERSED_Z
+        const float rayDepth = 0.0001;
+    #else
+        const float rayDepth = 0.9999;
+    #endif
+
+    float3 result = float3(0.0, 0.0, 1.0);
+    float4 clipPosition = float4(ndc.x, ndc.y, rayDepth, 1.0);
+    float4 worldH = mul(inverseViewProj, clipPosition);
+    if (abs(worldH.w) >= 1e-6)
+    {
+        float3 worldPosition = worldH.xyz / worldH.w;
+        float3 delta = worldPosition - eyePosition;
+        float lengthSquared = dot(delta, delta);
+        if (lengthSquared > 1e-12)
+            result = delta * rsqrt(lengthSquared);
+    }
+    return result;
+}
+
+float GetDistanceBoundary(int sampleIndex)
+{
+    float result = 0.0;
+    if (sampleIndex > 0)
+        result = exp2((float)(sampleIndex - 1));
+    return result;
+}
+
+// Slice zero per eye stores the first dust distance. Tau samples use slices 1..N.
+void WriteFirstDustDistance(uint2 pixel, uint eye, float firstDustDistance)
+{
+    int arraySlice = (int)eye * (DISTANCE_SAMPLE_COUNT + 1);
+    _DustTauOutput[int3(pixel, arraySlice)] = max(firstDustDistance, 0.0);
+}
+
+void WriteSample(uint2 pixel, uint eye, int sampleIndex, float tauV)
+{
+    int arraySlice = (int)eye * (DISTANCE_SAMPLE_COUNT + 1) + sampleIndex + 1;
+    _DustTauOutput[int3(pixel, arraySlice)] = max(tauV, 0.0);
+}
+
+[numthreads(8, 8, 1)]
+void BuildDustExtinction(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= (uint)_OutputWidth || id.y >= (uint)_OutputHeight || id.z >= (uint)_EyeCount)
+        return;
+
+    uint2 pixel = id.xy;
+    uint eye = id.z;
+    float tauV = 0.0;
+    float firstDustDistance = 60000.0;
+    float tauSamples[DISTANCE_SAMPLE_COUNT];
+    for (int sample = 0; sample < DISTANCE_SAMPLE_COUNT; sample++)
+        tauSamples[sample] = 0.0;
+
+    float2 uv = (float2(pixel) + 0.5) / float2(_OutputWidth, _OutputHeight);
+    float2 ndc = float2(uv.x * 2.0 - 1.0, 1.0 - uv.y * 2.0);
+
+    float4x4 inverseViewProj = eye == 0 ? _InvViewProj0 : _InvViewProj1;
+    float3 cameraPosition = eye == 0 ? _EyePosition0.xyz : _EyePosition1.xyz;
+    float3 rayDirection = ReconstructWorldRay(ndc, inverseViewProj, cameraPosition);
+
+    float tEnter;
+    float tExit;
+    bool intersects = IntersectBox(cameraPosition, rayDirection, _VolumeBoundsMin, _VolumeBoundsMax, tEnter, tExit);
+    if (!intersects || tEnter >= MAX_DISTANCE_PC)
+    {
+        WriteFirstDustDistance(pixel, eye, 60000.0);
+        for (int emptySample = 0; emptySample < DISTANCE_SAMPLE_COUNT; emptySample++)
+            WriteSample(pixel, eye, emptySample, 0.0);
+        return;
+    }
+
+    // Only calculate the dust column out to the final stored distance.
+    tExit = min(tExit, MAX_DISTANCE_PC);
+    if (tExit <= tEnter)
+    {
+        WriteFirstDustDistance(pixel, eye, 60000.0);
+        for (int emptySample2 = 0; emptySample2 < DISTANCE_SAMPLE_COUNT; emptySample2++)
+            WriteSample(pixel, eye, emptySample2, 0.0);
+        return;
+    }
+
+    int nextSample = 1;
+    while (nextSample < DISTANCE_SAMPLE_COUNT && GetDistanceBoundary(nextSample) <= tEnter + 1e-4)
+    {
+        tauSamples[nextSample] = 0.0;
+        nextSample++;
+    }
+
+    float t = tEnter;
+    int stepCount = 0;
+    while (t < tExit && stepCount < _MaxRaySteps)
+    {
+        while (nextSample < DISTANCE_SAMPLE_COUNT && GetDistanceBoundary(nextSample) <= t + 1e-4)
+        {
+            tauSamples[nextSample] = tauV;
+            nextSample++;
+        }
+
+        float3 worldPosition = cameraPosition + rayDirection * t;
+        int desiredLOD = ChooseLOD(t);
+        int usedLOD;
+        bool hasBrick;
+        float density = SampleDensity(worldPosition, desiredLOD, usedLOD, hasBrick);
+
+        float voxelSize = max(_LevelParams1[usedLOD].x, 0.25);
+        float stepSize = max(voxelSize * _StepMultiplier, 0.25);
+        stepSize = min(stepSize, tExit - t);
+
+        if (nextSample < DISTANCE_SAMPLE_COUNT)
+        {
+            float distanceToBoundary = GetDistanceBoundary(nextSample) - t;
+            if (distanceToBoundary > 1e-5)
+                stepSize = min(stepSize, distanceToBoundary);
+        }
+
+        if (stepSize <= 1e-5)
+        {
+            if (nextSample < DISTANCE_SAMPLE_COUNT)
+            {
+                tauSamples[nextSample] = tauV;
+                nextSample++;
+            }
+            continue;
+        }
+
+        if (hasBrick && density > 0.0)
+        {
+            if (firstDustDistance > 50000.0)
+                firstDustDistance = min(t + 0.5 * stepSize, 60000.0);
+            tauV += max(density, 0.0) * stepSize * max(_ExtinctionScale, 0.0);
+        }
+
+        t += stepSize;
+        stepCount++;
+    }
+
+    // Optical depth stays constant after exiting the volume or reaching the step budget.
+    while (nextSample < DISTANCE_SAMPLE_COUNT)
+    {
+        tauSamples[nextSample] = tauV;
+        nextSample++;
+    }
+
+    WriteFirstDustDistance(pixel, eye, firstDustDistance);
+    for (int outputSample = 0; outputSample < DISTANCE_SAMPLE_COUNT; outputSample++)
+        WriteSample(pixel, eye, outputSample, tauSamples[outputSample]);
+}

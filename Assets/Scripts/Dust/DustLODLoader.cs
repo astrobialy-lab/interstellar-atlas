@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.Rendering;
+using UnityEngine.Rendering.RenderGraphModule;
 
 public class DustLODLoader : MonoBehaviour
 {
@@ -37,7 +38,9 @@ public class DustLODLoader : MonoBehaviour
 
     [Header("Basic Scattering")]
     [Tooltip("Artistic gain applied to the single-direction illumination approximation. 1 means no extra gain; this is not a substitute for per-star illumination.")]
-    [SerializeField] private float scatteringGain = 1.0f;
+    [SerializeField] private float scatteringGain = 0.05f;
+
+    [SerializeField] private bool scatteringEnabled = false;
 
     [Tooltip("Optional tint applied to scattered light; white is the neutral starting point.")]
     [SerializeField] private Color scatteringTint = Color.white;
@@ -70,6 +73,19 @@ public class DustLODLoader : MonoBehaviour
 
     private static readonly int PageTableId = Shader.PropertyToID("_PageTable");
     private static readonly int BrickPoolId = Shader.PropertyToID("_BrickPool");
+
+    private static readonly int LevelParams0Id = Shader.PropertyToID("_LevelParams0");
+    private static readonly int LevelParams1Id = Shader.PropertyToID("_LevelParams1");
+    private static readonly int LevelCountId = Shader.PropertyToID("_LevelCount");
+    private static readonly int FallbackLodId = Shader.PropertyToID("_FallbackLod");
+    private static readonly int BrickSizeId = Shader.PropertyToID("_BrickSize");
+    private static readonly int MaxRayStepsId = Shader.PropertyToID("_MaxRaySteps");
+    private static readonly int StepMultiplierId = Shader.PropertyToID("_StepMultiplier");
+    private static readonly int ExtinctionScaleId = Shader.PropertyToID("_ExtinctionScale");
+    private static readonly int VolumeOriginId = Shader.PropertyToID("_VolumeOrigin");
+    private static readonly int BaseStepId = Shader.PropertyToID("_BaseStep");
+    private static readonly int VolumeBoundsMinId = Shader.PropertyToID("_VolumeBoundsMin");
+    private static readonly int VolumeBoundsMaxId = Shader.PropertyToID("_VolumeBoundsMax");
 
     private readonly struct BrickCoord : IEquatable<BrickCoord>
     {
@@ -149,6 +165,23 @@ public class DustLODLoader : MonoBehaviour
     private readonly float[] shaderBrickDimsY = new float[MaxShaderLevels];
     private readonly float[] shaderBrickDimsZ = new float[MaxShaderLevels];
 
+    // Compute-shader-friendly packed level arrays. float4 arrays avoid constant-buffer
+    // array-stride ambiguity when sent through RenderGraph's command buffer.
+    private readonly Vector4[] shaderLevelParams0 = new Vector4[MaxShaderLevels];
+    private readonly Vector4[] shaderLevelParams1 = new Vector4[MaxShaderLevels];
+
+    public GraphicsBuffer PageTableBuffer => pageTableGpu;
+    public Texture2DArray BrickPoolTexture => brickPool;
+
+    public void ToggleScattering()
+    {
+        scatteringEnabled = !scatteringEnabled;
+
+        Debug.Log(
+            $"Dust scattering: {(scatteringEnabled ? "ON" : "OFF")}"
+        );
+    }
+
     public void PrepareForCamera(Camera camera, Material material)
     {
         if (disposed) return;
@@ -164,13 +197,48 @@ public class DustLODLoader : MonoBehaviour
             lastCamera = camera;
         }
 
-        if (pageTableDirty)
+        if (pageTableDirty && pageTableGpu != null)
         {
             pageTableGpu.SetData(pageTableCpu);
             pageTableDirty = false;
         }
 
         ApplyShaderParameters(material);
+    }
+
+    /// <summary>
+    /// Bind the same density bricks and LOD sampling settings used by DustVolume.shader
+    /// to the cumulative-extinction compute kernel. The pass context is supplied so all
+    /// values are recorded into the correct RenderGraph command stream.
+    /// </summary>
+    public bool BindExtinctionComputeParameters(
+        ComputeGraphContext context,
+        ComputeShader shader,
+        int kernel,
+        BufferHandle pageTableHandle,
+        TextureHandle brickPoolHandle)
+    {
+        if (context == null || shader == null || disposed || !initialized ||
+            pageTableGpu == null || brickPool == null || levels.Count == 0 ||
+            !pageTableHandle.IsValid() || !brickPoolHandle.IsValid())
+            return false;
+
+        var cmd = context.cmd;
+        cmd.SetComputeBufferParam(shader, kernel, PageTableId, pageTableHandle);
+        cmd.SetComputeTextureParam(shader, kernel, BrickPoolId, brickPoolHandle);
+        cmd.SetComputeIntParam(shader, LevelCountId, levels.Count);
+        cmd.SetComputeIntParam(shader, FallbackLodId, fallbackLOD);
+        cmd.SetComputeIntParam(shader, BrickSizeId, ChunkSize);
+        cmd.SetComputeIntParam(shader, MaxRayStepsId, Mathf.Max(1, maxRaySteps));
+        cmd.SetComputeFloatParam(shader, StepMultiplierId, Mathf.Max(0.1f, stepMultiplier));
+        cmd.SetComputeFloatParam(shader, ExtinctionScaleId, Mathf.Max(0.0f, tauVPerNHPerPc));
+        cmd.SetComputeVectorParam(shader, VolumeOriginId, new Vector4(volumeOrigin.x, volumeOrigin.y, volumeOrigin.z, 0.0f));
+        cmd.SetComputeVectorParam(shader, BaseStepId, new Vector4(baseStep.x, baseStep.y, baseStep.z, 0.0f));
+        cmd.SetComputeVectorParam(shader, VolumeBoundsMinId, new Vector4(volumeBoundsMin.x, volumeBoundsMin.y, volumeBoundsMin.z, 0.0f));
+        cmd.SetComputeVectorParam(shader, VolumeBoundsMaxId, new Vector4(volumeBoundsMax.x, volumeBoundsMax.y, volumeBoundsMax.z, 0.0f));
+        cmd.SetComputeVectorArrayParam(shader, LevelParams0Id, shaderLevelParams0);
+        cmd.SetComputeVectorArrayParam(shader, LevelParams1Id, shaderLevelParams1);
+        return true;
     }
 
     public int GetLoadedBrickCount() => loaded.Count;
@@ -474,7 +542,6 @@ public class DustLODLoader : MonoBehaviour
             int slot = AcquireSlot();
             if (slot < 0) continue;
 
-            // Runtime brick layout is [z][y][x], with x varying fastest.
             Buffer.BlockCopy(result.bytes, 0, decodedBrick, 0, result.bytes.Length);
             int sliceBytes = ChunkSize * ChunkSize * 2;
             int baseSlice = slot * ChunkSize;
@@ -583,8 +650,6 @@ public class DustLODLoader : MonoBehaviour
 
     private void ApplyShaderParameters(Material material)
     {
-        if (material == null) return;
-
         for (int i = 0; i < MaxShaderLevels; i++)
         {
             shaderVoxelSizes[i] = 0.0f;
@@ -607,9 +672,19 @@ public class DustLODLoader : MonoBehaviour
             if (i < fallbackLOD) shaderSwitchDistances[i] = fineRadiusPc * Mathf.Pow(2.0f, i);
         }
 
+        for (int i = 0; i < MaxShaderLevels; i++)
+        {
+            shaderLevelParams0[i] = new Vector4(
+                shaderPageOffsets[i], shaderBrickDimsX[i], shaderBrickDimsY[i], shaderBrickDimsZ[i]);
+            shaderLevelParams1[i] = new Vector4(
+                shaderVoxelSizes[i], shaderSwitchDistances[i], 0.0f, 0.0f);
+        }
+
         Vector3 ld = lightDirection;
         if (ld.sqrMagnitude < 1e-6f) ld = Vector3.forward;
         ld.Normalize();
+
+        if (material == null) return;
 
         material.SetBuffer(PageTableId, pageTableGpu);
         material.SetTexture(BrickPoolId, brickPool);
@@ -625,7 +700,7 @@ public class DustLODLoader : MonoBehaviour
             Mathf.Max(0.0f, extinctionWavelengthMultipliers.y),
             Mathf.Max(0.0f, extinctionWavelengthMultipliers.z), 0.0f));
 
-        material.SetFloat("_ScatteringStrength", Mathf.Max(0.0f, scatteringGain));
+        material.SetFloat("_ScatteringStrength", scatteringEnabled ? Mathf.Max(0.0f, scatteringGain) : 0.0f);
         material.SetFloat("_ScatteringAlbedo", Mathf.Clamp01(scatteringAlbedo));
         material.SetColor("_ScatteringColor", scatteringTint);
         material.SetColor("_LightColor", lightColor);

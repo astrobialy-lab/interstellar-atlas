@@ -491,6 +491,7 @@ MonoBehaviour:
   tauVPerNHPerPc: 0.0012857
   extinctionWavelengthMultipliers: {x: 0.82, y: 1, z: 1.32}
   scatteringGain: 1
+  scatteringEnabled: 0
   scatteringTint: {r: 1, g: 1, b: 1, a: 1}
   lightColor: {r: 1, g: 1, b: 1, a: 1}
   lightDirection: {x: 0.5, y: 0.2, z: 1}
@@ -1610,6 +1611,7 @@ MonoBehaviour:
     m_Bits: 4294967295
   orientation: {fileID: 1666570262}
   msLODBoundsVisualizer: {fileID: 618384818}
+  dustLODLoader: {fileID: 212480233}
 --- !u!114 &475100220
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1629,6 +1631,7 @@ MonoBehaviour:
   headsetCamera: {fileID: 330585546}
   rightControllerTransform: {fileID: 0}
   msLODBoundsVisualizer: {fileID: 618384818}
+  dustLODLoader: {fileID: 212480233}
   moveSpeed: 2
   speedChangeFactor: 2
   turnSpeed: 60

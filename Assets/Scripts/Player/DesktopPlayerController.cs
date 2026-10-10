@@ -27,6 +27,9 @@ public class DesktopPlayerController : MonoBehaviour
     [Header("MS-LOD Debug")]
     public GaiaMSLODBoundsVisualizer msLODBoundsVisualizer;
 
+    [Header("Dust")]
+    public DustLODLoader dustLODLoader;
+
     // Camera pitch and roll are stored independently.
     private float cameraPitch = 0f;
     private float cameraRoll = 0f;
@@ -42,6 +45,11 @@ public class DesktopPlayerController : MonoBehaviour
         {
             msLODBoundsVisualizer =
                 FindAnyObjectByType<GaiaMSLODBoundsVisualizer>();
+        }
+
+        if (dustLODLoader == null)
+        {
+            dustLODLoader = FindAnyObjectByType<DustLODLoader>();
         }
 
         Cursor.lockState = CursorLockMode.Locked;
@@ -124,8 +132,7 @@ public class DesktopPlayerController : MonoBehaviour
         float mouseY =
             mouseDelta.y * mouseSensitivity;
 
-        // Rotation caused by the current roll,
-        // but WITHOUT the current pitch.
+        // Rotation caused by the current roll, but WITHOUT the current pitch.
         Quaternion rollRotation =
             Quaternion.AngleAxis(
                 cameraRoll,
@@ -144,8 +151,7 @@ public class DesktopPlayerController : MonoBehaviour
                 rollRotation * Vector3.right
             );
 
-        // LEFT / RIGHT
-        // Rotate around the current rolled-up axis.
+        // LEFT / RIGHT: rotate around the current rolled-up axis.
         if (mouseX != 0f)
         {
             transform.Rotate(
@@ -155,8 +161,7 @@ public class DesktopPlayerController : MonoBehaviour
             );
         }
 
-        // UP / DOWN
-        // Rotate around the current rolled-right axis.
+        // UP / DOWN: rotate around the current rolled-right axis.
         cameraPitch -= mouseY;
 
         cameraPitch = Mathf.Clamp(
@@ -210,15 +215,14 @@ public class DesktopPlayerController : MonoBehaviour
                 Vector3.right
             );
 
-        // Pitch is applied first, then the rolled reference frame
-        // is applied around it.
+        // Pitch is applied first, then the rolled reference frame is applied around it.
         cameraTransform.localRotation =
             rollRotation * pitchRotation;
     }
 
     private void HandleControls()
     {
-        // 9 = increase movement speed
+        // Equals = increase movement speed
         if (Keyboard.current.equalsKey.wasPressedThisFrame)
         {
             moveSpeed *= speedChangeFactor;
@@ -228,7 +232,7 @@ public class DesktopPlayerController : MonoBehaviour
             );
         }
 
-        // 0 = decrease movement speed
+        // Minus = decrease movement speed
         if (Keyboard.current.minusKey.wasPressedThisFrame)
         {
             moveSpeed /= speedChangeFactor;
@@ -236,6 +240,27 @@ public class DesktopPlayerController : MonoBehaviour
             Debug.Log(
                 $"Movement speed decreased to {moveSpeed}"
             );
+        }
+
+        // 0 = toggle dust scattering.
+        // Digit 5 is already listed as the particle-size increase shortcut.
+        if (Keyboard.current.digit5Key.wasPressedThisFrame)
+        {
+            if (dustLODLoader == null)
+            {
+                dustLODLoader = FindAnyObjectByType<DustLODLoader>();
+            }
+
+            if (dustLODLoader != null)
+            {
+                dustLODLoader.ToggleScattering();
+            }
+            else
+            {
+                Debug.LogWarning(
+                    "DesktopPlayerController: No DustLODLoader found."
+                );
+            }
         }
 
         // 6 = toggle landmark markers and Orientation

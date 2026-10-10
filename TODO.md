@@ -42,6 +42,11 @@
 
 - make auto-brightness: when standing close to a star or stars cluster (many light) reduce the brightness constant automatically
 
+- fix the compass coords text jiggling
 - make both sun and landmarks very visible
 
 - add dust scaterring (make stars red + bright sides)
+
+- in dust loader, make possible to switch the colors between white and black
+
+- display dust nodes

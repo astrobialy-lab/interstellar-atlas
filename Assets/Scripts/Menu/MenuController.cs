@@ -8,8 +8,7 @@ using XRCommonUsages = UnityEngine.XR.CommonUsages;
 using XRInputDevice = UnityEngine.XR.InputDevice;
 using XRInputDevices = UnityEngine.XR.InputDevices;
 using XRNode = UnityEngine.XR.XRNode;
-using InputActionReference =
-    UnityEngine.InputSystem.InputActionReference;
+using InputActionReference = UnityEngine.InputSystem.InputActionReference;
 
 public class MenuController : MonoBehaviour
 {
@@ -127,9 +126,7 @@ public class MenuController : MonoBehaviour
             return;
         }
 
-        /*
-         * ESCAPE / M
-         */
+        // ESCAPE / M
         if (keyboard.escapeKey.wasPressedThisFrame ||
             keyboard.mKey.wasPressedThisFrame)
         {
@@ -137,18 +134,14 @@ public class MenuController : MonoBehaviour
             return;
         }
 
-        /*
-         * CLUSTER FILTER
-         */
+        // CLUSTER FILTER
         if (clusterFilterMenu != null &&
             clusterFilterMenu.IsOpen())
         {
             return;
         }
 
-        /*
-         * INFORMATION
-         */
+        // INFORMATION
         if (infoCanvas != null &&
             infoCanvas.activeSelf)
         {
@@ -245,9 +238,7 @@ public class MenuController : MonoBehaviour
         bool yPressed =
             yPressedDirectly || yPressedByAction;
 
-        /*
-         * Y = OPEN / CLOSE MENU
-         */
+        // Y = OPEN / CLOSE MENU
         if (yPressed)
         {
             // INFORMATION / CONTROLS
@@ -285,9 +276,7 @@ public class MenuController : MonoBehaviour
             }
         }
 
-        /*
-         * INFORMATION
-         */
+        // INFORMATION
         if (infoCanvas != null &&
             infoCanvas.activeSelf)
         {
@@ -296,9 +285,7 @@ public class MenuController : MonoBehaviour
             return;
         }
 
-        /*
-         * FAST TRAVEL
-         */
+        // FAST TRAVEL
         if (fastTravelMenu != null &&
             fastTravelMenu.IsOpen())
         {
@@ -309,9 +296,7 @@ public class MenuController : MonoBehaviour
                 out leftStick
             );
 
-            fastTravelMenu.HandleStickNavigation(
-                leftStick
-            );
+            fastTravelMenu.HandleStickNavigation(leftStick);
 
             if (xPressed)
             {
@@ -328,9 +313,7 @@ public class MenuController : MonoBehaviour
             }
         }
 
-        /*
-         * Main menu is handled by the UI Buttons.
-         */
+        // Main menu is handled by the UI Buttons.
 
         previousX = buttonX;
         previousY = buttonY;
@@ -374,7 +357,6 @@ public class MenuController : MonoBehaviour
         }
 
         Canvas.ForceUpdateCanvases();
-
         SelectRememberedButton();
     }
 
@@ -423,8 +405,7 @@ public class MenuController : MonoBehaviour
             return;
         }
 
-        Button button =
-            current.GetComponent<Button>();
+        Button button = current.GetComponent<Button>();
 
         if (button != null)
         {
@@ -439,8 +420,7 @@ public class MenuController : MonoBehaviour
             return;
         }
 
-        GameObject buttonToSelect =
-            lastSelectedButton;
+        GameObject buttonToSelect = lastSelectedButton;
 
         if (buttonToSelect == null ||
             !buttonToSelect.activeInHierarchy)
@@ -457,12 +437,9 @@ public class MenuController : MonoBehaviour
         }
 
         EventSystem.current.SetSelectedGameObject(null);
-        EventSystem.current.SetSelectedGameObject(
-            buttonToSelect
-        );
+        EventSystem.current.SetSelectedGameObject(buttonToSelect);
 
-        Button button =
-            buttonToSelect.GetComponent<Button>();
+        Button button = buttonToSelect.GetComponent<Button>();
 
         if (button != null)
         {
@@ -486,7 +463,7 @@ Q / E: roll
 1: next color scheme
 2: cycle particle thickness
 3: quality / performance particles
-4 / 5: decrease / increase particle size
+5: toggle dust scattering
 6: show / hide landmarks and orientation
 7: select landmark
 Escape / M: open menu / close current menu or popup
@@ -500,6 +477,7 @@ A: quality / performance particles
 B: show / hide landmarks and orientation
 Left Trigger: next color scheme
 Left Grip: cycle particle thickness
+Left Stick Click: toggle dust scattering
 Right Trigger: select landmark
 Y: open menu / close current menu or popup
 X: select"
@@ -525,16 +503,12 @@ X: select"
         );
     }
 
-    private void OpenInfoMenu(
-        string title,
-        string body
-    )
+    private void OpenInfoMenu(string title, string body)
     {
         if (infoCanvas == null)
         {
             Debug.LogError(
-                "MenuController: Information Canvas " +
-                "is not assigned."
+                "MenuController: Information Canvas is not assigned."
             );
 
             return;
@@ -558,7 +532,6 @@ X: select"
         }
 
         infoCanvas.SetActive(true);
-
         Canvas.ForceUpdateCanvases();
     }
 
@@ -577,8 +550,7 @@ X: select"
         if (fastTravelMenu == null)
         {
             Debug.LogError(
-                "MenuController: Fast Travel Menu " +
-                "is not assigned."
+                "MenuController: Fast Travel Menu is not assigned."
             );
 
             return;
@@ -597,7 +569,6 @@ X: select"
         }
 
         fastTravelWasOpen = true;
-
         fastTravelMenu.OpenMenu();
     }
 
@@ -608,8 +579,7 @@ X: select"
         if (clusterFilterMenu == null)
         {
             Debug.LogError(
-                "MenuController: Cluster Filter Menu " +
-                "is not assigned."
+                "MenuController: Cluster Filter Menu is not assigned."
             );
 
             return;
@@ -633,14 +603,12 @@ X: select"
     public void OpenLink()
     {
         RememberCurrentButton();
-
         Application.OpenURL(moreUrl);
     }
 
     public void Quit()
     {
         RememberCurrentButton();
-
         Application.Quit();
     }
 }

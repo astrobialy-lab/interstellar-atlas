@@ -120,10 +120,7 @@ public class GalacticOrientationCompass : MonoBehaviour
             lastCompassScale = compassScale;
         }
 
-        Quaternion frameRotation = Quaternion.identity;
-
-        // Keep the compass axes aligned with the Galactic coordinate frame.
-        axisRoot.rotation = frameRotation;
+        axisRoot.localRotation = Quaternion.Inverse(viewerCamera.rotation);
     }
 
     [ContextMenu("Rebuild Compass")]

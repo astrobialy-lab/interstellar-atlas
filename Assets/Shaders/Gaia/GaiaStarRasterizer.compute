@@ -3,6 +3,14 @@
 
 #pragma target 4.5
 
+#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+
+TEXTURE2D_ARRAY(_DustTauByDistance);
+SAMPLER(sampler_DustTauByDistance);
+int _DustExtinctionValid;
+int _DustTauDistanceSampleCount;
+int _DustTauMapWidth;
+int _DustTauMapHeight;
 
 struct StarData
 {
@@ -66,6 +74,66 @@ uint PixelIndex(
         (eye * _Height + pixel.y)
         * _Width
         + pixel.x;
+}
+
+
+// Cumulative V-band optical depth sampled from the camera to this star.
+// The low-resolution map stores 14 distance samples: 0, 1, 2, 4, ... 4096 pc.
+// Optical depth is interpolated between distance samples; each view ray was marched once.
+float SampleDustTauV(float2 screenPosition, uint eye, float distancePc)
+{
+    if (_DustExtinctionValid == 0 || _DustTauDistanceSampleCount < 2)
+        return 0.0;
+
+    float2 uv = saturate((screenPosition + 0.5) / float2(_Width, _Height));
+
+    // Use a nearest-ray lookup for the first dust distance. Bilinear filtering this
+    // sentinel (60000 pc for an empty ray) would push the dust boundary far away at edges.
+    int2 nearestPixel = int2(floor(uv * float2(_DustTauMapWidth, _DustTauMapHeight)));
+    nearestPixel = clamp(nearestPixel, int2(0, 0), int2(_DustTauMapWidth - 1, _DustTauMapHeight - 1));
+    int eyeBaseSlice = (int)eye * (_DustTauDistanceSampleCount + 1);
+    float firstDustDistance = _DustTauByDistance.Load(int4(nearestPixel, eyeBaseSlice, 0)).r;
+    distancePc = max(distancePc, 0.0);
+    if (distancePc < firstDustDistance)
+        return 0.0;
+    int lowIndex;
+    int highIndex;
+    float lowerDistance;
+    float upperDistance;
+
+    if (distancePc < 1.0)
+    {
+        lowIndex = 0;
+        highIndex = 1;
+        lowerDistance = 0.0;
+        upperDistance = 1.0;
+    }
+    else if (distancePc >= 4096.0)
+    {
+        lowIndex = _DustTauDistanceSampleCount - 1;
+        highIndex = lowIndex;
+        lowerDistance = 4096.0;
+        upperDistance = 4096.0;
+    }
+    else
+    {
+        float lowerExponent = floor(log2(distancePc));
+        lowIndex = 1 + (int)lowerExponent;
+        highIndex = min(lowIndex + 1, _DustTauDistanceSampleCount - 1);
+        lowerDistance = exp2((float)(lowIndex - 1));
+        upperDistance = exp2((float)(highIndex - 1));
+    }
+
+    float4 lowSample = SAMPLE_TEXTURE2D_ARRAY_LOD(
+        _DustTauByDistance, sampler_DustTauByDistance, uv, eyeBaseSlice + 1 + lowIndex, 0);
+    float4 highSample = SAMPLE_TEXTURE2D_ARRAY_LOD(
+        _DustTauByDistance, sampler_DustTauByDistance, uv, eyeBaseSlice + 1 + highIndex, 0);
+
+    if (lowIndex == highIndex)
+        return max(highSample.r, 0.0);
+
+    float blend = saturate((distancePc - lowerDistance) / max(upperDistance - lowerDistance, 1e-5));
+    return max(lerp(lowSample.r, highSample.r, blend), 0.0);
 }
 
 
@@ -180,7 +248,7 @@ void ClearKernel(
 // Rasterize
 // ============================================================
 
-[numthreads(8, 1, 1)]
+[numthreads(64, 1, 1)]
 void RasterizeKernel(
     uint3 id : SV_DispatchThreadID
 )
@@ -199,13 +267,6 @@ void RasterizeKernel(
 
     // ============================================================
     // Live / far-cache separation
-    //
-    // Live renderer owns stars at or inside the far-cache radius.
-    // The far cache owns stars strictly outside it.
-    //
-    // The cutoff is disabled until a valid cache has actually
-    // been published. This means the first cache can generate
-    // without making stars disappear prematurely.
     // ============================================================
 
     if (_UseFarCacheCutoff != 0)
@@ -237,18 +298,6 @@ void RasterizeKernel(
 
     // ============================================================
     // Intrinsic brightness
-    //
-    // star.magnitude = absolute G magnitude M_G.
-    //
-    // M_G is defined at 10 parsecs:
-    //
-    //     intrinsicFlux ∝ 10^(-0.4 M_G)
-    //
-    // At the current observer distance d:
-    //
-    //     flux(d) ∝ 10^(-0.4 M_G) * (10 / d)^2
-    //
-    // Positions are stored in parsecs.
     // ============================================================
 
     float intrinsicLuminance =
@@ -261,22 +310,6 @@ void RasterizeKernel(
 
     if (intrinsicLuminance <= 0.0)
         return;
-
-
-    // ============================================================
-    // Colour
-    //
-    // bpRp is now the intrinsic / dereddened BP-RP:
-    //
-    //     (BP-RP)_0 =
-    //         (BP-RP) - E(BP-RP)
-    // ============================================================
-
-    float bpRpNormalized =
-        saturate(
-            (star.bpRp - _ColorMin) /
-            (_ColorMax - _ColorMin)
-        );
 
 
     // ============================================================
@@ -295,7 +328,6 @@ void RasterizeKernel(
         );
 
 
-    // Prevent division by zero.
     distanceSquared0 =
         max(
             distanceSquared0,
@@ -303,7 +335,6 @@ void RasterizeKernel(
         );
 
 
-    // (10 pc / d)^2 = 100 / d^2
     float distanceFactor0 =
         100.0 /
         distanceSquared0;
@@ -352,6 +383,11 @@ void RasterizeKernel(
                 )
                 - 0.5;
 
+            float tauV0 = SampleDustTauV(screenPos0, 0, sqrt(distanceSquared0));
+            float attenuatedLuminance0 = luminance0 * exp(-tauV0);
+            float bpRpObserved0 = star.bpRp + 0.46 * tauV0;
+            float bpRpNormalized0 = saturate(
+                (bpRpObserved0 - _ColorMin) / max(_ColorMax - _ColorMin, 1e-6));
 
             int2 basePixel0 =
                 int2(
@@ -411,8 +447,8 @@ void RasterizeKernel(
                 AddContribution(
                     p00,
                     0,
-                    luminance0 * w00,
-                    bpRpNormalized
+                    attenuatedLuminance0 * w00,
+                    bpRpNormalized0
                 );
             }
 
@@ -425,8 +461,8 @@ void RasterizeKernel(
                 AddContribution(
                     p10,
                     0,
-                    luminance0 * w10,
-                    bpRpNormalized
+                    attenuatedLuminance0 * w10,
+                    bpRpNormalized0
                 );
             }
 
@@ -439,8 +475,8 @@ void RasterizeKernel(
                 AddContribution(
                     p01,
                     0,
-                    luminance0 * w01,
-                    bpRpNormalized
+                    attenuatedLuminance0 * w01,
+                    bpRpNormalized0
                 );
             }
 
@@ -453,8 +489,8 @@ void RasterizeKernel(
                 AddContribution(
                     p11,
                     0,
-                    luminance0 * w11,
-                    bpRpNormalized
+                    attenuatedLuminance0 * w11,
+                    bpRpNormalized0
                 );
             }
         }
@@ -528,6 +564,11 @@ void RasterizeKernel(
                         )
                         - 0.5;
 
+                    float tauV1 = SampleDustTauV(screenPos1, 1, sqrt(distanceSquared1));
+                    float attenuatedLuminance1 = luminance1 * exp(-tauV1);
+                    float bpRpObserved1 = star.bpRp + 0.46 * tauV1;
+                    float bpRpNormalized1 = saturate(
+                        (bpRpObserved1 - _ColorMin) / max(_ColorMax - _ColorMin, 1e-6));
 
                     int2 basePixel1 =
                         int2(
@@ -587,8 +628,8 @@ void RasterizeKernel(
                         AddContribution(
                             p00,
                             1,
-                            luminance1 * w00,
-                            bpRpNormalized
+                            attenuatedLuminance1 * w00,
+                            bpRpNormalized1
                         );
                     }
 
@@ -601,8 +642,8 @@ void RasterizeKernel(
                         AddContribution(
                             p10,
                             1,
-                            luminance1 * w10,
-                            bpRpNormalized
+                            attenuatedLuminance1 * w10,
+                            bpRpNormalized1
                         );
                     }
 
@@ -615,8 +656,8 @@ void RasterizeKernel(
                         AddContribution(
                             p01,
                             1,
-                            luminance1 * w01,
-                            bpRpNormalized
+                            attenuatedLuminance1 * w01,
+                            bpRpNormalized1
                         );
                     }
 
@@ -629,8 +670,8 @@ void RasterizeKernel(
                         AddContribution(
                             p11,
                             1,
-                            luminance1 * w11,
-                            bpRpNormalized
+                            attenuatedLuminance1 * w11,
+                            bpRpNormalized1
                         );
                     }
                 }

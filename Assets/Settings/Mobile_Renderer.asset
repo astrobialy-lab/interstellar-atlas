@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::DustVolumeRenderFeature
   m_Active: 1
   volumeShader: {fileID: 4800000, guid: 2d76d478089179f449fe7ce8b39f53d0, type: 3}
-  renderPassEvent: 500
+  renderPassEvent: 550
 --- !u!114 &11400000
 MonoBehaviour:
   m_ObjectHideFlags: 0
