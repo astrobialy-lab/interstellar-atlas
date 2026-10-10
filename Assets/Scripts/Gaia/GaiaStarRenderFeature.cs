@@ -11,8 +11,8 @@ public class GaiaStarRenderFeature : ScriptableRendererFeature
     [SerializeField] private Shader compositeShader;
     [SerializeField] private Shader glareShader;
     [SerializeField] private Shader finalCompositeShader;
-    [SerializeField] private GaiaStarRasterizer rasterizer;
 
+    private GaiaStarRasterizer rasterizer;
     private GaiaStarRenderPass renderPass;
 
     public override void Create()
@@ -25,7 +25,7 @@ public class GaiaStarRenderFeature : ScriptableRendererFeature
             finalCompositeShader = Shader.Find("Hidden/GaiaStarFinalComposite");
 
         renderPass = new GaiaStarRenderPass(compositeShader, glareShader, finalCompositeShader, rasterizer);
-        renderPass.renderPassEvent = RenderPassEvent.AfterRenderingTransparents;
+        renderPass.renderPassEvent = RenderPassEvent.BeforeRenderingTransparents;
     }
 
     public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData)

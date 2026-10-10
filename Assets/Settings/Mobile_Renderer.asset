@@ -15,6 +15,8 @@ MonoBehaviour:
   m_Active: 1
   volumeShader: {fileID: 4800000, guid: 2d76d478089179f449fe7ce8b39f53d0, type: 3}
   renderPassEvent: 550
+  extinctionComputeShader: {fileID: 7200000, guid: aaf23c524e168f9498c5672fb739499c, type: 3}
+  extinctionResolutionDivisor: 8
 --- !u!114 &11400000
 MonoBehaviour:
   m_ObjectHideFlags: 0

@@ -42,4 +42,4 @@
 
 - make auto-brightness: when standing close to a star or stars cluster (many light) reduce the brightness constant automatically
 
-- make both sun and landmarks very visible
+- add readme for dust LOD
