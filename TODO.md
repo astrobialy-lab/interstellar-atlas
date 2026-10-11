@@ -39,3 +39,7 @@
 - make auto-brightness: when standing close to a star or stars cluster (many light) reduce the brightness constant automatically
 
 - add readme for dust LOD
+
+
+- rayvcast doesnt works on red
+- raycast doesnt hit as texture

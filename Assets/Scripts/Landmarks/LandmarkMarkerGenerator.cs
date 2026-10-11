@@ -1,3 +1,4 @@
+
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -27,8 +28,14 @@ public class LandmarkMarkerGenerator : MonoBehaviour
     [Tooltip("Visible size of each marker.")]
     public float markerScale = 0.1f;
 
-    [Tooltip("Local size of each marker's Box Collider.")]
-    public Vector3 markerColliderSize = new Vector3(5f, 5f, 5f);
+    [Header("Collider Settings")]
+    [Tooltip("Multiplier for the automatically fitted collider. 1 = fit the marker's maximum rendered dimension.")]
+    [Min(0.01f)]
+    public float colliderSizeMultiplier = 1f;
+
+    [Tooltip("Fallback collider radius in world units when the prefab has no Renderer.")]
+    [Min(0.001f)]
+    public float fallbackColliderRadius = 0.05f;
 
     [Header("Nearby Star Separation")]
     [Tooltip("Stars closer than this distance to the origin are nudged outward.")]
@@ -81,15 +88,17 @@ public class LandmarkMarkerGenerator : MonoBehaviour
         }
 
         int created = 0;
+
         foreach (LandmarkBinaryRecord record in records)
         {
             string typeCode = NormalizeTypeCode(record.Type);
 
-            // The Local Bubble is already represented by the separate translucent ellipsoid.
-            // Check the name too, so it is skipped even if the source type label changes.
+            // The Local Bubble is represented by a separate translucent ellipsoid.
             if (typeCode == "bubble" ||
                 record.Name.IndexOf("Local Bubble", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
                 continue;
+            }
 
             GameObject markerPrefab = GetMarkerPrefab(typeCode);
             if (markerPrefab == null)
@@ -100,7 +109,9 @@ public class LandmarkMarkerGenerator : MonoBehaviour
                 continue;
             }
 
-            Vector3 markerPosition = AdjustNearbyStarPosition(record.UnityPosition, typeCode);
+            Vector3 markerPosition =
+                AdjustNearbyStarPosition(record.UnityPosition, typeCode);
+
             GameObject marker = Instantiate(
                 markerPrefab,
                 markerPosition,
@@ -111,6 +122,7 @@ public class LandmarkMarkerGenerator : MonoBehaviour
             marker.name = $"{GetMarkerNamePrefix(typeCode)}_{record.Name}";
 
             ConfigureCollider(marker);
+
             ConfigureLandmarkInfo(
                 marker,
                 record.Name,
@@ -121,52 +133,69 @@ public class LandmarkMarkerGenerator : MonoBehaviour
             created++;
         }
 
-        Debug.Log($"LandmarkMarkerGenerator: Created {created:N0} landmark markers from {records.Count:N0} binary records.");
+        Debug.Log(
+            $"LandmarkMarkerGenerator: Created {created:N0} landmark markers " +
+            $"from {records.Count:N0} binary records.");
     }
 
     private string ResolveBinaryPath()
     {
 #if UNITY_EDITOR
-        // One canonical file: <project root>/Data/Landmarks/local_neighborhood_landmarks.bin
-        string projectRoot = Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
-        return Path.GetFullPath(Path.Combine(projectRoot, landmarkBinaryRelativePath));
+        string projectRoot = Path.GetFullPath(
+            Path.Combine(Application.dataPath, ".."));
+
+        return Path.GetFullPath(
+            Path.Combine(projectRoot, landmarkBinaryRelativePath));
+
 #elif UNITY_ANDROID
-        // A project-root Data/ directory is not automatically included in an Android app.
         Debug.LogError(
-            "LandmarkMarkerGenerator: Unity does not automatically package project-root Data/Landmarks " +
-            "into Android builds. The Android build pipeline must make this binary available at runtime.");
+            "LandmarkMarkerGenerator: Unity does not automatically package project-root " +
+            "Data/Landmarks into Android builds. The Android build pipeline must make " +
+            "this binary available at runtime.");
+
         return null;
 #else
-        // Desktop builds expect the external Data/ directory beside the game's *_Data directory.
-        DirectoryInfo gameDataParent = Directory.GetParent(Application.dataPath);
+        DirectoryInfo gameDataParent =
+            Directory.GetParent(Application.dataPath);
+
         if (gameDataParent == null)
         {
-            Debug.LogError("LandmarkMarkerGenerator: Could not determine the desktop build directory.");
+            Debug.LogError(
+                "LandmarkMarkerGenerator: Could not determine the desktop build directory.");
             return null;
         }
 
-        return Path.GetFullPath(Path.Combine(gameDataParent.FullName, landmarkBinaryRelativePath));
+        return Path.GetFullPath(
+            Path.Combine(gameDataParent.FullName, landmarkBinaryRelativePath));
 #endif
     }
 
-    // Accepts both the compact legacy codes ("nebula", "star", etc.) and descriptive CSV types
-    // such as "Giant molecular cloud" or "H II region / young cluster".
     private static string NormalizeTypeCode(string type)
     {
         string value = (type ?? string.Empty).Trim().ToLowerInvariant();
 
         if (value.Contains("bubble") || value.Contains("cavity in the ism"))
             return "bubble";
+
         if (value.Contains("association"))
             return "association";
+
         if (value == "star" || value.Contains(" star") || value.EndsWith("star") ||
             value.Contains("main-sequence") || value.Contains("white dwarf") ||
             value.Contains("stellar") || value.Contains("binary"))
+        {
             return "star";
-        if (value.Contains("nebula") || value.Contains("h ii") || value.Contains("hii region"))
+        }
+
+        if (value.Contains("nebula") || value.Contains("h ii") ||
+            value.Contains("hii region"))
+        {
             return "nebula";
+        }
+
         if (value.Contains("cloud"))
             return "cloud";
+
         if (value.Contains("cluster"))
             return "cluster";
 
@@ -184,18 +213,25 @@ public class LandmarkMarkerGenerator : MonoBehaviour
 
         if (markersRoot != null)
             markersRoot.SetActive(visible);
+
         Debug.Log("Landmark markers visible: " + markersVisible);
     }
 
-    private Vector3 AdjustNearbyStarPosition(Vector3 originalPosition, string typeCode)
+    private Vector3 AdjustNearbyStarPosition(
+        Vector3 originalPosition,
+        string typeCode)
     {
-        if (typeCode != "star" || originalPosition.magnitude >= nearbyStarThreshold)
+        if (typeCode != "star" ||
+            originalPosition.magnitude >= nearbyStarThreshold)
+        {
             return originalPosition;
+        }
 
         if (originalPosition.sqrMagnitude < 0.0001f)
             return Vector3.right * nearbyStarOffset;
 
-        return originalPosition + originalPosition.normalized * nearbyStarOffset;
+        return originalPosition +
+               originalPosition.normalized * nearbyStarOffset;
     }
 
     private GameObject GetMarkerPrefab(string typeCode)
@@ -226,12 +262,81 @@ public class LandmarkMarkerGenerator : MonoBehaviour
 
     private void ConfigureCollider(GameObject marker)
     {
-        BoxCollider boxCollider = marker.GetComponent<BoxCollider>();
-        if (boxCollider == null)
-            boxCollider = marker.AddComponent<BoxCollider>();
+        // Keep a SphereCollider on the marker root, if one already exists.
+        SphereCollider sphereCollider =
+            marker.GetComponent<SphereCollider>();
 
-        boxCollider.size = markerColliderSize;
-        boxCollider.isTrigger = false;
+        // Remove other colliders from the prefab hierarchy so an old,
+        // oversized collider cannot still register selection hits.
+        Collider[] existingColliders =
+            marker.GetComponentsInChildren<Collider>(true);
+
+        foreach (Collider existing in existingColliders)
+        {
+            if (existing == sphereCollider)
+                continue;
+
+            existing.enabled = false;
+            Destroy(existing);
+        }
+
+        if (sphereCollider == null)
+            sphereCollider = marker.AddComponent<SphereCollider>();
+
+        // Find the combined world-space bounds of all renderers in the prefab.
+        Renderer[] renderers =
+            marker.GetComponentsInChildren<Renderer>(true);
+
+        bool hasBounds = false;
+        Bounds combinedBounds = new Bounds();
+
+        foreach (Renderer rendererComponent in renderers)
+        {
+            if (!hasBounds)
+            {
+                combinedBounds = rendererComponent.bounds;
+                hasBounds = true;
+            }
+            else
+            {
+                combinedBounds.Encapsulate(rendererComponent.bounds);
+            }
+        }
+
+        // Use the largest rendered dimension to determine the sphere diameter.
+        float worldRadius;
+
+        if (hasBounds)
+        {
+            float largestDimension = Mathf.Max(
+                combinedBounds.size.x,
+                combinedBounds.size.y,
+                combinedBounds.size.z);
+
+            worldRadius =
+                0.5f * largestDimension *
+                Mathf.Max(0.01f, colliderSizeMultiplier);
+        }
+        else
+        {
+            worldRadius = fallbackColliderRadius;
+        }
+
+        // Convert the desired world-space radius to the SphereCollider's
+        // local radius, accounting for the marker and parent transforms.
+        Vector3 scale = marker.transform.lossyScale;
+
+        float maxScale = Mathf.Max(
+            Mathf.Abs(scale.x),
+            Mathf.Abs(scale.y),
+            Mathf.Abs(scale.z));
+
+        sphereCollider.radius =
+            worldRadius / Mathf.Max(maxScale, 0.000001f);
+
+        sphereCollider.center = Vector3.zero;
+        sphereCollider.isTrigger = false;
+        sphereCollider.enabled = true;
     }
 
     private void ConfigureLandmarkInfo(
@@ -242,9 +347,11 @@ public class LandmarkMarkerGenerator : MonoBehaviour
         string paragraphDescription)
     {
         LandmarkInfo info = marker.GetComponent<LandmarkInfo>();
+
         if (info == null)
         {
-            Debug.LogWarning($"{marker.name} is missing a LandmarkInfo component.");
+            Debug.LogWarning(
+                $"{marker.name} is missing a LandmarkInfo component.");
             return;
         }
 

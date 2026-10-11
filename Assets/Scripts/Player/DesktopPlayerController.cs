@@ -348,8 +348,7 @@ public class DesktopPlayerController : MonoBehaviour
             selectionRayDistance
         ))
         {
-            LandmarkInfo info =
-                hit.collider.GetComponentInParent<LandmarkInfo>();
+            LandmarkInfo info = hit.collider.GetComponentInParent<LandmarkInfo>();
 
             if (info != null)
             {

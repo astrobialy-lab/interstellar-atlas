@@ -1614,8 +1614,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::DustLODBoundsVisualizer
   dustLODLoader: {fileID: 212480233}
-  maxDesiredNodesToDraw: 100
-  maxLoadedNodesToDraw: 100
+  maxDesiredNodesToDraw: 100000000
+  maxLoadedNodesToDraw: 100000000
   lineWidth: 0.2
   baseMaterial: {fileID: 0}
 --- !u!1 &464568776
