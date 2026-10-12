@@ -40,6 +40,9 @@
 
 - add readme for dust LOD
 
+- figure out why there is a hole in some healpixes, maybe bcz i still filter by visible brightness instead of luminosity?
+  if after that hole still remains, then use that visible brightness instead
 
-- rayvcast doesnt works on red
-- raycast doesnt hit as texture
+- make landmarks and sun size to decrease to minimal size
+
+- maybe check if i can make the stars look less pixelated

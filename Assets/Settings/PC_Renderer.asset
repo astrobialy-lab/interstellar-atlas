@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f6a7db0874aeaa449bd06f83c81e22fc, type: 3}
   m_Name: DustVolumeRenderFeature
   m_EditorClassIdentifier: Assembly-CSharp::DustVolumeRenderFeature
-  m_Active: 1
+  m_Active: 0
   volumeShader: {fileID: 4800000, guid: 2d76d478089179f449fe7ce8b39f53d0, type: 3}
   renderPassEvent: 550
   extinctionComputeShader: {fileID: 7200000, guid: aaf23c524e168f9498c5672fb739499c, type: 3}
@@ -33,7 +33,6 @@ MonoBehaviour:
   compositeShader: {fileID: 4800000, guid: c71ad30eccff3ed47a72058445e390c8, type: 3}
   glareShader: {fileID: 4800000, guid: 4669d208c16e8194198ca0486b80534e, type: 3}
   finalCompositeShader: {fileID: 4800000, guid: 2b99cb4e47111eb45a87319b26eb4ba2, type: 3}
-  rasterizer: {fileID: 0}
 --- !u!114 &11400000
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -59,10 +58,9 @@ MonoBehaviour:
     probeSamplingDebugTexture: {fileID: 2800000, guid: 24ec0e140fb444a44ab96ee80844e18e, type: 3}
     probeVolumeBlendStatesCS: {fileID: 7200000, guid: b9a23f869c4fd45f19c5ada54dd82176, type: 3}
   m_RendererFeatures:
-  - {fileID: 7833122117494664109}
   - {fileID: -1080374127087646272}
   - {fileID: -8359278266002350034}
-  m_RendererFeatureMap: ad6b866f10d7b46cc0096b9a74bd01f12e6049d8b4e0fd8b
+  m_RendererFeatureMap: c0096b9a74bd01f12e6049d8b4e0fd8b
   m_UseNativeRenderPass: 1
   xrSystemData: {fileID: 0}
   postProcessData: {fileID: 11400000, guid: 41439944d30ece34e96484bdb6645b55, type: 2}
@@ -91,29 +89,3 @@ MonoBehaviour:
   m_DepthTextureFormat: 0
   m_AccurateGbufferNormals: 0
   m_IntermediateTextureMode: 0
---- !u!114 &7833122117494664109
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: f62c9c65cf3354c93be831c8bc075510, type: 3}
-  m_Name: ScreenSpaceAmbientOcclusion
-  m_EditorClassIdentifier: 
-  m_Active: 1
-  m_Settings:
-    AOMethod: 0
-    Downsample: 0
-    AfterOpaque: 0
-    Source: 1
-    NormalSamples: 1
-    Intensity: 0.4
-    DirectLightingStrength: 0.25
-    Radius: 0.3
-    Samples: 1
-    BlurQuality: 0
-    Falloff: 100
-    SampleCount: -1

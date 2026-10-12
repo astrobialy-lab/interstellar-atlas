@@ -4,6 +4,10 @@ import math
 import struct
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
+# for DR3 more than 32,000 is just single stars.
+# the smaller total volume the less files in LOD.
+MAX_DISTANCE = 32_000
+
 MAX_WORKERS = 20
 
 # ============================================================
@@ -255,7 +259,7 @@ def process_healpix(csv_file):
                         valid_number(ra)
                         and valid_number(dec)
                         and valid_number(distance)
-                        and distance > 0
+                        and 0 < distance <= MAX_DISTANCE
                     ):
                         skipped += 1
                         continue

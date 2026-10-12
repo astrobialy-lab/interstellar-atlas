@@ -63,7 +63,7 @@ MERGE_BLOCK_STARS = 262_144
 NODE_PARTITION_SPAN = 1_024
 
 PROGRESS_INTERVAL = 5_000_000
-FILE_PROGRESS_INTERVAL = 5_000
+FILE_PROGRESS_INTERVAL = 50
 
 
 # ============================================================

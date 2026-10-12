@@ -145,6 +145,7 @@ public class DustLODLoader : MonoBehaviour
     private readonly ConcurrentQueue<LoadResult> completedLoads = new ConcurrentQueue<LoadResult>();
     private HashSet<BrickKey> currentDesired = new HashSet<BrickKey>();
     private CancellationTokenSource cancellation;
+    private string dataRoot;
     private GraphicsBuffer pageTableGpu;
     private Texture2DArray brickPool;
     private Texture2D stagingTexture;
@@ -340,9 +341,26 @@ public class DustLODLoader : MonoBehaviour
         disposed = false;
         cancellation = new CancellationTokenSource();
 
-        string root = Path.Combine(Application.dataPath, "..", processedDirectory);
-        root = Path.GetFullPath(root);
-        string lodDir = Path.Combine(root, "lod");
+        // Resolve the data root once for this loader.
+        #if UNITY_EDITOR
+        dataRoot = Path.GetFullPath(Path.Combine(Application.dataPath, "..", processedDirectory));
+        #elif UNITY_ANDROID
+        using (var unityPlayer = new AndroidJavaClass("com.unity3d.player.UnityPlayer"))
+        using (var activity = unityPlayer.GetStatic<AndroidJavaObject>("currentActivity"))
+        using (var obbDirectory = activity.Call<AndroidJavaObject>("getObbDir"))
+        {
+            string obbRoot = obbDirectory.Call<string>("getAbsolutePath");
+
+            if (string.IsNullOrEmpty(obbRoot))
+                throw new IOException("Android getObbDir() returned an empty path.");
+
+            dataRoot = Path.Combine(obbRoot, processedDirectory);
+        }
+        #else
+        dataRoot = Path.Combine(Application.persistentDataPath, processedDirectory);
+        #endif
+
+        string lodDir = Path.Combine(dataRoot, "lod");
         string indexPath = Path.Combine(lodDir, "index.bin");
 
         if (!Directory.Exists(lodDir))
@@ -677,9 +695,7 @@ public class DustLODLoader : MonoBehaviour
 
     private string GetBrickPath(BrickKey key)
     {
-        string root = Path.Combine(Application.dataPath, "..", processedDirectory);
-        root = Path.GetFullPath(root);
-        string directory = Path.Combine(root, "lod", $"LOD{key.level:00}");
+        string directory = Path.Combine(dataRoot, "lod", $"LOD{key.level:00}");
         return Path.Combine(directory, $"chunk_{key.x:000000}_{key.y:000000}_{key.z:000000}.bin");
     }
 

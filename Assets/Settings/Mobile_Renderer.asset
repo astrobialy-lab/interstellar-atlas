@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f6a7db0874aeaa449bd06f83c81e22fc, type: 3}
   m_Name: DustVolumeRenderFeature
   m_EditorClassIdentifier: Assembly-CSharp::DustVolumeRenderFeature
-  m_Active: 1
+  m_Active: 0
   volumeShader: {fileID: 4800000, guid: 2d76d478089179f449fe7ce8b39f53d0, type: 3}
   renderPassEvent: 550
   extinctionComputeShader: {fileID: 7200000, guid: aaf23c524e168f9498c5672fb739499c, type: 3}
@@ -89,4 +89,3 @@ MonoBehaviour:
   compositeShader: {fileID: 4800000, guid: c71ad30eccff3ed47a72058445e390c8, type: 3}
   glareShader: {fileID: 4800000, guid: 4669d208c16e8194198ca0486b80534e, type: 3}
   finalCompositeShader: {fileID: 4800000, guid: 2b99cb4e47111eb45a87319b26eb4ba2, type: 3}
-  rasterizer: {fileID: 0}

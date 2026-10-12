@@ -464,7 +464,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!114 &212480233
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1136,7 +1136,7 @@ Camera:
     width: 1
     height: 1
   near clip plane: 0.01
-  far clip plane: 3.4028235e+38
+  far clip plane: 1000000
   field of view: 60
   orthographic: 0
   orthographic size: 5
@@ -2040,9 +2040,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::GaiaMSLODLoader
   metadataDirectory: Data/Gaia/lod
   targetCamera: {fileID: 330585545}
-  solidAngleThreshold: 0.5
-  solidAngleFadeRange: 0.25
-  solidAnglePreloadRange: 0.125
+  solidAngleThreshold: 5
   frustumCulling: 1
   clusterFilter: {fileID: 586631269}
   streamUpdateDistance: 1
@@ -7204,7 +7202,8 @@ MonoBehaviour:
   associationMarkerPrefab: {fileID: 6192945478437891419, guid: 92e2f1cbd0c03b643a831323dda7ec78, type: 3}
   landmarkPopup: {fileID: 1765479602}
   markerScale: 3
-  markerColliderSize: {x: 5, y: 5, z: 5}
+  colliderSizeMultiplier: 1
+  fallbackColliderRadius: 0.05
   nearbyStarThreshold: 0.5
   nearbyStarOffset: 0.35
 --- !u!4 &2109148597
@@ -13107,7 +13106,7 @@ SceneRoots:
   - {fileID: 2029389524}
   - {fileID: 376260064}
   - {fileID: 2087614914}
-  - {fileID: 1666570266}
   - {fileID: 586631264}
   - {fileID: 212480234}
   - {fileID: 6323359981201981937}
+  - {fileID: 1666570266}

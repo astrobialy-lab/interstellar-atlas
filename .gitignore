@@ -13,7 +13,10 @@ trash/
 *_BackUpThisFolder_ButDontShipItWithYourGame/
 *_BurstDebugInformation_DoNotShip/
 
-
+*.tar
+*.tar.part
+*.tgz
+*.gz
 
 ## Default for unity project
 

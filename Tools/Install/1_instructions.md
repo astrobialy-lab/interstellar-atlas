@@ -1,0 +1,4 @@
+- connect the headset to the pc, and "enable" acces from the VR popup
+- run step 2 to create the tars
+- run step 3 to update apk + copy tars (if the app still doesnt has Data)
+- while install apk is running, dont close/open unity, because it will reset the session. (if its open then keep it open)
