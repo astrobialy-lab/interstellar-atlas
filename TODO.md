@@ -46,3 +46,18 @@
 - make landmarks and sun size to decrease to minimal size
 
 - maybe check if i can make the stars look less pixelated
+
+- check specifically LOD of coulds in VR.
+
+- return the dust controls, size and all
+- use hist sprite + random rotations during loading
+- disable sprite rotation when i rotate my head
+
+- for stars that are close, i can see the 2x2 pixel glow effect which is ugly
+
+- fix dust node visualizer (if there are nodes)
+- remove the volumes if they are usused. check if stars extinctions is still used, if not then remove the lod generation.
+
+- why no technion logo in vr
+
+- fix the warnings when building apk

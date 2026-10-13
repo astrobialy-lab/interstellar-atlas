@@ -19,7 +19,6 @@ int _MaxRaySteps;
 int _OutputWidth;
 int _OutputHeight;
 int _EyeCount;
-int _DistanceSampleCount;
 float _StepMultiplier;
 float _ExtinctionScale;
 

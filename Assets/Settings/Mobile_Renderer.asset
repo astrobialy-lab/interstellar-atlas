@@ -12,11 +12,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f6a7db0874aeaa449bd06f83c81e22fc, type: 3}
   m_Name: DustVolumeRenderFeature
   m_EditorClassIdentifier: Assembly-CSharp::DustVolumeRenderFeature
-  m_Active: 0
-  volumeShader: {fileID: 4800000, guid: 2d76d478089179f449fe7ce8b39f53d0, type: 3}
-  renderPassEvent: 550
+  m_Active: 1
   extinctionComputeShader: {fileID: 7200000, guid: aaf23c524e168f9498c5672fb739499c, type: 3}
-  extinctionResolutionDivisor: 8
+  extinctionMaxDimension: 64
 --- !u!114 &11400000
 MonoBehaviour:
   m_ObjectHideFlags: 0

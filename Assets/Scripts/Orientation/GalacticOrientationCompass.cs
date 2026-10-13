@@ -8,8 +8,8 @@ public class GalacticOrientationCompass : MonoBehaviour
     [Tooltip("Usually XR Origin / Camera Offset / Main Camera.")]
     public Transform viewerCamera;
 
-    [Tooltip("Assign the UI Canvas from your hierarchy.")]
-    public Canvas uiCanvas;
+    [Tooltip("Assign the Panel that contains your UI and is scaled in VR.")]
+    public RectTransform uiPanel;
 
     [Header("HUD Placement")]
     [Tooltip("Position relative to the viewer camera.")]
@@ -32,9 +32,7 @@ public class GalacticOrientationCompass : MonoBehaviour
     public Color galacticZColor =
         new Color(0.25f, 0.55f, 1.0f, 1.0f);
 
-    private readonly List<Image> axisImages =
-        new List<Image>();
-
+    private readonly List<Image> axisImages = new List<Image>();
     private readonly List<RectTransform> axisRects =
         new List<RectTransform>();
 
@@ -51,6 +49,9 @@ public class GalacticOrientationCompass : MonoBehaviour
 
     private GameObject compassAnchor;
     private RectTransform compassRect;
+
+    // Retrieved automatically from the assigned Panel.
+    private Canvas uiCanvas;
     private RectTransform canvasRect;
 
     private Camera viewerUnityCamera;
@@ -69,17 +70,13 @@ public class GalacticOrientationCompass : MonoBehaviour
     private void OnEnable()
     {
         if (compassAnchor != null)
-        {
             compassAnchor.SetActive(true);
-        }
     }
 
     private void OnDisable()
     {
         if (compassAnchor != null)
-        {
             compassAnchor.SetActive(false);
-        }
     }
 
     private void OnDestroy()
@@ -87,35 +84,30 @@ public class GalacticOrientationCompass : MonoBehaviour
         ClearCompass();
 
         if (whiteSprite != null)
-        {
             Destroy(whiteSprite);
-        }
 
         if (whiteTexture != null)
-        {
             Destroy(whiteTexture);
-        }
     }
 
     private void LateUpdate()
     {
         ResolveReferences();
 
-        if (viewerCamera == null || viewerUnityCamera == null ||
-            uiCanvas == null)
+        if (viewerCamera == null ||
+            viewerUnityCamera == null ||
+            uiPanel == null ||
+            uiCanvas == null ||
+            canvasRect == null)
         {
             return;
         }
 
         if (compassAnchor == null || compassRect == null)
-        {
             BuildCompass();
-        }
 
         if (compassAnchor == null || compassRect == null)
-        {
             return;
-        }
 
         UpdateCompass();
     }
@@ -130,48 +122,45 @@ public class GalacticOrientationCompass : MonoBehaviour
     private void ResolveReferences()
     {
         if (viewerCamera == null && Camera.main != null)
-        {
             viewerCamera = Camera.main.transform;
+
+        if (viewerCamera != null && viewerUnityCamera == null)
+            viewerUnityCamera = viewerCamera.GetComponent<Camera>();
+
+        // Convenience fallback. Assign the correct Panel explicitly
+        // in the Inspector if your scene has multiple panels.
+        if (uiPanel == null)
+        {
+            GameObject panelObject = GameObject.Find("Panel");
+
+            if (panelObject != null)
+                uiPanel = panelObject.GetComponent<RectTransform>();
         }
 
-        if (viewerUnityCamera == null && viewerCamera != null)
+        // The Panel replaces the public Canvas reference.
+        // We still need its parent Canvas for coordinate conversion.
+        if (uiPanel != null)
         {
-            viewerUnityCamera =
-                viewerCamera.GetComponent<Camera>();
-        }
+            uiCanvas = uiPanel.GetComponentInParent<Canvas>();
 
-        if (uiCanvas == null)
-        {
-            GameObject canvasObject = GameObject.Find("UI Canvas");
-
-            if (canvasObject != null)
-            {
-                uiCanvas = canvasObject.GetComponent<Canvas>();
-            }
-
-            if (uiCanvas == null)
-            {
-                uiCanvas = FindAnyObjectByType<Canvas>();
-            }
-        }
-
-        if (uiCanvas != null)
-        {
-            canvasRect = uiCanvas.transform as RectTransform;
+            canvasRect = uiCanvas != null
+                ? uiCanvas.transform as RectTransform
+                : null;
         }
     }
 
     private void BuildCompass()
     {
         if (isBuilding || compassAnchor != null)
-        {
             return;
-        }
 
         ResolveReferences();
 
-        if (viewerCamera == null || viewerUnityCamera == null ||
-            uiCanvas == null || canvasRect == null)
+        if (viewerCamera == null ||
+            viewerUnityCamera == null ||
+            uiPanel == null ||
+            uiCanvas == null ||
+            canvasRect == null)
         {
             return;
         }
@@ -185,15 +174,12 @@ public class GalacticOrientationCompass : MonoBehaviour
             typeof(RectTransform)
         );
 
-        compassAnchor.transform.SetParent(
-            uiCanvas.transform,
-            false
-        );
+        // IMPORTANT: parent the generated compass to the scaled Panel,
+        // not directly to the Canvas.
+        compassAnchor.transform.SetParent(uiPanel, false);
 
-        compassRect =
-            compassAnchor.GetComponent<RectTransform>();
+        compassRect = compassAnchor.GetComponent<RectTransform>();
 
-        // Use the Canvas center as the anchor reference.
         compassRect.anchorMin = new Vector2(0.5f, 0.5f);
         compassRect.anchorMax = new Vector2(0.5f, 0.5f);
         compassRect.pivot = new Vector2(0.5f, 0.5f);
@@ -215,15 +201,10 @@ public class GalacticOrientationCompass : MonoBehaviour
     private void CreateWhiteSprite()
     {
         if (whiteSprite != null)
-        {
             return;
-        }
 
         whiteTexture = new Texture2D(
-            1,
-            1,
-            TextureFormat.RGBA32,
-            false
+            1, 1, TextureFormat.RGBA32, false
         );
 
         whiteTexture.name = "Compass White Pixel";
@@ -247,13 +228,9 @@ public class GalacticOrientationCompass : MonoBehaviour
             typeof(Image)
         );
 
-        axisObject.transform.SetParent(
-            compassAnchor.transform,
-            false
-        );
+        axisObject.transform.SetParent(compassAnchor.transform, false);
 
-        RectTransform rect =
-            axisObject.GetComponent<RectTransform>();
+        RectTransform rect = axisObject.GetComponent<RectTransform>();
 
         rect.anchorMin = new Vector2(0.5f, 0.5f);
         rect.anchorMax = new Vector2(0.5f, 0.5f);
@@ -261,7 +238,6 @@ public class GalacticOrientationCompass : MonoBehaviour
         rect.sizeDelta = Vector2.zero;
 
         Image image = axisObject.GetComponent<Image>();
-
         image.sprite = whiteSprite;
         image.color = color;
         image.raycastTarget = false;
@@ -273,17 +249,13 @@ public class GalacticOrientationCompass : MonoBehaviour
     private void UpdateCompass()
     {
         if (compassRect == null)
-        {
             return;
-        }
 
-        // Same camera-relative position as the original compass.
         Vector3 anchorWorld =
             viewerCamera.TransformPoint(localPosition);
 
         if (!TryWorldToCanvasLocal(
-            anchorWorld,
-            out Vector2 anchorCanvas))
+            anchorWorld, out Vector2 anchorCanvas))
         {
             compassAnchor.SetActive(false);
             return;
@@ -291,6 +263,9 @@ public class GalacticOrientationCompass : MonoBehaviour
 
         compassAnchor.SetActive(true);
 
+        // These coordinates are in Canvas units. Because the compass
+        // is parented to the Panel, the Panel's scale affects the
+        // rendered compass as a whole.
         compassRect.anchoredPosition = anchorCanvas;
 
         float scale = Mathf.Max(0f, compassScale);
@@ -298,17 +273,13 @@ public class GalacticOrientationCompass : MonoBehaviour
         float worldAxisLength = Mathf.Max(0f, axisLength) * scale;
         float worldAxisWidth = Mathf.Max(0f, axisWidth) * scale;
 
-        // Convert the desired world-space thickness into Canvas units.
         float canvasWidth = 1f;
 
         if (TryWorldToCanvasLocal(
             anchorWorld + viewerCamera.up * worldAxisWidth,
             out Vector2 widthPoint))
         {
-            canvasWidth = Vector2.Distance(
-                anchorCanvas,
-                widthPoint
-            );
+            canvasWidth = Vector2.Distance(anchorCanvas, widthPoint);
         }
 
         canvasWidth = Mathf.Max(0.1f, canvasWidth);
@@ -319,18 +290,13 @@ public class GalacticOrientationCompass : MonoBehaviour
             RectTransform rect = axisRects[i];
 
             if (image == null || rect == null)
-            {
                 continue;
-            }
 
-            // Project each Galactic axis into the Canvas.
             Vector3 endpointWorld =
-                anchorWorld +
-                axisDirections[i] * worldAxisLength;
+                anchorWorld + axisDirections[i] * worldAxisLength;
 
             if (!TryWorldToCanvasLocal(
-                endpointWorld,
-                out Vector2 endpointCanvas))
+                endpointWorld, out Vector2 endpointCanvas))
             {
                 image.enabled = false;
                 continue;
@@ -338,24 +304,17 @@ public class GalacticOrientationCompass : MonoBehaviour
 
             image.enabled = true;
 
-            // Coordinates relative to the compass center.
             Vector2 delta = endpointCanvas - anchorCanvas;
 
             float length = delta.magnitude;
-            float angle = Mathf.Atan2(
-                delta.y,
-                delta.x
-            ) * Mathf.Rad2Deg;
+            float angle =
+                Mathf.Atan2(delta.y, delta.x) * Mathf.Rad2Deg;
 
             rect.anchoredPosition = delta * 0.5f;
 
-            rect.sizeDelta = new Vector2(
-                length,
-                canvasWidth
-            );
+            rect.sizeDelta = new Vector2(length, canvasWidth);
 
-            rect.localRotation =
-                Quaternion.Euler(0f, 0f, angle);
+            rect.localRotation = Quaternion.Euler(0f, 0f, angle);
         }
     }
 
@@ -376,9 +335,7 @@ public class GalacticOrientationCompass : MonoBehaviour
             viewerUnityCamera.WorldToScreenPoint(worldPosition);
 
         if (screenPosition.z <= 0f)
-        {
             return false;
-        }
 
         Camera canvasCamera =
             uiCanvas.renderMode == RenderMode.ScreenSpaceOverlay
@@ -387,16 +344,12 @@ public class GalacticOrientationCompass : MonoBehaviour
                     ? uiCanvas.worldCamera
                     : viewerUnityCamera);
 
-        return RectTransformUtility
-            .ScreenPointToLocalPointInRectangle(
-                canvasRect,
-                new Vector2(
-                    screenPosition.x,
-                    screenPosition.y
-                ),
-                canvasCamera,
-                out canvasPosition
-            );
+        return RectTransformUtility.ScreenPointToLocalPointInRectangle(
+            canvasRect,
+            new Vector2(screenPosition.x, screenPosition.y),
+            canvasCamera,
+            out canvasPosition
+        );
     }
 
     private void ClearCompass()
@@ -407,13 +360,9 @@ public class GalacticOrientationCompass : MonoBehaviour
         if (compassAnchor != null)
         {
             if (Application.isPlaying)
-            {
                 Destroy(compassAnchor);
-            }
             else
-            {
                 DestroyImmediate(compassAnchor);
-            }
         }
 
         compassAnchor = null;

@@ -9,8 +9,8 @@ public class GalacticCoordinateHUD : MonoBehaviour
     [Tooltip("Usually XR Origin / Camera Offset / Main Camera.")]
     public Transform viewerCamera;
 
-    [Tooltip("Assign the UI Canvas from your hierarchy.")]
-    public Canvas uiCanvas;
+    [Tooltip("Assign the scaled Panel containing your UI.")]
+    public RectTransform uiPanel;
 
     [Header("HUD Placement")]
     [Tooltip("Horizontal viewport position. 0 = left, 1 = right.")]
@@ -42,8 +42,10 @@ public class GalacticCoordinateHUD : MonoBehaviour
     private TextMeshProUGUI coordinateText;
     private RectTransform textRect;
     private Material overlayMaterial;
+
+    private Canvas uiCanvas;
     private Camera viewerUnityCamera;
-    private bool warnedMissingCanvas;
+    private bool warnedMissingPanel;
 
     private void Awake()
     {
@@ -54,54 +56,46 @@ public class GalacticCoordinateHUD : MonoBehaviour
     private void OnEnable()
     {
         if (coordinateText != null)
-        {
             coordinateText.gameObject.SetActive(true);
-        }
     }
 
     private void OnDisable()
     {
         if (coordinateText != null)
-        {
             coordinateText.gameObject.SetActive(false);
-        }
     }
 
     private void OnDestroy()
     {
         if (coordinateText != null)
-        {
             Destroy(coordinateText.gameObject);
-        }
 
         if (overlayMaterial != null)
-        {
             Destroy(overlayMaterial);
-        }
     }
 
     private void Update()
     {
-        if (
-            viewerCamera == null ||
+        if (viewerCamera == null ||
             viewerUnityCamera == null ||
+            uiPanel == null ||
             uiCanvas == null ||
-            coordinateText == null
-        )
+            coordinateText == null)
         {
             ResolveReferences();
 
-            if (uiCanvas != null && coordinateText == null)
+            if (uiPanel != null &&
+                uiCanvas != null &&
+                coordinateText == null)
             {
                 CreateHUD();
             }
 
-            if (
-                viewerCamera == null ||
+            if (viewerCamera == null ||
                 viewerUnityCamera == null ||
+                uiPanel == null ||
                 uiCanvas == null ||
-                coordinateText == null
-            )
+                coordinateText == null)
             {
                 return;
             }
@@ -121,9 +115,7 @@ public class GalacticCoordinateHUD : MonoBehaviour
         ) * Mathf.Rad2Deg;
 
         if (longitude < 0f)
-        {
             longitude += 360f;
-        }
 
         float latitude = Mathf.Asin(
             Mathf.Clamp(galacticForward.z, -1f, 1f)
@@ -138,9 +130,7 @@ public class GalacticCoordinateHUD : MonoBehaviour
         ) * Mathf.Rad2Deg;
 
         if (positionLongitude < 0f)
-        {
             positionLongitude += 360f;
-        }
 
         float positionLatitude = 0f;
 
@@ -181,50 +171,51 @@ public class GalacticCoordinateHUD : MonoBehaviour
     private void ResolveReferences()
     {
         if (viewerCamera == null && Camera.main != null)
-        {
             viewerCamera = Camera.main.transform;
-        }
 
-        if (viewerUnityCamera == null && viewerCamera != null)
+        if (viewerCamera != null &&
+            viewerUnityCamera == null)
         {
-            viewerUnityCamera = viewerCamera.GetComponent<Camera>();
+            viewerUnityCamera =
+                viewerCamera.GetComponent<Camera>();
         }
 
-        if (uiCanvas == null)
+        // Find the Panel if one was not assigned in the Inspector.
+        if (uiPanel == null)
         {
-            // Prefer the Canvas you created in the hierarchy.
-            GameObject canvasObject = GameObject.Find("UI Canvas");
+            GameObject panelObject = GameObject.Find("Panel");
 
-            if (canvasObject != null)
-            {
-                uiCanvas = canvasObject.GetComponent<Canvas>();
-            }
-
-            // Fallback if the Canvas has a different name.
-            if (uiCanvas == null)
-            {
-                uiCanvas = FindAnyObjectByType<Canvas>();
-            }
+            if (panelObject != null)
+                uiPanel = panelObject.GetComponent<RectTransform>();
         }
+
+        // Find the Canvas that contains the assigned Panel.
+        uiCanvas = uiPanel != null
+            ? uiPanel.GetComponentInParent<Canvas>()
+            : null;
     }
 
     private void CreateHUD()
     {
-        if (uiCanvas == null || coordinateText != null)
+        if (uiPanel == null ||
+            uiCanvas == null ||
+            coordinateText != null)
         {
-            if (uiCanvas == null && !warnedMissingCanvas)
+            if ((uiPanel == null || uiCanvas == null) &&
+                !warnedMissingPanel)
             {
                 Debug.LogWarning(
-                    "GalacticCoordinateHUD: Assign your UI Canvas in the Inspector."
+                    "GalacticCoordinateHUD: Assign the Panel " +
+                    "under your UI Canvas in the Inspector."
                 );
 
-                warnedMissingCanvas = true;
+                warnedMissingPanel = true;
             }
 
             return;
         }
 
-        warnedMissingCanvas = false;
+        warnedMissingPanel = false;
 
         GameObject hudObject = new GameObject(
             "Galactic Coordinate HUD",
@@ -232,7 +223,8 @@ public class GalacticCoordinateHUD : MonoBehaviour
             typeof(TextMeshProUGUI)
         );
 
-        hudObject.transform.SetParent(uiCanvas.transform, false);
+        // Parent to the scaled Panel instead of the Canvas.
+        hudObject.transform.SetParent(uiPanel, false);
 
         coordinateText = hudObject.GetComponent<TextMeshProUGUI>();
         textRect = coordinateText.rectTransform;
@@ -251,12 +243,11 @@ public class GalacticCoordinateHUD : MonoBehaviour
 
     private void UpdateHUDPosition()
     {
-        if (
-            textRect == null ||
+        if (textRect == null ||
+            uiPanel == null ||
             uiCanvas == null ||
             viewerCamera == null ||
-            viewerUnityCamera == null
-        )
+            viewerUnityCamera == null)
         {
             return;
         }
@@ -283,7 +274,7 @@ public class GalacticCoordinateHUD : MonoBehaviour
         }
         else
         {
-            // Position the text relative to the Canvas.
+            // Anchor relative to the Panel, not the Canvas.
             Vector2 anchor = new Vector2(viewportX, viewportY);
 
             textRect.anchorMin = anchor;
@@ -296,11 +287,10 @@ public class GalacticCoordinateHUD : MonoBehaviour
     private void ConfigureOverlayRendering()
     {
         if (!alwaysDrawOnTop || coordinateText == null)
-        {
             return;
-        }
 
-        Material sourceMaterial = coordinateText.fontSharedMaterial;
+        Material sourceMaterial =
+            coordinateText.fontSharedMaterial;
 
         if (sourceMaterial == null)
         {
@@ -311,7 +301,7 @@ public class GalacticCoordinateHUD : MonoBehaviour
             return;
         }
 
-        // Use a copy so the shared TMP font material is not modified.
+        // Copy the material so the shared TMP font material is unchanged.
         overlayMaterial = new Material(sourceMaterial);
         overlayMaterial.renderQueue = 5000;
 
@@ -340,9 +330,7 @@ public class GalacticCoordinateHUD : MonoBehaviour
         }
 
         if (overlayMaterial.HasProperty("_ZWrite"))
-        {
             overlayMaterial.SetFloat("_ZWrite", 0f);
-        }
 
         coordinateText.fontSharedMaterial = overlayMaterial;
     }

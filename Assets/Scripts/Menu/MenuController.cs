@@ -8,14 +8,11 @@ using XRCommonUsages = UnityEngine.XR.CommonUsages;
 using XRInputDevice = UnityEngine.XR.InputDevice;
 using XRInputDevices = UnityEngine.XR.InputDevices;
 using XRNode = UnityEngine.XR.XRNode;
-using InputActionReference = UnityEngine.InputSystem.InputActionReference;
 
 public class MenuController : MonoBehaviour
 {
     [Header("Main Menu References")]
     public GameObject menuCanvas;
-
-    [Tooltip("The Controls button. Used when opening the menu for the first time.")]
     public Button firstMenuButton;
 
     [Header("Information Canvas")]
@@ -35,45 +32,13 @@ public class MenuController : MonoBehaviour
     [Header("Link")]
     public string moreUrl = "https://star-formation.com/";
 
-    [Header("VR Input Actions")]
-    public InputActionReference menuToggleAction;
-    public InputActionReference menuSelectAction;
-
     private bool menuOpen = false;
     private bool fastTravelWasOpen = false;
 
     private bool previousX = false;
-    private bool previousY = false;
+    private bool previousMenuButton = false;
 
     private GameObject lastSelectedButton;
-
-    private void OnEnable()
-    {
-        if (menuToggleAction != null)
-        {
-            menuToggleAction.action.Enable();
-        }
-
-        if (menuSelectAction != null)
-        {
-            menuSelectAction.action.Enable();
-        }
-    }
-
-    private void OnDisable()
-    {
-        if (menuToggleAction != null)
-        {
-            menuToggleAction.action.Disable();
-        }
-
-        if (menuSelectAction != null)
-        {
-            menuSelectAction.action.Disable();
-        }
-
-        RestoreSceneAfterMenu();
-    }
 
     private void Start()
     {
@@ -82,14 +47,10 @@ public class MenuController : MonoBehaviour
         lastSelectedButton = null;
 
         if (menuCanvas != null)
-        {
             menuCanvas.SetActive(false);
-        }
 
         if (infoCanvas != null)
-        {
             infoCanvas.SetActive(false);
-        }
 
         RestoreSceneAfterMenu();
     }
@@ -122,45 +83,26 @@ public class MenuController : MonoBehaviour
         Keyboard keyboard = Keyboard.current;
 
         if (keyboard == null)
-        {
             return;
-        }
 
-        // ESCAPE / M
         if (keyboard.escapeKey.wasPressedThisFrame ||
             keyboard.mKey.wasPressedThisFrame)
         {
             HandleMenuKeyboardToggle();
-            return;
-        }
-
-        // CLUSTER FILTER
-        if (clusterFilterMenu != null &&
-            clusterFilterMenu.IsOpen())
-        {
-            return;
-        }
-
-        // INFORMATION
-        if (infoCanvas != null &&
-            infoCanvas.activeSelf)
-        {
-            return;
         }
     }
 
     private void HandleMenuKeyboardToggle()
     {
-        // INFORMATION / CONTROLS
-        if (infoCanvas != null &&
-            infoCanvas.activeSelf)
+        // Information / Controls
+        if (infoCanvas != null && infoCanvas.activeSelf)
         {
             CloseInfoMenu();
             RestoreSceneAfterMenu();
             return;
         }
 
-        // CLUSTER FILTER
+        // Cluster Filter
         if (clusterFilterMenu != null &&
             clusterFilterMenu.IsOpen())
         {
@@ -169,7 +111,7 @@ public class MenuController : MonoBehaviour
             return;
         }
 
-        // FAST TRAVEL
+        // Fast Travel
         if (fastTravelMenu != null &&
             fastTravelMenu.IsOpen())
         {
@@ -178,7 +120,7 @@ public class MenuController : MonoBehaviour
             return;
         }
 
-        // LANDMARK POPUP
+        // Landmark Popup
         if (landmarkPopup != null &&
             landmarkPopup.gameObject.activeSelf)
         {
@@ -187,148 +129,144 @@ public class MenuController : MonoBehaviour
             return;
         }
 
-        // MAIN MENU
+        // Main Menu
         if (menuOpen)
-        {
             CloseMenu();
-        }
         else
-        {
             OpenMenu();
-        }
     }
 
     private void HandleVRInput()
     {
         XRInputDevice leftHand =
-            XRInputDevices.GetDeviceAtXRNode(
-                XRNode.LeftHand
-            );
+            XRInputDevices.GetDeviceAtXRNode(XRNode.LeftHand);
 
         bool buttonX = false;
-        bool buttonY = false;
+        bool menuButton = false;
 
-        leftHand.TryGetFeatureValue(
-            XRCommonUsages.primaryButton,
-            out buttonX
-        );
+        bool leftHandValid = leftHand.isValid;
 
-        leftHand.TryGetFeatureValue(
-            XRCommonUsages.secondaryButton,
-            out buttonY
-        );
-
-        bool xPressedDirectly =
-            buttonX && !previousX;
-
-        bool yPressedDirectly =
-            buttonY && !previousY;
-
-        bool xPressedByAction =
-            menuSelectAction != null &&
-            menuSelectAction.action.WasPressedThisFrame();
-
-        bool yPressedByAction =
-            menuToggleAction != null &&
-            menuToggleAction.action.WasPressedThisFrame();
-
-        bool xPressed =
-            xPressedDirectly || xPressedByAction;
-
-        bool yPressed =
-            yPressedDirectly || yPressedByAction;
-
-        // Y = OPEN / CLOSE MENU
-        if (yPressed)
+        if (leftHandValid)
         {
-            // INFORMATION / CONTROLS
-            if (infoCanvas != null &&
-                infoCanvas.activeSelf)
-            {
-                CloseInfoMenu();
-                RestoreSceneAfterMenu();
-            }
-            // CLUSTER FILTER
-            else if (clusterFilterMenu != null &&
-                     clusterFilterMenu.IsOpen())
-            {
-                clusterFilterMenu.CloseMenu();
-                RestoreSceneAfterMenu();
-            }
-            // FAST TRAVEL
-            else if (fastTravelMenu != null &&
-                     fastTravelMenu.IsOpen())
-            {
-                fastTravelMenu.CloseMenu();
-                RestoreSceneAfterMenu();
-            }
-            // LANDMARK POPUP
-            else if (landmarkPopup != null &&
-                     landmarkPopup.gameObject.activeSelf)
-            {
-                landmarkPopup.Hide();
-                RestoreSceneAfterMenu();
-            }
-            // MAIN MENU
-            else
-            {
-                ToggleMenu();
-            }
+            // X button, using the same input feature as VRPlayerController.
+            leftHand.TryGetFeatureValue(
+                XRCommonUsages.primaryButton,
+                out buttonX);
+
+            // Left controller Menu button.
+            leftHand.TryGetFeatureValue(
+                XRCommonUsages.menuButton,
+                out menuButton);
         }
 
-        // INFORMATION
-        if (infoCanvas != null &&
-            infoCanvas.activeSelf)
+        bool xPressed = buttonX && !previousX;
+
+        bool menuPressed =
+            menuButton && !previousMenuButton;
+
+        previousX = buttonX;
+        previousMenuButton = menuButton;
+
+        // Menu button: open the main menu or close the current menu/popup.
+        if (menuPressed)
         {
-            previousX = buttonX;
-            previousY = buttonY;
+            HandleMenuKeyboardToggle();
             return;
         }
 
-        // FAST TRAVEL
-        if (fastTravelMenu != null &&
-            fastTravelMenu.IsOpen())
+        // Don't submit X while an information screen is displayed.
+        if (infoCanvas != null && infoCanvas.activeSelf)
+            return;
+
+        // Fast Travel has its own stick navigation.
+        if (fastTravelMenu != null && fastTravelMenu.IsOpen())
         {
-            Vector2 leftStick = Vector2.zero;
+            if (leftHandValid)
+            {
+                Vector2 leftStick = Vector2.zero;
 
-            leftHand.TryGetFeatureValue(
-                XRCommonUsages.primary2DAxis,
-                out leftStick
-            );
+                leftHand.TryGetFeatureValue(
+                    XRCommonUsages.primary2DAxis,
+                    out leftStick);
 
-            fastTravelMenu.HandleStickNavigation(leftStick);
+                fastTravelMenu.HandleStickNavigation(leftStick);
+            }
 
             if (xPressed)
-            {
-                fastTravelMenu.SelectCurrentLandmark();
+                HandleXSelection();
 
-                menuOpen = false;
-
-                if (menuCanvas != null)
-                {
-                    menuCanvas.SetActive(false);
-                }
-
-                RestoreSceneAfterMenu();
-            }
+            return;
         }
 
-        // Main menu is handled by the UI Buttons.
-
-        previousX = buttonX;
-        previousY = buttonY;
+        // X selects the highlighted button in the main or cluster menu.
+        if (xPressed)
+            HandleXSelection();
     }
 
-    private void ToggleMenu()
+    private void HandleXSelection()
     {
-        if (menuOpen)
+        // Fast Travel: select the highlighted landmark.
+        if (fastTravelMenu != null && fastTravelMenu.IsOpen())
         {
-            CloseMenu();
+            fastTravelMenu.SelectCurrentLandmark();
+
+            menuOpen = false;
+
+            if (menuCanvas != null)
+                menuCanvas.SetActive(false);
+
+            RestoreSceneAfterMenu();
+            return;
         }
-        else
+
+        bool mainMenuIsOpen = menuOpen;
+
+        bool clusterMenuIsOpen =
+            clusterFilterMenu != null &&
+            clusterFilterMenu.IsOpen();
+
+        if (!mainMenuIsOpen && !clusterMenuIsOpen)
+            return;
+
+        SubmitCurrentSelection();
+    }
+
+    private void SubmitCurrentSelection()
+    {
+        if (EventSystem.current == null)
         {
-            OpenMenu();
+            Debug.LogWarning(
+                "MenuController: No EventSystem found.");
+            return;
         }
+
+        GameObject selected =
+            EventSystem.current.currentSelectedGameObject;
+
+        if ((selected == null || !selected.activeInHierarchy) &&
+            menuOpen)
+        {
+            SelectRememberedButton();
+
+            selected =
+                EventSystem.current.currentSelectedGameObject;
+        }
+
+        if (selected == null || !selected.activeInHierarchy)
+        {
+            Debug.LogWarning(
+                "MenuController: No menu item is selected.");
+            return;
+        }
+
+        // Submit through Unity's standard UI event system.
+        BaseEventData eventData =
+            new BaseEventData(EventSystem.current);
+
+        ExecuteEvents.Execute(
+            selected,
+            eventData,
+            ExecuteEvents.submitHandler);
     }
 
     private void OpenMenu()
@@ -337,24 +275,16 @@ public class MenuController : MonoBehaviour
         fastTravelWasOpen = false;
 
         if (infoCanvas != null)
-        {
             infoCanvas.SetActive(false);
-        }
 
         if (menuCanvas != null)
-        {
             menuCanvas.SetActive(true);
-        }
 
         if (vrPlayerController != null)
-        {
             vrPlayerController.enabled = false;
-        }
 
         if (desktopPlayerController != null)
-        {
             desktopPlayerController.enabled = false;
-        }
 
         Canvas.ForceUpdateCanvases();
         SelectRememberedButton();
@@ -365,14 +295,10 @@ public class MenuController : MonoBehaviour
         menuOpen = false;
 
         if (menuCanvas != null)
-        {
             menuCanvas.SetActive(false);
-        }
 
         if (infoCanvas != null)
-        {
             infoCanvas.SetActive(false);
-        }
 
         RestoreSceneAfterMenu();
     }
@@ -380,45 +306,31 @@ public class MenuController : MonoBehaviour
     private void RestoreSceneAfterMenu()
     {
         if (vrPlayerController != null)
-        {
             vrPlayerController.enabled = true;
-        }
 
         if (desktopPlayerController != null)
-        {
             desktopPlayerController.enabled = true;
-        }
     }
 
     private void RememberCurrentButton()
     {
         if (EventSystem.current == null)
-        {
             return;
-        }
 
         GameObject current =
             EventSystem.current.currentSelectedGameObject;
 
         if (current == null)
-        {
             return;
-        }
 
-        Button button = current.GetComponent<Button>();
-
-        if (button != null)
-        {
+        if (current.GetComponent<Button>() != null)
             lastSelectedButton = current;
-        }
     }
 
     private void SelectRememberedButton()
     {
         if (EventSystem.current == null)
-        {
             return;
-        }
 
         GameObject buttonToSelect = lastSelectedButton;
 
@@ -432,9 +344,7 @@ public class MenuController : MonoBehaviour
         }
 
         if (buttonToSelect == null)
-        {
             return;
-        }
 
         EventSystem.current.SetSelectedGameObject(null);
         EventSystem.current.SetSelectedGameObject(buttonToSelect);
@@ -442,9 +352,7 @@ public class MenuController : MonoBehaviour
         Button button = buttonToSelect.GetComponent<Button>();
 
         if (button != null)
-        {
             button.Select();
-        }
     }
 
     public void ShowControls()
@@ -473,7 +381,7 @@ Escape / M: open menu / close current menu or popup
 VR:
 Left Stick: move / turn
 Right Stick: strafe / rise / descend
-X: increase speed
+X: increase speed when no menu is open
 Y: decrease speed
 A: quality / performance particles
 B: show / hide landmarks and orientation
@@ -483,8 +391,8 @@ Left Stick Click: toggle dust scattering
 Right Grip: show / hide Gaia LOD nodes
 Right Stick Click: show / hide dust LOD bricks
 Right Trigger: select landmark
-Y: open menu / close current menu or popup
-X: select"
+Left Menu Button: open menu / close current menu
+X: select highlighted menu item"
         );
     }
 
@@ -514,26 +422,19 @@ X: select"
             Debug.LogError(
                 "MenuController: Information Canvas is not assigned."
             );
-
             return;
         }
 
         menuOpen = false;
 
         if (menuCanvas != null)
-        {
             menuCanvas.SetActive(false);
-        }
 
         if (infoTitleText != null)
-        {
             infoTitleText.text = title;
-        }
 
         if (infoBodyText != null)
-        {
             infoBodyText.text = body;
-        }
 
         infoCanvas.SetActive(true);
         Canvas.ForceUpdateCanvases();
@@ -542,9 +443,7 @@ X: select"
     private void CloseInfoMenu()
     {
         if (infoCanvas != null)
-        {
             infoCanvas.SetActive(false);
-        }
     }
 
     public void OpenFastTravel()
@@ -556,21 +455,16 @@ X: select"
             Debug.LogError(
                 "MenuController: Fast Travel Menu is not assigned."
             );
-
             return;
         }
 
         menuOpen = false;
 
         if (menuCanvas != null)
-        {
             menuCanvas.SetActive(false);
-        }
 
         if (infoCanvas != null)
-        {
             infoCanvas.SetActive(false);
-        }
 
         fastTravelWasOpen = true;
         fastTravelMenu.OpenMenu();
@@ -585,21 +479,16 @@ X: select"
             Debug.LogError(
                 "MenuController: Cluster Filter Menu is not assigned."
             );
-
             return;
         }
 
         menuOpen = false;
 
         if (menuCanvas != null)
-        {
             menuCanvas.SetActive(false);
-        }
 
         if (infoCanvas != null)
-        {
             infoCanvas.SetActive(false);
-        }
 
         clusterFilterMenu.OpenMenu();
     }
