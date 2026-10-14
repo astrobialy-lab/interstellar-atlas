@@ -33,24 +33,30 @@ public class VRPlayerController : MonoBehaviour
     public float movementSmoothing = 4.0f;
     public float turnSmoothing = 4.0f;
 
-    public int performanceParticleCount = 16000;
-    public int qualityParticleCount = 20000;
-
     [Header("Raycast Selection")]
     public float selectionRayDistance = 50.0f;
     public LayerMask landmarkLayerMask = ~0;
     public LineRenderer rightRayLine;
+
+    [Header("Dust")]
+    public DustSpriteRenderer dustSpriteRenderer;
 
     private float smoothedMove = 0f;
     private float smoothedTurn = 0f;
 
     private bool previousLeftX = false;
     private bool previousLeftY = false;
+    private bool previousLeftTrigger = false;
+    private bool previousLeftGrip = false;
     private bool previousRightTrigger = false;
     private bool previousRightGrip = false;
+    private bool previousRightB = false;
 
     private void Start()
     {
+        if (dustSpriteRenderer == null)
+            dustSpriteRenderer = FindAnyObjectByType<DustSpriteRenderer>();
+
         if (msLODBoundsVisualizer == null)
             msLODBoundsVisualizer =
                 FindAnyObjectByType<GaiaMSLODBoundsVisualizer>();
@@ -123,7 +129,9 @@ public class VRPlayerController : MonoBehaviour
         transform.position += movement * Time.deltaTime;
 
         HandleSpeedControls(leftHand);
+        HandleDustRenderingControls(leftHand);
         HandleMSLODBoundsControls(rightHand);
+        HandleLandmarkToggle(rightHand);
         HandleLandmarkSelection(rightHand);
     }
 
@@ -189,6 +197,34 @@ public class VRPlayerController : MonoBehaviour
         previousLeftY = leftY;
     }
 
+    private void HandleDustRenderingControls(InputDevice leftHand)
+    {
+        bool leftTriggerPressed = false;
+        bool leftGripPressed = false;
+
+        leftHand.TryGetFeatureValue(
+            CommonUsages.triggerButton,
+            out leftTriggerPressed);
+
+        leftHand.TryGetFeatureValue(
+            CommonUsages.gripButton,
+            out leftGripPressed);
+
+        if (dustSpriteRenderer != null)
+        {
+            // Left Trigger: cycle through color schemes.
+            if (leftTriggerPressed && !previousLeftTrigger)
+                dustSpriteRenderer.NextColorScheme();
+
+            // Left Grip: cycle through sprite sizes.
+            if (leftGripPressed && !previousLeftGrip)
+                dustSpriteRenderer.CycleSpriteSizeMultiplier();
+        }
+
+        previousLeftTrigger = leftTriggerPressed;
+        previousLeftGrip = leftGripPressed;
+    }
+
     private void HandleMSLODBoundsControls(InputDevice rightHand)
     {
         bool rightGripPressed = false;
@@ -204,6 +240,27 @@ public class VRPlayerController : MonoBehaviour
         }
 
         previousRightGrip = rightGripPressed;
+    }
+
+    private void HandleLandmarkToggle(InputDevice rightHand)
+    {
+        bool rightBPressed = false;
+
+        rightHand.TryGetFeatureValue(
+            CommonUsages.secondaryButton,
+            out rightBPressed);
+
+        // B = toggle landmark markers and orientation.
+        if (rightBPressed && !previousRightB)
+        {
+            if (landmarkMarkerGenerator != null)
+                landmarkMarkerGenerator.ToggleMarkers();
+
+            if (orientation != null)
+                orientation.SetActive(!orientation.activeSelf);
+        }
+
+        previousRightB = rightBPressed;
     }
 
     private void HandleLandmarkSelection(InputDevice rightHand)

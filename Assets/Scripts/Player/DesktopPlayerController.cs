@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.XR.Management;
 
 public class DesktopPlayerController : MonoBehaviour
 {
@@ -27,12 +28,28 @@ public class DesktopPlayerController : MonoBehaviour
     [Header("MS-LOD Debug")]
     public GaiaMSLODBoundsVisualizer msLODBoundsVisualizer;
 
+    [Header("Dust Rendering")]
+    public DustSpriteRenderer dustSpriteRenderer;
+
     // Camera pitch and roll are stored independently.
     private float cameraPitch = 0f;
     private float cameraRoll = 0f;
 
     private void Start()
     {
+        var manager = XRGeneralSettings.Instance?.Manager;
+
+        if (manager?.activeLoader != null)
+        {
+            enabled = false;
+            return;
+        }
+
+        if (dustSpriteRenderer == null)
+        {
+            dustSpriteRenderer = FindAnyObjectByType<DustSpriteRenderer>();
+        }
+
         if (cameraTransform == null && Camera.main != null)
         {
             cameraTransform = Camera.main.transform;
@@ -232,6 +249,24 @@ public class DesktopPlayerController : MonoBehaviour
             Debug.Log(
                 $"Movement speed decreased to {moveSpeed}"
             );
+        }
+
+        // 4 = cycle dust color schemes
+        if (Keyboard.current.digit4Key.wasPressedThisFrame)
+        {
+            if (dustSpriteRenderer != null)
+            {
+                dustSpriteRenderer.NextColorScheme();
+            }
+        }
+
+        // 5 = cycle dust sprite sizes
+        if (Keyboard.current.digit5Key.wasPressedThisFrame)
+        {
+            if (dustSpriteRenderer != null)
+            {
+                dustSpriteRenderer.CycleSpriteSizeMultiplier();
+            }
         }
 
         // 6 = toggle landmark markers and Orientation

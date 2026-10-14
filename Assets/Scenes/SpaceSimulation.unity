@@ -1721,6 +1721,7 @@ MonoBehaviour:
     m_Bits: 4294967295
   orientation: {fileID: 1666570262}
   msLODBoundsVisualizer: {fileID: 618384818}
+  dustSpriteRenderer: {fileID: 212480235}
 --- !u!114 &475100220
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1747,13 +1748,12 @@ MonoBehaviour:
   inputDeadzone: 0.15
   movementSmoothing: 4
   turnSmoothing: 4
-  performanceParticleCount: 16000
-  qualityParticleCount: 20000
   selectionRayDistance: 50
   landmarkLayerMask:
     serializedVersion: 2
     m_Bits: 4294967295
   rightRayLine: {fileID: 2761784064872778051}
+  dustSpriteRenderer: {fileID: 212480235}
 --- !u!114 &475100222
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1994,11 +1994,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::GaiaMSLODLoader
   metadataDirectory: Data/Gaia/lod
   targetCamera: {fileID: 330585545}
-  solidAngleThreshold: 2
-  frustumCulling: 1
+  solidAngleThreshold: 4
   clusterFilter: {fileID: 586631269}
   streamUpdateDistance: 1
-  streamUpdateAngle: 2
   maxConcurrentLoads: 100
   verboseLogging: 0
 --- !u!114 &586631269
@@ -7379,6 +7377,7 @@ MonoBehaviour:
   associationMarkerPrefab: {fileID: 6192945478437891419, guid: 92e2f1cbd0c03b643a831323dda7ec78, type: 3}
   landmarkPopup: {fileID: 1765479602}
   markerScale: 3
+  playerCamera: {fileID: 330585546}
   colliderSizeMultiplier: 1
   fallbackColliderRadius: 0.05
   nearbyStarThreshold: 0.5
@@ -11180,18 +11179,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &4503294765594600072
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7282151750369453775}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 166d0aec09f104f71a2f8ec4864909a9, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Billboard
 --- !u!23 &4546197970332844885
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -12519,7 +12506,8 @@ GameObject:
   m_Component:
   - component: {fileID: 6323359981201981937}
   - component: {fileID: 8313396505400902123}
-  - component: {fileID: 4503294765594600072}
+  - component: {fileID: 8313396505400902125}
+  - component: {fileID: 8313396505400902126}
   m_Layer: 0
   m_Name: SunMarker
   m_TagString: Untagged
@@ -12945,6 +12933,36 @@ SpriteRenderer:
   m_SpriteTileMode: 0
   m_WasSpriteAssigned: 1
   m_SpriteSortPoint: 0
+--- !u!114 &8313396505400902125
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7282151750369453775}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8c06f556be387ab499d084c433d43086, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MarkerDistanceScaling
+  targetCamera: {fileID: 330585545}
+  compensationStartDistance: 25
+  distanceExponent: 0.5
+  minimumScreenHeightPixels: 10
+  maxScale: 32
+--- !u!114 &8313396505400902126
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7282151750369453775}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fdb2ed81ffb1f9f4b96bee36313a0ead, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FacePlayerPosition
+  playerCamera: {fileID: 330585546}
 --- !u!114 &8408429868308384648
 MonoBehaviour:
   m_ObjectHideFlags: 0

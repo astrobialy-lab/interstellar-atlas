@@ -269,24 +269,22 @@ Space / Shift: move up / down
 Mouse: look around
 Q / E: roll
 = / -: increase / decrease speed
-1: next color scheme
-2: cycle particle thickness
-3: quality / performance particles
+4: next dust color scheme
+5: cycle dust sprite size
 6: show / hide landmarks and orientation
 7: select landmark
-8: show / hide Gaia LOD nodes
-Escape / M: open menu / close current menu or popup
+8: refresh Gaia MS-LOD bounds
+Escape / M: release mouse / open or close menu
 
 VR:
 Left Stick: move / turn
 Right Stick: strafe / rise / descend
-X: increase speed when no menu is open
+X: increase speed
 Y: decrease speed
-A: quality / performance particles
 B: show / hide landmarks and orientation
-Left Trigger: next color scheme
-Left Grip: cycle particle thickness
-Right Grip: show / hide Gaia LOD nodes
+Left Trigger: next dust color scheme
+Left Grip: cycle dust sprite size
+Right Grip: refresh Gaia MS-LOD bounds
 Right Trigger: select landmark
 Left Menu Button: open menu / close current menu"
         );

@@ -10,8 +10,9 @@ GameObject:
   m_Component:
   - component: {fileID: 7439861993299987045}
   - component: {fileID: 4873382317202164351}
-  - component: {fileID: -8178449184827889380}
   - component: {fileID: 2595736202359337631}
+  - component: {fileID: -5630079781399960658}
+  - component: {fileID: 6518301388729901748}
   m_Layer: 0
   m_Name: Cloudmarker1
   m_TagString: Untagged
@@ -93,18 +94,6 @@ SpriteRenderer:
   m_SpriteTileMode: 0
   m_WasSpriteAssigned: 1
   m_SpriteSortPoint: 0
---- !u!114 &-8178449184827889380
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6192945478437891419}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 166d0aec09f104f71a2f8ec4864909a9, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Billboard
 --- !u!114 &2595736202359337631
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -121,3 +110,33 @@ MonoBehaviour:
   typeCode: 
   shortDescription: 
   paragraphDescription: 
+--- !u!114 &-5630079781399960658
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6192945478437891419}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8c06f556be387ab499d084c433d43086, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MarkerDistanceScaling
+  targetCamera: {fileID: 0}
+  compensationStartDistance: 25
+  distanceExponent: 0.5
+  minimumScreenHeightPixels: 10
+  maxScale: 32
+--- !u!114 &6518301388729901748
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6192945478437891419}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fdb2ed81ffb1f9f4b96bee36313a0ead, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FacePlayerPosition
+  playerCamera: {fileID: 0}

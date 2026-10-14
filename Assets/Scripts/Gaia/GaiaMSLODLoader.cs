@@ -208,9 +208,9 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
             return;
         }
 
-        #if UNITY_EDITOR
+#if UNITY_EDITOR
         dataRoot = Directory.GetParent(Application.dataPath).FullName;
-        #elif UNITY_ANDROID
+#elif UNITY_ANDROID
         using (var unityPlayer = new AndroidJavaClass("com.unity3d.player.UnityPlayer"))
         using (var activity = unityPlayer.GetStatic<AndroidJavaObject>("currentActivity"))
         using (var obbDirectory = activity.Call<AndroidJavaObject>("getObbDir"))
@@ -220,9 +220,9 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
             if (string.IsNullOrEmpty(dataRoot))
                 throw new IOException("Android getObbDir() returned an empty path.");
         }
-        #else
+#else
         dataRoot = Application.persistentDataPath;
-        #endif
+#endif
 
         Debug.Log($"[GaiaMSLOD] Data root: {dataRoot}");
 

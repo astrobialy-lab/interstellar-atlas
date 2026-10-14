@@ -33,8 +33,21 @@ public sealed class DustSpriteRenderer : MonoBehaviour
     private static readonly int TintId = Shader.PropertyToID("_DustTint");
     private static readonly int OpacityId = Shader.PropertyToID("_GlobalOpacity");
     private static readonly int UseCustomSpriteTextureId = Shader.PropertyToID("_UseCustomSpriteTexture");
-    private static readonly int BillboardRightId = Shader.PropertyToID("_BillboardRight");
-    private static readonly int BillboardUpId = Shader.PropertyToID("_BillboardUp");
+    private static readonly int PlayerPositionId = Shader.PropertyToID("_PlayerPosition");
+    private static readonly int ColorSchemeId = Shader.PropertyToID("_ColorScheme");
+    private static readonly int SpriteSizeMultiplierId = Shader.PropertyToID("_SpriteSizeMultiplier");
+
+    private int colorScheme = 0;
+
+    // Five size levels: 0.4, 0.8, 1.2, 1.6, 2.0.
+    private int spriteSizeStepIndex = 4;
+    private float spriteSizeMultiplier = 2.0f;
+
+    private const int ColorSchemeCount = 6;
+    private const int SpriteSizeStepCount = 5;
+    private const float MinSpriteSizeMultiplier = 0.4f;
+    private const float SpriteSizeMultiplierStep = 0.4f;
+    private const float MaxSpriteSizeMultiplier = 2.0f;
 
     [StructLayout(LayoutKind.Sequential)]
     private struct SpriteGpuData
@@ -94,36 +107,39 @@ public sealed class DustSpriteRenderer : MonoBehaviour
 
     private void LateUpdate()
     {
-        if (!enhancedModeEnabled || spriteCount == 0 || spriteBuffer == null || spriteMaterial == null || quadMesh == null)
+        if (!enhancedModeEnabled ||
+            spriteCount == 0 ||
+            spriteBuffer == null ||
+            spriteMaterial == null ||
+            quadMesh == null)
+        {
             return;
+        }
 
         Camera cameraToUse = targetCamera != null ? targetCamera : Camera.main;
+
         if (cameraToUse == null)
         {
             if (!missingCameraWarningPrinted)
             {
-                Debug.LogWarning("DustSpriteRenderer: No target camera assigned and Camera.main was not found. Assign the XR Main Camera to Target Camera.", this);
+                Debug.LogWarning(
+                    "DustSpriteRenderer: No target camera assigned and Camera.main was not found. " +
+                    "Assign the XR Main Camera to Target Camera.",
+                    this);
+
                 missingCameraWarningPrinted = true;
             }
+
             return;
         }
 
-        // Cylindrical billboarding: keep the sprites upright along world Y, independent
-        // of camera/head roll. Project the viewing direction onto the horizontal plane.
-        // This basis is calculated once per frame on the CPU instead of per vertex.
-        Vector3 horizontalForward = Vector3.ProjectOnPlane(cameraToUse.transform.forward, Vector3.up);
-        if (horizontalForward.sqrMagnitude < 1e-6f)
-        {
-            // At a nearly vertical viewing angle, yaw is undefined. Use a stable fallback.
-            horizontalForward = Vector3.forward;
-        }
-        horizontalForward.Normalize();
-        Vector3 billboardRight = Vector3.Cross(Vector3.up, horizontalForward).normalized;
-        Vector3 billboardUp = Vector3.up;
+        // Pass the player's position to the shader.
+        // The shader calculates each sprite's orientation independently.
+        Vector3 playerPosition = cameraToUse.transform.position;
 
-        // RenderParams.layer participates in camera culling. The Dust object's layer might
-        // not be enabled on the XR camera, so fall back to Default when possible.
+        // Ensure the draw uses a layer visible to the camera.
         int renderLayer = gameObject.layer;
+
         if ((cameraToUse.cullingMask & (1 << renderLayer)) == 0)
         {
             if ((cameraToUse.cullingMask & 1) != 0)
@@ -132,15 +148,25 @@ public sealed class DustSpriteRenderer : MonoBehaviour
             }
             else if (!layerWarningPrinted)
             {
-                Debug.LogWarning("DustSpriteRenderer: The camera culling mask excludes both the Dust object's layer and Default. Sprite draw may be culled.", this);
+                Debug.LogWarning(
+                    "DustSpriteRenderer: The camera culling mask excludes both " +
+                    "the Dust object's layer and Default. Sprite draw may be culled.",
+                    this);
+
                 layerWarningPrinted = true;
             }
         }
 
         properties.SetColor(TintId, spriteTint);
         properties.SetFloat(OpacityId, opacity);
-        properties.SetVector(BillboardRightId, new Vector4(billboardRight.x, billboardRight.y, billboardRight.z, 0f));
-        properties.SetVector(BillboardUpId, new Vector4(billboardUp.x, billboardUp.y, billboardUp.z, 0f));
+
+        properties.SetVector(
+            PlayerPositionId,
+            new Vector4(
+                playerPosition.x,
+                playerPosition.y,
+                playerPosition.z,
+                1f));
 
         RenderParams renderParams = new RenderParams(spriteMaterial)
         {
@@ -152,14 +178,22 @@ public sealed class DustSpriteRenderer : MonoBehaviour
             layer = renderLayer
         };
 
-        Graphics.RenderMeshPrimitives(renderParams, quadMesh, 0, spriteCount);
+        Graphics.RenderMeshPrimitives(
+            renderParams,
+            quadMesh,
+            0,
+            spriteCount);
 
         if (!drawLogPrinted)
         {
             Debug.Log(
-                $"DustSpriteRenderer: submitted {spriteCount:N0} sprites to camera '{cameraToUse.name}'. " +
+                $"DustSpriteRenderer: submitted {spriteCount:N0} sprites to camera " +
+                $"'{cameraToUse.name}'. " +
                 $"Bounds center={worldBounds.center}, size={worldBounds.size}, " +
-                $"camera position={cameraToUse.transform.position}, far clip={cameraToUse.farClipPlane}, layer={renderLayer}.", this);
+                $"camera position={playerPosition}, " +
+                $"far clip={cameraToUse.farClipPlane}, layer={renderLayer}.",
+                this);
+
             drawLogPrinted = true;
         }
     }
@@ -239,7 +273,7 @@ public sealed class DustSpriteRenderer : MonoBehaviour
                     };
 
                     Vector3 center = new Vector3(x, y, z);
-                    float radius = size * Mathf.Max(1f, aspect) * 0.75f;
+                    float radius = size * Mathf.Max(1f, aspect) * MaxSpriteSizeMultiplier * 0.75f;
                     min = Vector3.Min(min, center - Vector3.one * radius);
                     max = Vector3.Max(max, center + Vector3.one * radius);
                     largestSize = Mathf.Max(largestSize, size * Mathf.Max(1f, aspect));
@@ -276,6 +310,8 @@ public sealed class DustSpriteRenderer : MonoBehaviour
             properties.SetColor(TintId, spriteTint);
             properties.SetFloat(OpacityId, opacity);
             properties.SetFloat(UseCustomSpriteTextureId, customSpriteTexture != null ? 1f : 0f);
+            properties.SetFloat(ColorSchemeId, colorScheme);
+            properties.SetFloat(SpriteSizeMultiplierId, spriteSizeMultiplier);
 
             Debug.Log(
                 $"DustSpriteRenderer: Loaded {spriteCount:N0} spatial sprites from {path}. " +
@@ -369,6 +405,29 @@ public sealed class DustSpriteRenderer : MonoBehaviour
 
         cloudTexture.SetPixels32(pixels);
         cloudTexture.Apply(false, true);
+    }
+
+    public void NextColorScheme()
+    {
+        colorScheme = (colorScheme + 1) % ColorSchemeCount;
+
+        if (properties != null)
+            properties.SetFloat(ColorSchemeId, colorScheme);
+    }
+
+    public void CycleSpriteSizeMultiplier()
+    {
+        spriteSizeStepIndex =
+            (spriteSizeStepIndex + 1) % SpriteSizeStepCount;
+
+        spriteSizeMultiplier =
+            MinSpriteSizeMultiplier +
+            spriteSizeStepIndex * SpriteSizeMultiplierStep;
+
+        if (properties != null)
+            properties.SetFloat(
+                SpriteSizeMultiplierId,
+                spriteSizeMultiplier);
     }
 
     private void OnDestroy()
