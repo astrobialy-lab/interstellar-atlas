@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
@@ -83,26 +84,31 @@ public class FastTravelMenu : MonoBehaviour
     private string ResolveLandmarkBinaryPath()
     {
 #if UNITY_EDITOR
-        // Project root is the parent of Assets; use the one canonical Data/ file.
-        string projectRoot = Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
-        return Path.GetFullPath(Path.Combine(projectRoot, landmarkBinaryRelativePath));
+        return Path.GetFullPath( Path.Combine(Application.dataPath, "..", landmarkBinaryRelativePath) );
 #elif UNITY_ANDROID
-        // Unity does not automatically package a project-root Data/ folder into an Android build.
-        Debug.LogError(
-            "FastTravelMenu: The landmark binary is stored in project-root Data/Landmarks, " +
-            "which Unity does not include in Android builds automatically. " +
-            "Your Android build pipeline must package this external Data folder for runtime access."
-        );
-        return null;
-#else
-        // For desktop players, expect Data/ beside the executable's <Game>_Data directory.
-        DirectoryInfo gameDataParent = Directory.GetParent(Application.dataPath);
-        if (gameDataParent == null)
+    try
+    {
+        using (var unityPlayer = new AndroidJavaClass("com.unity3d.player.UnityPlayer"))
+        using (var activity = unityPlayer.GetStatic<AndroidJavaObject>("currentActivity"))
+        using (var obbDirectory = activity.Call<AndroidJavaObject>("getObbDir"))
         {
-            Debug.LogError("FastTravelMenu: Could not determine the desktop build directory.");
-            return null;
+            string obbRoot = obbDirectory.Call<string>("getAbsolutePath");
+
+            if (string.IsNullOrEmpty(obbRoot))
+            {
+                throw new IOException("Android getObbDir() returned an empty path.");
+            }
+
+            return Path.Combine(obbRoot, landmarkBinaryRelativePath);
         }
-        return Path.GetFullPath(Path.Combine(gameDataParent.FullName, landmarkBinaryRelativePath));
+    }
+    catch (Exception e)
+    {
+        Debug.LogError("FastTravelMenu: Could not resolve Android data path:\n" + e);
+        return null;
+    }
+#else
+    return Path.Combine(Application.persistentDataPath, landmarkBinaryRelativePath);
 #endif
     }
 

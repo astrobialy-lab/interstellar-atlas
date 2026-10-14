@@ -139,27 +139,23 @@ public class GaiaClusterFilter : MonoBehaviour
 
     private void Awake()
     {
-        string projectRoot =
-            Directory.GetParent(
-                Application.dataPath
-            ).FullName;
-
         try
         {
-            database =
-                GaiaClusterDatabase.Load(
-                    projectRoot,
-                    clusterDirectory
-                );
+            string dataRoot = ResolveDataRoot();
+
+            database = GaiaClusterDatabase.Load(
+                dataRoot,
+                clusterDirectory
+            );
 
             Debug.Log(
                 $"GaiaClusterFilter: Loaded cluster database. " +
                 $"Clusters={database.ClusterCount}, " +
-                $"Memberships={database.MembershipCount}"
+                $"Memberships={database.MembershipCount}, " +
+                $"Path={Path.Combine(dataRoot, clusterDirectory)}"
             );
 
-            lastSettingsHash =
-                ComputeSettingsHash();
+            lastSettingsHash = ComputeSettingsHash();
         }
         catch (Exception e)
         {
@@ -168,6 +164,40 @@ public class GaiaClusterFilter : MonoBehaviour
                 e
             );
         }
+    }
+
+    private static string ResolveDataRoot()
+    {
+#if UNITY_EDITOR
+        return Path.GetFullPath(
+            Path.Combine(Application.dataPath, "..")
+        );
+
+#elif UNITY_ANDROID
+    using (var unityPlayer = new AndroidJavaClass(
+        "com.unity3d.player.UnityPlayer"))
+    using (var activity = unityPlayer.GetStatic<AndroidJavaObject>(
+        "currentActivity"))
+    using (var obbDirectory = activity.Call<AndroidJavaObject>(
+        "getObbDir"))
+    {
+        string obbRoot = obbDirectory.Call<string>(
+            "getAbsolutePath"
+        );
+
+        if (string.IsNullOrEmpty(obbRoot))
+        {
+            throw new IOException(
+                "Android getObbDir() returned an empty path."
+            );
+        }
+
+        return obbRoot;
+    }
+
+#else
+    return Application.persistentDataPath;
+#endif
     }
 
     public bool ShouldKeep(

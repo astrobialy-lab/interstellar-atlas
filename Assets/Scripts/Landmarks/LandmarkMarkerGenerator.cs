@@ -142,31 +142,17 @@ public class LandmarkMarkerGenerator : MonoBehaviour
     {
 #if UNITY_EDITOR
         string projectRoot = Path.GetFullPath(
-            Path.Combine(Application.dataPath, ".."));
+            Path.Combine(Application.dataPath, "..")
+        );
 
         return Path.GetFullPath(
-            Path.Combine(projectRoot, landmarkBinaryRelativePath));
-
-#elif UNITY_ANDROID
-        Debug.LogError(
-            "LandmarkMarkerGenerator: Unity does not automatically package project-root " +
-            "Data/Landmarks into Android builds. The Android build pipeline must make " +
-            "this binary available at runtime.");
-
-        return null;
+            Path.Combine(projectRoot, landmarkBinaryRelativePath)
+        );
 #else
-        DirectoryInfo gameDataParent =
-            Directory.GetParent(Application.dataPath);
-
-        if (gameDataParent == null)
-        {
-            Debug.LogError(
-                "LandmarkMarkerGenerator: Could not determine the desktop build directory.");
-            return null;
-        }
-
-        return Path.GetFullPath(
-            Path.Combine(gameDataParent.FullName, landmarkBinaryRelativePath));
+    return Path.Combine(
+        Application.persistentDataPath,
+        landmarkBinaryRelativePath
+    );
 #endif
     }
 

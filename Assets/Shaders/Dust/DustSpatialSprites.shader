@@ -6,6 +6,8 @@ Shader "Hidden/Dust/SpatialSprites"
         _DustTint ("Sprite Tint", Color) = (1, 1, 1, 1)
         _GlobalOpacity ("Global Opacity", Range(0, 3)) = 1.25
         _UseCustomSpriteTexture ("Use Custom Sprite Texture", Float) = 0
+        _BillboardRight ("Billboard Right", Vector) = (1, 0, 0, 0)
+        _BillboardUp ("Billboard Up", Vector) = (0, 1, 0, 0)
     }
 
     SubShader
@@ -41,6 +43,8 @@ Shader "Hidden/Dust/SpatialSprites"
                 float4 _DustTint;
                 float _GlobalOpacity;
                 float _UseCustomSpriteTexture;
+                float4 _BillboardRight;
+                float4 _BillboardUp;
             CBUFFER_END
 
             struct DustSpriteData
@@ -65,7 +69,7 @@ Shader "Hidden/Dust/SpatialSprites"
                 float2 uv : TEXCOORD0;
                 float2 localPosition : TEXCOORD1;
                 float opacity : TEXCOORD2;
-                float densityVisual : TEXCOORD3;
+                nointerpolation float3 densityColor : TEXCOORD3;
                 UNITY_VERTEX_OUTPUT_STEREO
             };
 
@@ -120,25 +124,19 @@ Shader "Hidden/Dust/SpatialSprites"
                     corner.x * cosineAngle - corner.y * sineAngle,
                     corner.x * sineAngle + corner.y * cosineAngle);
 
-                float3 cameraRight = normalize(float3(
-                    UNITY_MATRIX_I_V._m00,
-                    UNITY_MATRIX_I_V._m10,
-                    UNITY_MATRIX_I_V._m20));
-
-                float3 cameraUp = normalize(float3(
-                    UNITY_MATRIX_I_V._m01,
-                    UNITY_MATRIX_I_V._m11,
-                    UNITY_MATRIX_I_V._m21));
-
+                // Orientation vectors are calculated once per frame by the C# renderer.
+                // Using world-up prevents head roll from rotating the sprites.
                 float3 positionWS = centerWS
-                    + cameraRight * corner.x
-                    + cameraUp * corner.y;
+                    + _BillboardRight.xyz * corner.x
+                    + _BillboardUp.xyz * corner.y;
 
                 output.positionCS = TransformWorldToHClip(positionWS);
                 output.uv = input.uv;
                 output.localPosition = input.positionOS.xy * 2.0;
                 output.opacity = spriteOpacity;
-                output.densityVisual = densityVisual;
+                // Density is constant for a sprite, so compute its palette color per vertex
+                // and pass it without interpolation instead of recalculating it per fragment.
+                output.densityColor = MagmaReversed(densityVisual);
                 return output;
             }
 
@@ -155,14 +153,13 @@ Shader "Hidden/Dust/SpatialSprites"
                 if (_UseCustomSpriteTexture > 0.5)
                 {
                     // A custom PNG supplies the silhouette through alpha. Its RGB gently
-                    // modulates the density palette, so a white sprite shows the palette
-                    // unchanged while a colored sprite can tint it.
+                    // modulates the density palette, so white leaves the palette unchanged.
                     shapeMask = texel.a;
                     textureColor = texel.rgb;
                 }
                 else
                 {
-                    // Preserve the procedural cloud mask used by the original renderer.
+                    // Procedural cloud mask, preserving the original appearance.
                     float cloudMask = smoothstep(0.16, 0.66, texel.r);
                     float radiusSquared = dot(input.localPosition, input.localPosition);
                     float edgeMask = pow(saturate(1.0 - radiusSquared), 0.95);
@@ -175,8 +172,7 @@ Shader "Hidden/Dust/SpatialSprites"
                 if (alpha < 0.008)
                     discard;
 
-                float3 densityColor = MagmaReversed(input.densityVisual);
-                float3 rgb = densityColor * textureColor * _DustTint.rgb;
+                float3 rgb = input.densityColor * textureColor * _DustTint.rgb;
 
                 // Premultiplied-alpha blend (Blend One OneMinusSrcAlpha).
                 return half4(rgb * alpha, alpha);

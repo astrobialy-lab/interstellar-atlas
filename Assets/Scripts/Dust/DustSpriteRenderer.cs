@@ -33,6 +33,8 @@ public sealed class DustSpriteRenderer : MonoBehaviour
     private static readonly int TintId = Shader.PropertyToID("_DustTint");
     private static readonly int OpacityId = Shader.PropertyToID("_GlobalOpacity");
     private static readonly int UseCustomSpriteTextureId = Shader.PropertyToID("_UseCustomSpriteTexture");
+    private static readonly int BillboardRightId = Shader.PropertyToID("_BillboardRight");
+    private static readonly int BillboardUpId = Shader.PropertyToID("_BillboardUp");
 
     [StructLayout(LayoutKind.Sequential)]
     private struct SpriteGpuData
@@ -106,6 +108,19 @@ public sealed class DustSpriteRenderer : MonoBehaviour
             return;
         }
 
+        // Cylindrical billboarding: keep the sprites upright along world Y, independent
+        // of camera/head roll. Project the viewing direction onto the horizontal plane.
+        // This basis is calculated once per frame on the CPU instead of per vertex.
+        Vector3 horizontalForward = Vector3.ProjectOnPlane(cameraToUse.transform.forward, Vector3.up);
+        if (horizontalForward.sqrMagnitude < 1e-6f)
+        {
+            // At a nearly vertical viewing angle, yaw is undefined. Use a stable fallback.
+            horizontalForward = Vector3.forward;
+        }
+        horizontalForward.Normalize();
+        Vector3 billboardRight = Vector3.Cross(Vector3.up, horizontalForward).normalized;
+        Vector3 billboardUp = Vector3.up;
+
         // RenderParams.layer participates in camera culling. The Dust object's layer might
         // not be enabled on the XR camera, so fall back to Default when possible.
         int renderLayer = gameObject.layer;
@@ -124,6 +139,8 @@ public sealed class DustSpriteRenderer : MonoBehaviour
 
         properties.SetColor(TintId, spriteTint);
         properties.SetFloat(OpacityId, opacity);
+        properties.SetVector(BillboardRightId, new Vector4(billboardRight.x, billboardRight.y, billboardRight.z, 0f));
+        properties.SetVector(BillboardUpId, new Vector4(billboardUp.x, billboardUp.y, billboardUp.z, 0f));
 
         RenderParams renderParams = new RenderParams(spriteMaterial)
         {

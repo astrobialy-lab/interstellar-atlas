@@ -63,3 +63,9 @@
 - fix the warnings when building apk
 
 - remove highlighten option in the menu. no need to remember and scroll though the options. the mouse/controller picks its option. (i guess i can select if an arrow key is pressed)
+
+- suns sprite isnt facing the VR, its facing the forward of VR (i can strafe and look left). and maybe landmarks too. same about dust sprites.
+
+- no keyboard popup when clicking on input
+
+- maybe indeed for menu popups its better to use world space canvas. i think i will split it? if its PC then use screen space camera/overlay, and if its VR then use world space.

@@ -1499,7 +1499,7 @@ Canvas:
   serializedVersion: 3
   m_RenderMode: 1
   m_Camera: {fileID: 330585545}
-  m_PlaneDistance: 1
+  m_PlaneDistance: 1.1
   m_PixelPerfect: 0
   m_ReceivesEvents: 1
   m_OverrideSorting: 0
@@ -2680,17 +2680,6 @@ RectTransform:
   m_CorrespondingSourceObject: {fileID: 3431379587094886159, guid: 546852835d958a242b924a371ded3380, type: 3}
   m_PrefabInstance: {fileID: 680473222}
   m_PrefabAsset: {fileID: 0}
---- !u!114 &680473224 stripped
-MonoBehaviour:
-  m_CorrespondingSourceObject: {fileID: 1750815344416579785, guid: 546852835d958a242b924a371ded3380, type: 3}
-  m_PrefabInstance: {fileID: 680473222}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 4e29b1a8efbd4b44bb3f3716e73f07ff, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Button
 --- !u!1001 &753945318
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -5415,7 +5404,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7de6693b7af8dcb42b5cd7e64ebeda7d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::VRContentScaler
-  vrScale: 0.5
+  vrScale: 0.4
 --- !u!1 &1606889565
 GameObject:
   m_ObjectHideFlags: 0
@@ -7231,7 +7220,7 @@ Canvas:
   serializedVersion: 3
   m_RenderMode: 1
   m_Camera: {fileID: 330585545}
-  m_PlaneDistance: 1
+  m_PlaneDistance: 0.9
   m_PixelPerfect: 0
   m_ReceivesEvents: 1
   m_OverrideSorting: 0
@@ -7343,7 +7332,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MenuController
   menuCanvas: {fileID: 3388150213451414592}
-  firstMenuButton: {fileID: 680473224}
   infoCanvas: {fileID: 1285828844}
   infoTitleText: {fileID: 1882709477}
   infoBodyText: {fileID: 1399479744}
