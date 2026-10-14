@@ -16,12 +16,6 @@ public class VRPlayerController : MonoBehaviour
     [Header("MS-LOD Debug")]
     public GaiaMSLODBoundsVisualizer msLODBoundsVisualizer;
 
-    [Header("Dust Debug")]
-    public DustLODBoundsVisualizer dustLODBoundsVisualizer;
-
-    [Header("Dust")]
-    public DustLODLoader dustLODLoader;
-
     [Header("Movement")]
     public float moveSpeed = 1.25f;
     public float speedChangeFactor = 2.0f;
@@ -52,8 +46,6 @@ public class VRPlayerController : MonoBehaviour
 
     private bool previousLeftX = false;
     private bool previousLeftY = false;
-    private bool previousLeftStickClick = false;
-    private bool previousRightStickClick = false;
     private bool previousRightTrigger = false;
     private bool previousRightGrip = false;
 
@@ -62,13 +54,6 @@ public class VRPlayerController : MonoBehaviour
         if (msLODBoundsVisualizer == null)
             msLODBoundsVisualizer =
                 FindAnyObjectByType<GaiaMSLODBoundsVisualizer>();
-
-        if (dustLODBoundsVisualizer == null)
-            dustLODBoundsVisualizer =
-                FindAnyObjectByType<DustLODBoundsVisualizer>();
-
-        if (dustLODLoader == null)
-            dustLODLoader = FindAnyObjectByType<DustLODLoader>();
 
         if (rightRayLine != null)
             rightRayLine.enabled = false;
@@ -138,9 +123,7 @@ public class VRPlayerController : MonoBehaviour
         transform.position += movement * Time.deltaTime;
 
         HandleSpeedControls(leftHand);
-        HandleScatteringToggle(leftHand);
         HandleMSLODBoundsControls(rightHand);
-        HandleDustLODBoundsControls(rightHand);
         HandleLandmarkSelection(rightHand);
     }
 
@@ -206,29 +189,6 @@ public class VRPlayerController : MonoBehaviour
         previousLeftY = leftY;
     }
 
-    private void HandleScatteringToggle(InputDevice leftHand)
-    {
-        bool leftStickClicked = false;
-
-        leftHand.TryGetFeatureValue(
-            CommonUsages.primary2DAxisClick,
-            out leftStickClicked);
-
-        if (leftStickClicked && !previousLeftStickClick)
-        {
-            if (dustLODLoader == null)
-                dustLODLoader = FindAnyObjectByType<DustLODLoader>();
-
-            if (dustLODLoader != null)
-                dustLODLoader.ToggleScattering();
-            else
-                Debug.LogWarning(
-                    "VRPlayerController: No DustLODLoader found.");
-        }
-
-        previousLeftStickClick = leftStickClicked;
-    }
-
     private void HandleMSLODBoundsControls(InputDevice rightHand)
     {
         bool rightGripPressed = false;
@@ -244,30 +204,6 @@ public class VRPlayerController : MonoBehaviour
         }
 
         previousRightGrip = rightGripPressed;
-    }
-
-    private void HandleDustLODBoundsControls(InputDevice rightHand)
-    {
-        bool rightStickClicked = false;
-
-        rightHand.TryGetFeatureValue(
-            CommonUsages.primary2DAxisClick,
-            out rightStickClicked);
-
-        if (rightStickClicked && !previousRightStickClick)
-        {
-            if (dustLODBoundsVisualizer == null)
-                dustLODBoundsVisualizer =
-                    FindAnyObjectByType<DustLODBoundsVisualizer>();
-
-            if (dustLODBoundsVisualizer != null)
-                dustLODBoundsVisualizer.ToggleBounds();
-            else
-                Debug.LogWarning(
-                    "VRPlayerController: No DustLODBoundsVisualizer found.");
-        }
-
-        previousRightStickClick = rightStickClicked;
     }
 
     private void HandleLandmarkSelection(InputDevice rightHand)

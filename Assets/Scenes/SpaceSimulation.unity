@@ -457,7 +457,6 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 212480234}
-  - component: {fileID: 212480233}
   - component: {fileID: 212480235}
   m_Layer: 0
   m_Name: Dust
@@ -466,31 +465,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &212480233
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 212480232}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: fd3881c44fa0e9e4e91c339836c982ae, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DustLODLoader
-  processedDirectory: Data/Dust
-  fallbackLOD: 4
-  maxLOD: 8
-  maxGpuBricks: 64
-  maxUploadsPerFrame: 2
-  maxConcurrentLoads: 4
-  streamingInterval: 0.2
-  fineRadiusPc: 96
-  preloadRadiusMultiplier: 1.25
-  stepMultiplier: 2
-  maxRaySteps: 128
-  tauVPerNHPerPc: 0.0012857
-  scatteringEnabled: 0
 --- !u!4 &212480234
 Transform:
   m_ObjectHideFlags: 0
@@ -503,8 +477,7 @@ Transform:
   m_LocalPosition: {x: 328.17834, y: -0.00001, z: 13666.999}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
-  m_Children:
-  - {fileID: 431947629}
+  m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &212480235
@@ -521,9 +494,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::DustSpriteRenderer
   relativeDataPath: Data/Dust/dust_sprites.bin
   spriteShader: {fileID: 4800000, guid: cf10ac3c3bd202b49b38400f53f2797c, type: 3}
-  spriteTint: {r: 0.52, g: 0.44, b: 0.36, a: 1}
-  opacity: 0.9
+  spriteTint: {r: 1, g: 1, b: 1, a: 1}
+  opacity: 0.2
   targetCamera: {fileID: 330585545}
+  customSpriteTexture: {fileID: 2800000, guid: 383a4b07d1e11f042b69e9098ce8b621, type: 3}
 --- !u!1 &223379401
 GameObject:
   m_ObjectHideFlags: 0
@@ -1602,55 +1576,6 @@ MonoBehaviour:
   m_ChildScaleWidth: 0
   m_ChildScaleHeight: 0
   m_ReverseArrangement: 0
---- !u!1 &431947628
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 431947629}
-  - component: {fileID: 431947630}
-  m_Layer: 0
-  m_Name: DustLODNodesVisualizer
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &431947629
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 431947628}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 212480234}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &431947630
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 431947628}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 2c119337b78ad924c8e3b5aaabf757ff, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DustLODBoundsVisualizer
-  dustLODLoader: {fileID: 212480233}
-  maxDesiredNodesToDraw: 100000000
-  maxLoadedNodesToDraw: 100000000
-  lineWidth: 0.2
-  baseMaterial: {fileID: 0}
 --- !u!1 &464568776
 GameObject:
   m_ObjectHideFlags: 0
@@ -1796,8 +1721,6 @@ MonoBehaviour:
     m_Bits: 4294967295
   orientation: {fileID: 1666570262}
   msLODBoundsVisualizer: {fileID: 618384818}
-  dustLODBoundsVisualizer: {fileID: 431947630}
-  dustLODLoader: {fileID: 212480233}
 --- !u!114 &475100220
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1817,8 +1740,6 @@ MonoBehaviour:
   headsetCamera: {fileID: 330585546}
   rightControllerTransform: {fileID: 1165375209}
   msLODBoundsVisualizer: {fileID: 618384818}
-  dustLODBoundsVisualizer: {fileID: 0}
-  dustLODLoader: {fileID: 212480233}
   moveSpeed: 2
   speedChangeFactor: 2
   turnSpeed: 60
@@ -2073,7 +1994,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::GaiaMSLODLoader
   metadataDirectory: Data/Gaia/lod
   targetCamera: {fileID: 330585545}
-  solidAngleThreshold: 5
+  solidAngleThreshold: 2
   frustumCulling: 1
   clusterFilter: {fileID: 586631269}
   streamUpdateDistance: 1

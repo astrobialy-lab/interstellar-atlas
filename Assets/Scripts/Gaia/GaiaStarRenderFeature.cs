@@ -12,18 +12,9 @@ public class GaiaStarRenderFeature : ScriptableRendererFeature
     [SerializeField] private Shader glareShader;
     [SerializeField] private Shader finalCompositeShader;
 
-    public enum DustDisplayMode
-    {
-        RealisticExtinction,
-        EnhancedDust
-    }
-
-    [Header("Dust Display")]
-    [SerializeField] private DustDisplayMode dustDisplayMode = DustDisplayMode.EnhancedDust;
-
-    // Used by DustVolumeRenderFeature to avoid running the extinction compute pass
-    // while EnhancedDust sprites are displayed.
-    public static bool RealisticExtinctionModeActive { get; private set; }
+    // Compatibility flag for DustVolumeRenderFeature. Realistic dust extinction
+    // is intentionally disabled; the dust sprite renderer remains independent.
+    public static bool RealisticExtinctionModeActive => false;
 
     private GaiaStarRasterizer rasterizer;
     private DustSpriteRenderer dustSpriteRenderer;
@@ -31,9 +22,6 @@ public class GaiaStarRenderFeature : ScriptableRendererFeature
 
     public override void Create()
     {
-        RealisticExtinctionModeActive =
-            dustDisplayMode == DustDisplayMode.RealisticExtinction;
-
         if (compositeShader == null)
             compositeShader = Shader.Find("Hidden/GaiaStarComposite");
         if (glareShader == null)
@@ -50,21 +38,19 @@ public class GaiaStarRenderFeature : ScriptableRendererFeature
         ScriptableRenderer renderer,
         ref RenderingData renderingData)
     {
-        RealisticExtinctionModeActive =
-            dustDisplayMode == DustDisplayMode.RealisticExtinction;
-
         CameraData cameraData = renderingData.cameraData;
         if (cameraData.cameraType != CameraType.Game ||
             cameraData.renderType == CameraRenderType.Overlay)
             return;
 
+        // Keep the separate billboard appearance layer active. It does not apply
+        // extinction to Gaia stars.
         if (dustSpriteRenderer == null)
             dustSpriteRenderer = Object.FindAnyObjectByType<DustSpriteRenderer>();
 
         if (dustSpriteRenderer != null)
         {
-            dustSpriteRenderer.SetEnhancedMode(
-                dustDisplayMode == DustDisplayMode.EnhancedDust);
+            dustSpriteRenderer.SetEnhancedMode(true);
             dustSpriteRenderer.SetTargetCamera(cameraData.camera);
         }
 
@@ -77,7 +63,6 @@ public class GaiaStarRenderFeature : ScriptableRendererFeature
         if (rasterizer == null || !rasterizer.enabled)
             return;
 
-        renderPass.SetDisplayMode(dustDisplayMode);
         renderer.EnqueuePass(renderPass);
     }
 
@@ -103,7 +88,6 @@ public class GaiaStarRenderFeature : ScriptableRendererFeature
         private int bufferWidth;
         private int bufferHeight;
         private int bufferEyeCount;
-        private DustDisplayMode displayMode = DustDisplayMode.EnhancedDust;
 
         private readonly List<GraphicsBuffer> starBuffers = new List<GraphicsBuffer>();
         private readonly List<int> starCounts = new List<int>();
@@ -142,12 +126,7 @@ public class GaiaStarRenderFeature : ScriptableRendererFeature
         private static readonly int InvViewProj1ID = Shader.PropertyToID("_InvViewProj1");
         private static readonly int EyePosition0ID = Shader.PropertyToID("_EyePosition0");
         private static readonly int EyePosition1ID = Shader.PropertyToID("_EyePosition1");
-
-        private static readonly int DustTauByDistanceID = Shader.PropertyToID("_DustTauByDistance");
         private static readonly int DustExtinctionValidID = Shader.PropertyToID("_DustExtinctionValid");
-        private static readonly int DustTauDistanceSampleCountID = Shader.PropertyToID("_DustTauDistanceSampleCount");
-        private static readonly int DustTauMapWidthID = Shader.PropertyToID("_DustTauMapWidth");
-        private static readonly int DustTauMapHeightID = Shader.PropertyToID("_DustTauMapHeight");
 
         public GaiaStarRenderPass(
             Shader compositeShader,
@@ -177,7 +156,6 @@ public class GaiaStarRenderFeature : ScriptableRendererFeature
         }
 
         public void SetRasterizer(GaiaStarRasterizer value) => rasterizer = value;
-        public void SetDisplayMode(DustDisplayMode mode) => displayMode = mode;
 
         public override void RecordRenderGraph(RenderGraph renderGraph, ContextContainer frameData)
         {
@@ -201,23 +179,6 @@ public class GaiaStarRenderFeature : ScriptableRendererFeature
             int eyeCount = cameraData.xr.enabled && cameraData.xr.viewCount >= 2 ? 2 : 1;
             if (!EnsureBuffers(width, height, eyeCount))
                 return;
-
-            bool hasDustMap =
-                DustExtinctionMap.IsAvailableForCurrentFrame(camera) &&
-                DustExtinctionMap.GraphTexture.IsValid();
-            bool useDustExtinction =
-                hasDustMap && displayMode == DustDisplayMode.RealisticExtinction;
-
-            TextureHandle dustExtinctionHandle;
-            if (hasDustMap)
-            {
-                dustExtinctionHandle = DustExtinctionMap.GraphTexture;
-            }
-            else
-            {
-                RTHandle fallbackHandle = DustExtinctionMap.GetFallbackHandle();
-                dustExtinctionHandle = renderGraph.ImportTexture(fallbackHandle);
-            }
 
             starBuffers.Clear();
             starCounts.Clear();
@@ -302,14 +263,8 @@ public class GaiaStarRenderFeature : ScriptableRendererFeature
                 computeData.viewProj1 = viewProjRight;
                 computeData.eyePosition0 = eyePositionLeft;
                 computeData.eyePosition1 = eyePositionRight;
-                computeData.useDustExtinction = useDustExtinction;
-                computeData.dustExtinctionHandle = dustExtinctionHandle;
-                computeData.dustTauMapWidth = hasDustMap ? DustExtinctionMap.Handle.rt.width : 1;
-                computeData.dustTauMapHeight = hasDustMap ? DustExtinctionMap.Handle.rt.height : 1;
-
                 builder.UseBuffer(computeData.luminance, AccessFlags.Write);
                 builder.UseBuffer(computeData.colorLuminance, AccessFlags.Write);
-                builder.UseTexture(computeData.dustExtinctionHandle, AccessFlags.Read);
                 for (int i = 0; i < computeData.starBuffers.Length; i++)
                     builder.UseBuffer(computeData.starBuffers[i], AccessFlags.Read);
                 builder.AllowPassCulling(false);
@@ -511,21 +466,8 @@ public class GaiaStarRenderFeature : ScriptableRendererFeature
             context.cmd.SetComputeVectorParam(
                 data.computeShader, EyePosition1ID, data.eyePosition1);
 
-            context.cmd.SetComputeIntParam(
-                data.computeShader, DustExtinctionValidID,
-                data.useDustExtinction ? 1 : 0);
-            context.cmd.SetComputeIntParam(
-                data.computeShader, DustTauDistanceSampleCountID,
-                DustExtinctionMap.DistanceSampleCount);
-            context.cmd.SetComputeIntParam(
-                data.computeShader, DustTauMapWidthID, data.dustTauMapWidth);
-            context.cmd.SetComputeIntParam(
-                data.computeShader, DustTauMapHeightID, data.dustTauMapHeight);
-
-            // Must be bound even when the shader validity flag is false.
-            context.cmd.SetComputeTextureParam(
-                data.computeShader, data.rasterizeKernel,
-                DustTauByDistanceID, data.dustExtinctionHandle);
+            // Keep the legacy compute-shader extinction branch explicitly disabled.
+            context.cmd.SetComputeIntParam(data.computeShader, DustExtinctionValidID, 0);
 
             for (int i = 0; i < data.starBuffers.Length; i++)
             {
@@ -652,7 +594,6 @@ public class GaiaStarRenderFeature : ScriptableRendererFeature
                 CoreUtils.Destroy(finalCompositeMaterial);
                 finalCompositeMaterial = null;
             }
-            DustExtinctionMap.ReleaseFallback();
         }
 
         private sealed class StarBufferPassData
@@ -701,18 +642,8 @@ public class GaiaStarRenderFeature : ScriptableRendererFeature
             public Matrix4x4 viewProj1;
             public Vector4 eyePosition0;
             public Vector4 eyePosition1;
-            public bool useDustExtinction;
-            public TextureHandle dustExtinctionHandle;
-            public int dustTauMapWidth;
-            public int dustTauMapHeight;
         }
 
         private sealed class GlobalTexturePassData { }
-    }
-
-    private void OnValidate()
-    {
-        RealisticExtinctionModeActive =
-            dustDisplayMode == DustDisplayMode.RealisticExtinction;
     }
 }

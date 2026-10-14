@@ -61,3 +61,5 @@
 - why no technion logo in vr
 
 - fix the warnings when building apk
+
+- remove highlighten option in the menu. no need to remember and scroll though the options. the mouse/controller picks its option. (i guess i can select if an arrow key is pressed)

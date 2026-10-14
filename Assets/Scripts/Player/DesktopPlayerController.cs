@@ -27,12 +27,6 @@ public class DesktopPlayerController : MonoBehaviour
     [Header("MS-LOD Debug")]
     public GaiaMSLODBoundsVisualizer msLODBoundsVisualizer;
 
-    [Header("Dust Debug")]
-    public DustLODBoundsVisualizer dustLODBoundsVisualizer;
-
-    [Header("Dust")]
-    public DustLODLoader dustLODLoader;
-
     // Camera pitch and roll are stored independently.
     private float cameraPitch = 0f;
     private float cameraRoll = 0f;
@@ -48,17 +42,6 @@ public class DesktopPlayerController : MonoBehaviour
         {
             msLODBoundsVisualizer =
                 FindAnyObjectByType<GaiaMSLODBoundsVisualizer>();
-        }
-
-        if (dustLODBoundsVisualizer == null)
-        {
-            dustLODBoundsVisualizer =
-                FindAnyObjectByType<DustLODBoundsVisualizer>();
-        }
-
-        if (dustLODLoader == null)
-        {
-            dustLODLoader = FindAnyObjectByType<DustLODLoader>();
         }
 
         Cursor.lockState = CursorLockMode.Locked;
@@ -251,27 +234,6 @@ public class DesktopPlayerController : MonoBehaviour
             );
         }
 
-        // 0 = toggle dust scattering.
-        // Digit 5 is already listed as the particle-size increase shortcut.
-        if (Keyboard.current.digit5Key.wasPressedThisFrame)
-        {
-            if (dustLODLoader == null)
-            {
-                dustLODLoader = FindAnyObjectByType<DustLODLoader>();
-            }
-
-            if (dustLODLoader != null)
-            {
-                dustLODLoader.ToggleScattering();
-            }
-            else
-            {
-                Debug.LogWarning(
-                    "DesktopPlayerController: No DustLODLoader found."
-                );
-            }
-        }
-
         // 6 = toggle landmark markers and Orientation
         if (Keyboard.current.digit6Key.wasPressedThisFrame)
         {
@@ -300,28 +262,6 @@ public class DesktopPlayerController : MonoBehaviour
             if (msLODBoundsVisualizer != null)
             {
                 msLODBoundsVisualizer.RefreshBounds();
-            }
-        }
-
-        // 9 = toggle dust LOD brick bounds
-        if (Keyboard.current.digit9Key.wasPressedThisFrame)
-        {
-            if (dustLODBoundsVisualizer == null)
-            {
-                dustLODBoundsVisualizer =
-                    FindAnyObjectByType<DustLODBoundsVisualizer>();
-            }
-
-            if (dustLODBoundsVisualizer != null)
-            {
-                dustLODBoundsVisualizer.ToggleBounds();
-            }
-            else
-            {
-                Debug.LogWarning(
-                    "DesktopPlayerController: " +
-                    "No DustLODBoundsVisualizer found."
-                );
             }
         }
     }

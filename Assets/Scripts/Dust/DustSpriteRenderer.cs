@@ -6,8 +6,7 @@ using UnityEngine.Rendering;
 
 /// <summary>
 /// Draws an offline-generated set of spatial dust billboards with one GPU-instanced draw.
-/// This is an artistic appearance layer; the separate extinction compute pass handles
-/// attenuation and reddening of Gaia stars.
+/// The sprite record's final parameter stores the old pipeline's Gaussian-remapped visual density.
 /// </summary>
 [DisallowMultipleComponent]
 public sealed class DustSpriteRenderer : MonoBehaviour
@@ -17,13 +16,15 @@ public sealed class DustSpriteRenderer : MonoBehaviour
 
     [Header("Rendering")]
     [SerializeField] private Shader spriteShader;
-    [SerializeField] private Color spriteTint = new Color(0.60f, 0.48f, 0.36f, 1f);
+    [SerializeField] private Color spriteTint = Color.white;
     [SerializeField, Range(0f, 3f)] private float opacity = 1.25f;
     [SerializeField] private Camera targetCamera;
 
+    [Header("Sprite Texture")]
+    [SerializeField] private Texture2D customSpriteTexture;
+
     private const string FileMagic = "DUSTSPR1";
     private const uint FileVersion = 1;
-    private const int MaxAcceptedSprites = 100000;
     private const int SpriteStrideBytes = 32;
     private const int CloudTextureSize = 128;
 
@@ -31,12 +32,13 @@ public sealed class DustSpriteRenderer : MonoBehaviour
     private static readonly int CloudTextureId = Shader.PropertyToID("_CloudTexture");
     private static readonly int TintId = Shader.PropertyToID("_DustTint");
     private static readonly int OpacityId = Shader.PropertyToID("_GlobalOpacity");
+    private static readonly int UseCustomSpriteTextureId = Shader.PropertyToID("_UseCustomSpriteTexture");
 
     [StructLayout(LayoutKind.Sequential)]
     private struct SpriteGpuData
     {
         public Vector4 positionSize; // xyz = world position in pc; w = diameter in pc
-        public Vector4 parameters;   // x = opacity, y = rotation radians, z = aspect ratio, w = normalized density
+        public Vector4 parameters;   // x = opacity, y = rotation radians, z = aspect ratio, w = density_visual in 0..1
     }
 
     private GraphicsBuffer spriteBuffer;
@@ -179,14 +181,18 @@ public sealed class DustSpriteRenderer : MonoBehaviour
                     throw new InvalidDataException($"Unsupported sprite file version {version}.");
 
                 uint count = reader.ReadUInt32();
-                if (count == 0 || count > MaxAcceptedSprites)
-                    throw new InvalidDataException($"Sprite count {count} is outside the supported range 1..{MaxAcceptedSprites}.");
+                if (count == 0)
+                    throw new InvalidDataException("Sprite count must be greater than zero.");
 
                 long expectedLength = 16L + (long)count * SpriteStrideBytes;
                 if (stream.Length != expectedLength)
                     throw new InvalidDataException($"Invalid sprite file length. Expected {expectedLength} bytes; found {stream.Length}.");
 
-                sprites = new SpriteGpuData[count];
+                // No arbitrary sprite-count cap; this only checks the CLR's array index limit.
+                if (count > int.MaxValue)
+                    throw new InvalidDataException($"Sprite count {count} exceeds the supported array-size limit.");
+
+                sprites = new SpriteGpuData[(int)count];
                 for (int i = 0; i < sprites.Length; i++)
                 {
                     float x = reader.ReadSingle();
@@ -196,12 +202,12 @@ public sealed class DustSpriteRenderer : MonoBehaviour
                     float spriteOpacity = reader.ReadSingle();
                     float rotation = reader.ReadSingle();
                     float aspect = reader.ReadSingle();
-                    float normalizedDensity = reader.ReadSingle();
+                    float densityVisual = reader.ReadSingle();
 
                     if (!IsFinite(x) || !IsFinite(y) || !IsFinite(z) ||
                         !IsFinite(size) || !IsFinite(spriteOpacity) ||
                         !IsFinite(rotation) || !IsFinite(aspect) ||
-                        !IsFinite(normalizedDensity) || size <= 0f || aspect <= 0f)
+                        !IsFinite(densityVisual) || size <= 0f || aspect <= 0f)
                     {
                         throw new InvalidDataException($"Invalid values in sprite record {i}.");
                     }
@@ -212,7 +218,7 @@ public sealed class DustSpriteRenderer : MonoBehaviour
                         parameters = new Vector4(
                             Mathf.Clamp01(spriteOpacity), rotation,
                             Mathf.Clamp(aspect, 0.25f, 4f),
-                            Mathf.Clamp01(normalizedDensity))
+                            Mathf.Clamp01(densityVisual))
                     };
 
                     Vector3 center = new Vector3(x, y, z);
@@ -252,6 +258,7 @@ public sealed class DustSpriteRenderer : MonoBehaviour
             properties.SetTexture(CloudTextureId, cloudTexture);
             properties.SetColor(TintId, spriteTint);
             properties.SetFloat(OpacityId, opacity);
+            properties.SetFloat(UseCustomSpriteTextureId, customSpriteTexture != null ? 1f : 0f);
 
             Debug.Log(
                 $"DustSpriteRenderer: Loaded {spriteCount:N0} spatial sprites from {path}. " +
@@ -308,6 +315,12 @@ public sealed class DustSpriteRenderer : MonoBehaviour
 
     private void CreateCloudTexture()
     {
+        if (customSpriteTexture != null)
+        {
+            cloudTexture = customSpriteTexture;
+            return;
+        }
+
         cloudTexture = new Texture2D(
             CloudTextureSize, CloudTextureSize,
             TextureFormat.RGBA32, false, true)
@@ -368,13 +381,13 @@ public sealed class DustSpriteRenderer : MonoBehaviour
             quadMesh = null;
         }
 
-        if (cloudTexture != null)
+        if (cloudTexture != null && cloudTexture != customSpriteTexture)
         {
             if (Application.isPlaying) Destroy(cloudTexture);
             else DestroyImmediate(cloudTexture);
-            cloudTexture = null;
         }
 
+        cloudTexture = null;
         properties = null;
         spriteCount = 0;
     }
