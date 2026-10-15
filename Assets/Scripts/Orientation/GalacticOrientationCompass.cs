@@ -37,14 +37,11 @@ public class GalacticOrientationCompass : MonoBehaviour
         new List<RectTransform>();
 
     // Galactic axes expressed in Unity world coordinates.
-    // +Xgal = Unity +X
-    // +Ygal = Unity +Z
-    // +Zgal = Unity +Y
     private readonly Vector3[] axisDirections =
     {
-        Vector3.right,
-        Vector3.forward,
-        Vector3.up
+        Vector3.right,  // +Xgal = Unity +X
+        Vector3.back,   // +Ygal = Unity -Z
+        Vector3.up      // +Zgal = Unity +Y
     };
 
     private GameObject compassAnchor;

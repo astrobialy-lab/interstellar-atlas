@@ -12,7 +12,7 @@ using UnityEngine.Rendering;
 public sealed class DustSpriteRenderer : MonoBehaviour
 {
     [Header("Data")]
-    [SerializeField] private string relativeDataPath = "Data/Dust/dust_sprites.bin";
+    [SerializeField] private string relativeDataPath = "Dust/dust_sprites.bin";
 
     [Header("Rendering")]
     [SerializeField] private Shader spriteShader;
@@ -48,6 +48,13 @@ public sealed class DustSpriteRenderer : MonoBehaviour
     private const float MinSpriteSizeMultiplier = 0.4f;
     private const float SpriteSizeMultiplierStep = 0.4f;
     private const float MaxSpriteSizeMultiplier = 2.0f;
+
+    // Six transparency levels: 0%, 20%, 40%, 60%, 80%, 100%.
+    private int spriteTransparencyStepIndex = 5;
+    private float spriteTransparencyMultiplier = 1.0f;
+
+    private const int SpriteTransparencyStepCount = 6;
+    private const float SpriteTransparencyMultiplierStep = 0.2f;
 
     [StructLayout(LayoutKind.Sequential)]
     private struct SpriteGpuData
@@ -158,7 +165,7 @@ public sealed class DustSpriteRenderer : MonoBehaviour
         }
 
         properties.SetColor(TintId, spriteTint);
-        properties.SetFloat(OpacityId, opacity);
+        properties.SetFloat(OpacityId, opacity * spriteTransparencyMultiplier);
 
         properties.SetVector(
             PlayerPositionId,
@@ -206,7 +213,7 @@ public sealed class DustSpriteRenderer : MonoBehaviour
 
         try
         {
-            string path = ResolveDataPath(relativeDataPath);
+            string path = Path.Combine(DataPath.Root, relativeDataPath);
             if (!File.Exists(path))
             {
                 Debug.LogError(
@@ -308,7 +315,7 @@ public sealed class DustSpriteRenderer : MonoBehaviour
             properties.SetBuffer(SpriteBufferId, spriteBuffer);
             properties.SetTexture(CloudTextureId, cloudTexture);
             properties.SetColor(TintId, spriteTint);
-            properties.SetFloat(OpacityId, opacity);
+            properties.SetFloat(OpacityId, opacity * spriteTransparencyMultiplier);
             properties.SetFloat(UseCustomSpriteTextureId, customSpriteTexture != null ? 1f : 0f);
             properties.SetFloat(ColorSchemeId, colorScheme);
             properties.SetFloat(SpriteSizeMultiplierId, spriteSizeMultiplier);
@@ -325,25 +332,6 @@ public sealed class DustSpriteRenderer : MonoBehaviour
     }
 
     private static bool IsFinite(float value) => !float.IsNaN(value) && !float.IsInfinity(value);
-
-    private static string ResolveDataPath(string relativePath)
-    {
-#if UNITY_EDITOR
-        return Path.GetFullPath(Path.Combine(Application.dataPath, "..", relativePath));
-#elif UNITY_ANDROID
-        using (var unityPlayer = new AndroidJavaClass("com.unity3d.player.UnityPlayer"))
-        using (var activity = unityPlayer.GetStatic<AndroidJavaObject>("currentActivity"))
-        using (var obbDirectory = activity.Call<AndroidJavaObject>("getObbDir"))
-        {
-            string obbRoot = obbDirectory.Call<string>("getAbsolutePath");
-            if (string.IsNullOrEmpty(obbRoot))
-                throw new IOException("Android getObbDir() returned an empty path.");
-            return Path.Combine(obbRoot, relativePath);
-        }
-#else
-        return Path.Combine(Application.persistentDataPath, relativePath);
-#endif
-    }
 
     private void CreateQuad()
     {
@@ -428,6 +416,22 @@ public sealed class DustSpriteRenderer : MonoBehaviour
             properties.SetFloat(
                 SpriteSizeMultiplierId,
                 spriteSizeMultiplier);
+    }
+
+    public void CycleSpriteTransparency()
+    {
+        spriteTransparencyStepIndex =
+            (spriteTransparencyStepIndex + 1) % SpriteTransparencyStepCount;
+
+        spriteTransparencyMultiplier =
+            spriteTransparencyStepIndex * SpriteTransparencyMultiplierStep;
+
+        if (properties != null)
+        {
+            properties.SetFloat(
+                OpacityId,
+                opacity * spriteTransparencyMultiplier);
+        }
     }
 
     private void OnDestroy()

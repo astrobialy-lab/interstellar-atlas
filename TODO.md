@@ -45,11 +45,8 @@
 - fix the warnings when building apk
 
 - maybe indeed for menu popups its better to use world space canvas. i think i will split it? if its PC then use screen space camera/overlay, and if its VR then use world space.
-- no keyboard popup when clicking on input
+- no keyboard popup when clicking on input. maybe its bcz the text before it has too wide div?
 
 - check if all controls in VR work
 
-- cant see the landmarks in VR
-- the compass is not oriented by the camera (or keep it in space or orient properly)
-- the text is too far on the right down
-- the compass scales when i increase/decrease player speed
+- Menu: for Desktop make the prefab Screen space - overlay, for VR make it World space

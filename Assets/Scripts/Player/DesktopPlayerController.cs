@@ -37,11 +37,15 @@ public class DesktopPlayerController : MonoBehaviour
 
     private void Start()
     {
-        var manager = XRGeneralSettings.Instance?.Manager;
-
-        if (manager?.activeLoader != null)
+        if (!Application.isEditor &&
+            Application.platform != RuntimePlatform.WindowsPlayer &&
+            Application.platform != RuntimePlatform.OSXPlayer &&
+            Application.platform != RuntimePlatform.LinuxPlayer &&
+            Application.platform != RuntimePlatform.WindowsEditor &&
+            Application.platform != RuntimePlatform.OSXEditor &&
+            Application.platform != RuntimePlatform.LinuxEditor)
         {
-            enabled = false;
+            Destroy(this);
             return;
         }
 
@@ -251,6 +255,15 @@ public class DesktopPlayerController : MonoBehaviour
             );
         }
 
+        // 3 = cycle dust sprite transparency
+        if (Keyboard.current.digit3Key.wasPressedThisFrame)
+        {
+            if (dustSpriteRenderer != null)
+            {
+                dustSpriteRenderer.CycleSpriteTransparency();
+            }
+        }
+
         // 4 = cycle dust color schemes
         if (Keyboard.current.digit4Key.wasPressedThisFrame)
         {
@@ -349,5 +362,25 @@ public class DesktopPlayerController : MonoBehaviour
         {
             Debug.Log("Raycast hit nothing.");
         }
+    }
+
+    public string GetControls()
+    {
+        return string.Join("\n", new string[]
+        {
+        "W / S: forward / backward",
+        "A / D: strafe left / right",
+        "Space / Shift: move up / down",
+        "Mouse: look around",
+        "Q / E: roll",
+        "= / -: increase / decrease speed",
+        "3: cycle dust sprite transparency",
+        "4: next dust color scheme",
+        "5: cycle dust sprite size",
+        "6: show / hide landmarks and orientation",
+        "7: select landmark",
+        "8: refresh Gaia MS-LOD bounds",
+        "Escape / M: release mouse / open or close menu"
+        });
     }
 }

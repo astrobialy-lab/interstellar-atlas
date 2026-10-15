@@ -10,11 +10,16 @@ using UnityEngine.EventSystems;
 public class FastTravelMenu : MonoBehaviour
 {
     [Header("Player")]
-    public VRPlayerController playerController;
+    public Transform playerTransform;
+
+    [Header("Fast Travel")]
+    public float fastTravelDuration = 3f;
+
+    public bool IsFastTraveling { get; private set; }
 
     [Header("Binary Source Data")]
-    [Tooltip("Path relative to the project root in the Editor, or next to the built game's data folder in a desktop build.")]
-    public string landmarkBinaryRelativePath = "Data/Landmarks/landmarks.bin";
+    [Tooltip("Path inside the Data dir.")]
+    public string landmarkBinaryDataPath = "Landmarks/landmarks.bin";
 
     [Header("UI")]
     public GameObject landmarkButtonPrefab;
@@ -47,7 +52,8 @@ public class FastTravelMenu : MonoBehaviour
 
     private IEnumerator LoadBinaryAndGenerateButtons()
     {
-        string path = ResolveLandmarkBinaryPath();
+        string path = Path.Combine(DataPath.Root, landmarkBinaryDataPath);
+
         if (string.IsNullOrEmpty(path))
         {
             yield break;
@@ -79,37 +85,6 @@ public class FastTravelMenu : MonoBehaviour
 
         GenerateLandmarkButtons(records);
         Debug.Log($"FastTravelMenu: Loaded {records.Count:N0} landmarks from '{path}'.");
-    }
-
-    private string ResolveLandmarkBinaryPath()
-    {
-#if UNITY_EDITOR
-        return Path.GetFullPath( Path.Combine(Application.dataPath, "..", landmarkBinaryRelativePath) );
-#elif UNITY_ANDROID
-    try
-    {
-        using (var unityPlayer = new AndroidJavaClass("com.unity3d.player.UnityPlayer"))
-        using (var activity = unityPlayer.GetStatic<AndroidJavaObject>("currentActivity"))
-        using (var obbDirectory = activity.Call<AndroidJavaObject>("getObbDir"))
-        {
-            string obbRoot = obbDirectory.Call<string>("getAbsolutePath");
-
-            if (string.IsNullOrEmpty(obbRoot))
-            {
-                throw new IOException("Android getObbDir() returned an empty path.");
-            }
-
-            return Path.Combine(obbRoot, landmarkBinaryRelativePath);
-        }
-    }
-    catch (Exception e)
-    {
-        Debug.LogError("FastTravelMenu: Could not resolve Android data path:\n" + e);
-        return null;
-    }
-#else
-    return Path.Combine(Application.persistentDataPath, landmarkBinaryRelativePath);
-#endif
     }
 
     private void Update()
@@ -299,24 +274,49 @@ public class FastTravelMenu : MonoBehaviour
 
     private void SelectLandmark(int index)
     {
-        // Ignore a selection event occurring in the frame the menu opened.
         if (Time.frameCount == ignoreSelectionFrame)
             return;
 
         if (index < 0 || index >= landmarks.Count)
             return;
 
-        LandmarkEntry landmark = landmarks[index];
-        if (playerController != null)
+        if (playerTransform == null)
         {
-            CloseMenu();
-            playerController.enabled = true;
-            playerController.StartFastTravel(landmark.position);
+            Debug.LogError("FastTravelMenu: Player Transform is not assigned.");
+            return;
         }
-        else
+
+        Vector3 destination = landmarks[index].position;
+
+        StartCoroutine(FastTravelTo(destination));
+        CloseMenu();
+    }
+
+    private IEnumerator FastTravelTo(Vector3 destination)
+    {
+        IsFastTraveling = true;
+
+        Vector3 start = playerTransform.position;
+        float duration = Mathf.Max(0.01f, fastTravelDuration);
+        float elapsed = 0f;
+
+        while (elapsed < duration)
         {
-            Debug.LogError("FastTravelMenu: Player Controller is not assigned.");
+            elapsed += Time.deltaTime;
+
+            float t = Mathf.Clamp01(elapsed / duration);
+            float smoothT = t * t * (3f - 2f * t);
+
+            playerTransform.position =
+                Vector3.Lerp(start, destination, smoothT);
+
+            yield return null;
         }
+
+        playerTransform.position = destination;
+        IsFastTraveling = false;
+
+        Debug.Log("Fast travel complete.");
     }
 
     public bool IsOpen()

@@ -84,19 +84,19 @@ public class MenuController : MonoBehaviour
 
     private void MonitorFastTravel()
     {
-        bool fastTravelOpen =
+        bool fastTravelActive =
             fastTravelMenu != null &&
             fastTravelMenu.IsOpen();
 
         if (fastTravelWasOpen &&
-            !fastTravelOpen &&
+            !fastTravelActive &&
             !menuOpen)
         {
             ClearCurrentSelection();
             RestoreSceneAfterMenu();
         }
 
-        fastTravelWasOpen = fastTravelOpen;
+        fastTravelWasOpen = fastTravelActive;
     }
 
     private void HandleKeyboardInput()
@@ -260,34 +260,22 @@ public class MenuController : MonoBehaviour
 
     public void ShowControls()
     {
-        OpenInfoMenu(
-            "Controls",
-            @"Desktop:
-W / S: forward / backward
-A / D: strafe left / right
-Space / Shift: move up / down
-Mouse: look around
-Q / E: roll
-= / -: increase / decrease speed
-4: next dust color scheme
-5: cycle dust sprite size
-6: show / hide landmarks and orientation
-7: select landmark
-8: refresh Gaia MS-LOD bounds
-Escape / M: release mouse / open or close menu
+        string controls = "";
 
-VR:
-Left Stick: move / turn
-Right Stick: strafe / rise / descend
-X: increase speed
-Y: decrease speed
-B: show / hide landmarks and orientation
-Left Trigger: next dust color scheme
-Left Grip: cycle dust sprite size
-Right Grip: refresh Gaia MS-LOD bounds
-Right Trigger: select landmark
-Left Menu Button: open menu / close current menu"
-        );
+        if (desktopPlayerController != null)
+        {
+            controls += "Desktop:\n" + desktopPlayerController.GetControls();
+        }
+
+        if (vrPlayerController != null)
+        {
+            if (!string.IsNullOrEmpty(controls))
+                controls += "\n\n";
+
+            controls += "VR:\n" + vrPlayerController.GetControls();
+        }
+
+        OpenInfoMenu("Controls", controls);
     }
 
     public void ShowAbout()

@@ -17,7 +17,7 @@ LEVEL = 3
 NPIXELS = 12 * 4**LEVEL
 DIVISOR = 2 ** (59 - 2 * LEVEL)
 
-MAX_WORKERS = 20
+MAX_WORKERS = 5 # use 20 when gaia is out of maintanance
 
 
 def download_healpix(healpix):

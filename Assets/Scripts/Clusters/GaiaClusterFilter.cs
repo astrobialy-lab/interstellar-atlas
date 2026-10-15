@@ -6,8 +6,7 @@ public class GaiaClusterFilter : MonoBehaviour
 {
     [Header("Data")]
     [SerializeField]
-    private string clusterDirectory =
-        "Data/Clusters/HuntReffert2024";
+    private string clusterDirectoryDataPath = "Clusters/HuntReffert2024";
 
     [Header("Filter")]
     [SerializeField]
@@ -47,6 +46,9 @@ public class GaiaClusterFilter : MonoBehaviour
 
     [SerializeField]
     private bool useDistanceRange = false;
+
+    // WARNING: if you want to use filter by distance and degrees,
+    // first make sure you appropriatly trastlate the raw clusters data to galactic coordinates with sun at the venter when running python process scripts.
 
     [SerializeField]
     private float minDistancePc = 0.0f;
@@ -143,16 +145,13 @@ public class GaiaClusterFilter : MonoBehaviour
         {
             string dataRoot = ResolveDataRoot();
 
-            database = GaiaClusterDatabase.Load(
-                dataRoot,
-                clusterDirectory
-            );
+            database = GaiaClusterDatabase.Load(DataPath.Root, clusterDirectoryDataPath);
 
             Debug.Log(
                 $"GaiaClusterFilter: Loaded cluster database. " +
                 $"Clusters={database.ClusterCount}, " +
                 $"Memberships={database.MembershipCount}, " +
-                $"Path={Path.Combine(dataRoot, clusterDirectory)}"
+                $"Path={Path.Combine(DataPath.Root, clusterDirectoryDataPath)}"
             );
 
             lastSettingsHash = ComputeSettingsHash();

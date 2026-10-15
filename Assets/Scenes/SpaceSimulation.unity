@@ -492,7 +492,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7ba0cb83181f16343bfbe7aff39c27e8, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::DustSpriteRenderer
-  relativeDataPath: Data/Dust/dust_sprites.bin
+  relativeDataPath: Dust/dust_sprites.bin
   spriteShader: {fileID: 4800000, guid: cf10ac3c3bd202b49b38400f53f2797c, type: 3}
   spriteTint: {r: 1, g: 1, b: 1, a: 1}
   opacity: 0.2
@@ -1707,7 +1707,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 69d7551afb285458dae593bcb1f05c37, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::DesktopDebugController
-  moveSpeed: 3
+  moveSpeed: 10
   speedChangeFactor: 10
   cameraTransform: {fileID: 330585546}
   mouseSensitivity: 0.1
@@ -1741,10 +1741,9 @@ MonoBehaviour:
   headsetCamera: {fileID: 330585546}
   rightControllerTransform: {fileID: 1165375209}
   msLODBoundsVisualizer: {fileID: 618384818}
-  moveSpeed: 2
+  moveSpeed: 10
   speedChangeFactor: 2
   turnSpeed: 60
-  fastTravelDuration: 3
   inputDeadzone: 0.15
   movementSmoothing: 4
   turnSmoothing: 4
@@ -1813,6 +1812,129 @@ MonoBehaviour:
   m_CameraFloorOffsetObject: {fileID: 938372574}
   m_RequestedTrackingOriginMode: 0
   m_CameraYOffset: 1.36144
+--- !u!1 &573475327
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 573475331}
+  - component: {fileID: 573475330}
+  - component: {fileID: 573475329}
+  - component: {fileID: 573475328}
+  m_Layer: 0
+  m_Name: GalaxyCenter
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &573475328
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 573475327}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fdb2ed81ffb1f9f4b96bee36313a0ead, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FacePlayerPosition
+  playerCamera: {fileID: 330585546}
+--- !u!114 &573475329
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 573475327}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8c06f556be387ab499d084c433d43086, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MarkerDistanceScaling
+  targetCamera: {fileID: 330585545}
+  compensationStartDistance: 25
+  distanceExponent: 0.5
+  minimumScreenHeightPixels: 20
+  maxScale: 32
+--- !u!212 &573475330
+SpriteRenderer:
+  serializedVersion: 2
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 573475327}
+  m_Enabled: 1
+  m_CastShadows: 0
+  m_ReceiveShadows: 0
+  m_DynamicOccludee: 1
+  m_StaticShadowCaster: 0
+  m_MotionVectors: 1
+  m_LightProbeUsage: 1
+  m_ReflectionProbeUsage: 1
+  m_RayTracingMode: 0
+  m_RayTraceProcedural: 0
+  m_RayTracingAccelStructBuildFlagsOverride: 0
+  m_RayTracingAccelStructBuildFlags: 1
+  m_SmallMeshCulling: 1
+  m_ForceMeshLod: -1
+  m_MeshLodSelectionBias: 0
+  m_RenderingLayerMask: 1
+  m_RendererPriority: 0
+  m_Materials:
+  - {fileID: 2100000, guid: 9dfc825aed78fcd4ba02077103263b40, type: 2}
+  m_StaticBatchInfo:
+    firstSubMesh: 0
+    subMeshCount: 0
+  m_StaticBatchRoot: {fileID: 0}
+  m_ProbeAnchor: {fileID: 0}
+  m_LightProbeVolumeOverride: {fileID: 0}
+  m_ScaleInLightmap: 1
+  m_ReceiveGI: 1
+  m_PreserveUVs: 0
+  m_IgnoreNormalsForChartDetection: 0
+  m_ImportantGI: 0
+  m_StitchLightmapSeams: 1
+  m_SelectedEditorRenderState: 0
+  m_MinimumChartSize: 4
+  m_AutoUVMaxDistance: 0.5
+  m_AutoUVMaxAngle: 89
+  m_LightmapParameters: {fileID: 0}
+  m_GlobalIlluminationMeshLod: 0
+  m_SortingLayerID: 0
+  m_SortingLayer: 0
+  m_SortingOrder: 0
+  m_MaskInteraction: 0
+  m_Sprite: {fileID: 21300000, guid: e45f8f823c093d941855bb23b53b9414, type: 3}
+  m_Color: {r: 1, g: 0.9965409, b: 0.9198113, a: 1}
+  m_FlipX: 0
+  m_FlipY: 0
+  m_DrawMode: 0
+  m_Size: {x: 2.56, y: 2.56}
+  m_AdaptiveModeThreshold: 0.5
+  m_SpriteTileMode: 0
+  m_WasSpriteAssigned: 1
+  m_SpriteSortPoint: 0
+--- !u!4 &573475331
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 573475327}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 8200, y: -0, z: 0}
+  m_LocalScale: {x: 0.3, y: 0.3, z: 0.3}
+  m_ConstrainProportionsScale: 1
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &580093148
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -1992,11 +2114,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 36dd962b2be45994d9ae240c4877bba4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::GaiaMSLODLoader
-  metadataDirectory: Data/Gaia/lod
+  metadataDirectoryDataPath: Gaia/lod
   targetCamera: {fileID: 330585545}
   solidAngleThreshold: 4
+  frustumCulling: 1
   clusterFilter: {fileID: 586631269}
   streamUpdateDistance: 1
+  streamUpdateAngle: 2
   maxConcurrentLoads: 100
   verboseLogging: 0
 --- !u!114 &586631269
@@ -2011,7 +2135,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 74f04fe32a4e94b46ae686f8e3c82020, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::GaiaClusterFilter
-  clusterDirectory: Data/Clusters/HuntReffert2024
+  clusterDirectoryDataPath: Clusters/HuntReffert2024
   filterEnabled: 0
   useMembershipProbability: 0
   minMembershipProbability: 0
@@ -2996,7 +3120,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 3694709420856747027, guid: 54de786d1d753bd47b95e34075782852, type: 3}
       propertyPath: m_SizeDelta.y
-      value: 300
+      value: 250
       objectReference: {fileID: 0}
     - target: {fileID: 3694709420856747027, guid: 54de786d1d753bd47b95e34075782852, type: 3}
       propertyPath: m_LocalPosition.x
@@ -3032,7 +3156,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 3694709420856747027, guid: 54de786d1d753bd47b95e34075782852, type: 3}
       propertyPath: m_AnchoredPosition.y
-      value: -30
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 3694709420856747027, guid: 54de786d1d753bd47b95e34075782852, type: 3}
       propertyPath: m_LocalEulerAnglesHint.x
@@ -3100,9 +3224,6 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 8620736955965912419, guid: 54de786d1d753bd47b95e34075782852, type: 3}
       insertIndex: -1
       addedObject: {fileID: 413903512}
-    - targetCorrespondingSourceObject: {fileID: 8620736955965912419, guid: 54de786d1d753bd47b95e34075782852, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 791269025}
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 54de786d1d753bd47b95e34075782852, type: 3}
 --- !u!224 &813220531 stripped
@@ -4008,7 +4129,7 @@ PrefabInstance:
   serializedVersion: 2
   m_Modification:
     serializedVersion: 3
-    m_TransformParent: {fileID: 813220531}
+    m_TransformParent: {fileID: 1534227110}
     m_Modifications:
     - target: {fileID: 1750815344416579785, guid: 546852835d958a242b924a371ded3380, type: 3}
       propertyPath: m_OnClick.m_PersistentCalls.m_Calls.Array.size
@@ -4052,7 +4173,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 3431379587094886159, guid: 546852835d958a242b924a371ded3380, type: 3}
       propertyPath: m_AnchorMax.y
-      value: 0
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 3431379587094886159, guid: 546852835d958a242b924a371ded3380, type: 3}
       propertyPath: m_AnchorMin.x
@@ -4060,7 +4181,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 3431379587094886159, guid: 546852835d958a242b924a371ded3380, type: 3}
       propertyPath: m_AnchorMin.y
-      value: 0
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 3431379587094886159, guid: 546852835d958a242b924a371ded3380, type: 3}
       propertyPath: m_SizeDelta.x
@@ -4100,11 +4221,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 3431379587094886159, guid: 546852835d958a242b924a371ded3380, type: 3}
       propertyPath: m_AnchoredPosition.x
-      value: 0
+      value: 250
       objectReference: {fileID: 0}
     - target: {fileID: 3431379587094886159, guid: 546852835d958a242b924a371ded3380, type: 3}
       propertyPath: m_AnchoredPosition.y
-      value: 0
+      value: -425
       objectReference: {fileID: 0}
     - target: {fileID: 3431379587094886159, guid: 546852835d958a242b924a371ded3380, type: 3}
       propertyPath: m_LocalEulerAnglesHint.x
@@ -5126,6 +5247,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 4846160969777153553, guid: 03b72dde25c979049b864b97fc8417f9, type: 3}
       insertIndex: -1
       addedObject: {fileID: 813220532}
+    - targetCorrespondingSourceObject: {fileID: 4846160969777153553, guid: 03b72dde25c979049b864b97fc8417f9, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 791269025}
     m_AddedComponents:
     - targetCorrespondingSourceObject: {fileID: 2676583781794133734, guid: 03b72dde25c979049b864b97fc8417f9, type: 3}
       insertIndex: -1
@@ -5550,8 +5674,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::GalacticCoordinateHUD
   viewerCamera: {fileID: 330585546}
   uiPanel: {fileID: 1606889566}
-  viewportX: 0.8
-  viewportY: 0.13
+  viewportX: 0.5
+  viewportY: 0.2
   distanceFromCamera: 1.2
   localEulerAngles: {x: 0, y: 0, z: 0}
   textBoxSize: {x: 600, y: 200}
@@ -6808,8 +6932,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e48d390dfadc71b41b5bf38cd89ce3f2, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::FastTravelMenu
-  playerController: {fileID: 475100220}
-  landmarkBinaryRelativePath: Data/Landmarks/landmarks.bin
+  playerTransform: {fileID: 475100218}
+  fastTravelDuration: 3
+  landmarkBinaryDataPath: Landmarks/landmarks.bin
   landmarkButtonPrefab: {fileID: 3911420065684786735, guid: 546852835d958a242b924a371ded3380, type: 3}
   content: {fileID: 239089925}
   scrollRect: {fileID: 239089926}
@@ -7368,7 +7493,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 01b0007bb1f204860a3ceff29bfefcd8, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::NewMonoBehaviourScript
-  landmarkBinaryRelativePath: Data/Landmarks/landmarks.bin
+  landmarkBinaryDataPath: Landmarks/landmarks.bin
   markersRoot: {fileID: 1832397275}
   cloudMarkerPrefab: {fileID: 6192945478437891419, guid: 4c44e384801c1427bb6174880ec72245, type: 3}
   starMarkerPrefab: {fileID: 6192945478437891419, guid: 0c446dcf4d3007f48beeadc17619b1d8, type: 3}
@@ -13316,4 +13441,5 @@ SceneRoots:
   - {fileID: 586631264}
   - {fileID: 212480234}
   - {fileID: 6323359981201981937}
+  - {fileID: 573475331}
   - {fileID: 1666570266}

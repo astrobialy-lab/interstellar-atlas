@@ -1,6 +1,7 @@
 
 using UnityEngine;
 using UnityEngine.XR;
+using UnityEngine.XR.Management;
 
 public class VRPlayerController : MonoBehaviour
 {
@@ -20,14 +21,6 @@ public class VRPlayerController : MonoBehaviour
     public float moveSpeed = 1.25f;
     public float speedChangeFactor = 2.0f;
     public float turnSpeed = 35.0f;
-
-    [Header("Fast Travel")]
-    public float fastTravelDuration = 3.0f;
-
-    private bool isFastTraveling = false;
-    private Vector3 fastTravelStart;
-    private Vector3 fastTravelTarget;
-    private float fastTravelTime;
 
     public float inputDeadzone = 0.15f;
     public float movementSmoothing = 4.0f;
@@ -51,9 +44,16 @@ public class VRPlayerController : MonoBehaviour
     private bool previousRightTrigger = false;
     private bool previousRightGrip = false;
     private bool previousRightB = false;
+    private bool previousRightA = false;
 
     private void Start()
     {
+        if (!XRSettings.isDeviceActive)
+        {
+            Destroy(this);
+            return;
+        }
+
         if (dustSpriteRenderer == null)
             dustSpriteRenderer = FindAnyObjectByType<DustSpriteRenderer>();
 
@@ -67,12 +67,6 @@ public class VRPlayerController : MonoBehaviour
 
     private void Update()
     {
-        if (isFastTraveling)
-        {
-            UpdateFastTravel();
-            return;
-        }
-
         InputDevice leftHand = InputDevices.GetDeviceAtXRNode(XRNode.LeftHand);
         InputDevice rightHand = InputDevices.GetDeviceAtXRNode(XRNode.RightHand);
 
@@ -129,42 +123,10 @@ public class VRPlayerController : MonoBehaviour
         transform.position += movement * Time.deltaTime;
 
         HandleSpeedControls(leftHand);
-        HandleDustRenderingControls(leftHand);
+        HandleDustRenderingControls(leftHand, rightHand);
         HandleMSLODBoundsControls(rightHand);
         HandleLandmarkToggle(rightHand);
         HandleLandmarkSelection(rightHand);
-    }
-
-    public void StartFastTravel(Vector3 destination)
-    {
-        if (isFastTraveling)
-            return;
-
-        fastTravelStart = transform.position;
-        fastTravelTarget = destination;
-        fastTravelTime = 0f;
-        isFastTraveling = true;
-
-        Debug.Log(
-            $"Starting fast travel from {fastTravelStart} to {fastTravelTarget}");
-    }
-
-    private void UpdateFastTravel()
-    {
-        fastTravelTime += Time.deltaTime;
-
-        float t = Mathf.Clamp01(fastTravelTime / fastTravelDuration);
-        float smoothT = t * t * (3f - 2f * t);
-
-        transform.position = Vector3.Lerp(
-            fastTravelStart, fastTravelTarget, smoothT);
-
-        if (t >= 1f)
-        {
-            transform.position = fastTravelTarget;
-            isFastTraveling = false;
-            Debug.Log("Fast travel complete.");
-        }
     }
 
     private void HandleSpeedControls(InputDevice leftHand)
@@ -179,28 +141,23 @@ public class VRPlayerController : MonoBehaviour
         if (leftX && !previousLeftX)
         {
             moveSpeed *= speedChangeFactor;
-
-            if (xrOrigin != null)
-                xrOrigin.localScale /= speedChangeFactor;
         }
 
         // Y = decrease speed.
         if (leftY && !previousLeftY)
         {
             moveSpeed /= speedChangeFactor;
-
-            if (xrOrigin != null)
-                xrOrigin.localScale *= speedChangeFactor;
         }
 
         previousLeftX = leftX;
         previousLeftY = leftY;
     }
 
-    private void HandleDustRenderingControls(InputDevice leftHand)
+    private void HandleDustRenderingControls(InputDevice leftHand, InputDevice rightHand)
     {
         bool leftTriggerPressed = false;
         bool leftGripPressed = false;
+        bool rightTriggerPressed = false;
 
         leftHand.TryGetFeatureValue(
             CommonUsages.triggerButton,
@@ -209,6 +166,10 @@ public class VRPlayerController : MonoBehaviour
         leftHand.TryGetFeatureValue(
             CommonUsages.gripButton,
             out leftGripPressed);
+
+        rightHand.TryGetFeatureValue(
+            CommonUsages.triggerButton,
+            out rightTriggerPressed);
 
         if (dustSpriteRenderer != null)
         {
@@ -219,10 +180,15 @@ public class VRPlayerController : MonoBehaviour
             // Left Grip: cycle through sprite sizes.
             if (leftGripPressed && !previousLeftGrip)
                 dustSpriteRenderer.CycleSpriteSizeMultiplier();
+
+            // Right Trigger = cycle dust transparency.
+            if (rightTriggerPressed && !previousRightTrigger)
+                dustSpriteRenderer.CycleSpriteTransparency();
         }
 
         previousLeftTrigger = leftTriggerPressed;
         previousLeftGrip = leftGripPressed;
+        previousRightTrigger = rightTriggerPressed;
     }
 
     private void HandleMSLODBoundsControls(InputDevice rightHand)
@@ -265,16 +231,17 @@ public class VRPlayerController : MonoBehaviour
 
     private void HandleLandmarkSelection(InputDevice rightHand)
     {
-        bool rightTriggerPressed = false;
+        bool rightAPressed = false;
 
         rightHand.TryGetFeatureValue(
-            CommonUsages.triggerButton,
-            out rightTriggerPressed);
+            CommonUsages.primaryButton,
+            out rightAPressed);
 
-        if (rightTriggerPressed && !previousRightTrigger)
+        // Right A = select landmark.
+        if (rightAPressed && !previousRightA)
             TrySelectLandmark();
 
-        previousRightTrigger = rightTriggerPressed;
+        previousRightA = rightAPressed;
     }
 
     private void TrySelectLandmark()
@@ -323,5 +290,23 @@ public class VRPlayerController : MonoBehaviour
         {
             Debug.Log("Raycast hit nothing.");
         }
+    }
+
+    public string GetControls()
+    {
+        return string.Join("\n", new string[]
+        {
+        "Left Stick: move / turn",
+        "Right Stick: strafe / rise / descend",
+        "X: increase speed",
+        "Y: decrease speed",
+        "A: select landmark",
+        "B: show / hide landmarks and orientation",
+        "Left Trigger: next dust color scheme",
+        "Left Grip: cycle dust sprite size",
+        "Right Trigger: cycle dust sprite transparency",
+        "Right Grip: refresh Gaia MS-LOD bounds",
+        "Left Menu Button: open menu / close current menu"
+        });
     }
 }

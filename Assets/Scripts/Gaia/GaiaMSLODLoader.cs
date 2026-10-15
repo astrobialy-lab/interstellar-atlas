@@ -13,7 +13,7 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
 
     [Header("LOD Data")]
     [SerializeField]
-    private string metadataDirectory = "Data/Gaia/lod";
+    private string metadataDirectoryDataPath = "Gaia/lod";
 
     [SerializeField]
     private Camera targetCamera;
@@ -90,8 +90,6 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
 
     private int rootNodeId = 0;
     private bool isReady = false;
-
-    private string dataRoot;
 
 
     // ========================================================
@@ -207,24 +205,6 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
 
             return;
         }
-
-#if UNITY_EDITOR
-        dataRoot = Directory.GetParent(Application.dataPath).FullName;
-#elif UNITY_ANDROID
-        using (var unityPlayer = new AndroidJavaClass("com.unity3d.player.UnityPlayer"))
-        using (var activity = unityPlayer.GetStatic<AndroidJavaObject>("currentActivity"))
-        using (var obbDirectory = activity.Call<AndroidJavaObject>("getObbDir"))
-        {
-            dataRoot = obbDirectory.Call<string>("getAbsolutePath");
-
-            if (string.IsNullOrEmpty(dataRoot))
-                throw new IOException("Android getObbDir() returned an empty path.");
-        }
-#else
-        dataRoot = Application.persistentDataPath;
-#endif
-
-        Debug.Log($"[GaiaMSLOD] Data root: {dataRoot}");
 
         if (!LoadMetadata())
         {
@@ -656,8 +636,8 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
     {
         string metadataPath =
             Path.Combine(
-                dataRoot,
-                metadataDirectory,
+                DataPath.Root,
+                metadataDirectoryDataPath,
                 "metadata.bin"
             );
 
@@ -1339,8 +1319,8 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
 
         string particlePath =
             Path.Combine(
-                dataRoot,
-                metadataDirectory,
+                DataPath.Root,
+                metadataDirectoryDataPath,
                 "particles",
                 $"particles_{nodeId:00000000}.bin"
             );
@@ -1393,8 +1373,8 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
         {
             string sourceIdPath =
                 Path.Combine(
-                    dataRoot,
-                    metadataDirectory,
+                    DataPath.Root,
+                    metadataDirectoryDataPath,
                     "source_ids",
                     $"source_ids_{nodeId:00000000}.bin"
                 );

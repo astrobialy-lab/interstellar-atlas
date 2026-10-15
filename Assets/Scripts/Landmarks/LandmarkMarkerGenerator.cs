@@ -6,9 +6,8 @@ using UnityEngine;
 public class LandmarkMarkerGenerator : MonoBehaviour
 {
     [Header("Binary Source Data")]
-    [Tooltip("Path relative to the project root in the Editor, or beside the built game's data folder in desktop builds.")]
-    public string landmarkBinaryRelativePath =
-        "Data/Landmarks/local_neighborhood_landmarks.bin";
+    [Tooltip("Path inside the Data dir.")]
+    public string landmarkBinaryDataPath = "Landmarks/landmarks.bin";
 
     [Header("Marker Root")]
     [Tooltip("All generated landmark markers will be created under this object.")]
@@ -69,7 +68,7 @@ public class LandmarkMarkerGenerator : MonoBehaviour
 
     private void LoadBinaryAndGenerateMarkers()
     {
-        string binaryPath = ResolveBinaryPath();
+        string binaryPath = Path.Combine(DataPath.Root, landmarkBinaryDataPath);
 
         if (string.IsNullOrEmpty(binaryPath))
             return;
@@ -154,21 +153,6 @@ public class LandmarkMarkerGenerator : MonoBehaviour
         Debug.Log(
             $"LandmarkMarkerGenerator: Created {created:N0} landmark markers " +
             $"from {records.Count:N0} binary records.");
-    }
-
-    private string ResolveBinaryPath()
-    {
-#if UNITY_EDITOR
-        string projectRoot = Path.GetFullPath(
-            Path.Combine(Application.dataPath, ".."));
-
-        return Path.GetFullPath(
-            Path.Combine(projectRoot, landmarkBinaryRelativePath));
-#else
-        return Path.Combine(
-            Application.persistentDataPath,
-            landmarkBinaryRelativePath);
-#endif
     }
 
     private static string NormalizeTypeCode(string type)

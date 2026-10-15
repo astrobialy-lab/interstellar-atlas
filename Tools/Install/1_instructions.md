@@ -9,10 +9,13 @@
 ```bash
 ADB='/c/Program Files/Unity/Hub/Editor/6000.4.9f1/Editor/Data/PlaybackEngines/AndroidPlayer/SDK/platform-tools/adb.exe'
 DST='/sdcard/Android/obb/com.Technion.SpaceSimulation'
+
 # right before opening the app:
 "$ADB" logcat -c
 # after openning the app:
-"$ADB" logcat -d -v threadtime > black_screen.log
+"$ADB" logcat -d -v threadtime > vrset.log
+# and then in the logs you can search for " E Unity "
+
 # checking the files
 "$ADB" shell "ls $DST"
 ```
