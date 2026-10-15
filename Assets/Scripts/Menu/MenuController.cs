@@ -59,8 +59,6 @@ public class MenuController : MonoBehaviour
 
     private void LateUpdate()
     {
-        // Clear persistent selection while using these menus.
-        // Pointer hover remains functional for mouse and VR controllers.
         if (EventSystem.current == null)
             return;
 
@@ -69,11 +67,21 @@ public class MenuController : MonoBehaviour
             (infoCanvas != null && infoCanvas.activeInHierarchy) ||
             (clusterFilterMenu != null && clusterFilterMenu.IsOpen());
 
-        if (clearSelection &&
-            EventSystem.current.currentSelectedGameObject != null)
-        {
-            ClearCurrentSelection();
-        }
+        if (!clearSelection)
+            return;
+
+        GameObject selected =
+            EventSystem.current.currentSelectedGameObject;
+
+        if (selected == null)
+            return;
+
+        // Keep input fields selected so they retain focus.
+        if (selected.GetComponentInParent<TMP_InputField>() != null)
+            return;
+
+        // Clear selection from other UI elements.
+        ClearCurrentSelection();
     }
 
     private void ClearCurrentSelection()

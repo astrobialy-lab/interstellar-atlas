@@ -22,9 +22,6 @@
 
 - fix the warnings when building apk
 
-- no keyboard popup when clicking on input. maybe its bcz the text before it has too wide div?
-- maybe it shows if i could click on stuff properly with x instead of grabbing
-
 - check if all controls in VR work
 
 

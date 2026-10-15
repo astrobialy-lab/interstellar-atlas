@@ -13,7 +13,7 @@ DST='/sdcard/Android/obb/com.Technion.SpaceSimulation'
 # right before opening the app:
 "$ADB" logcat -c
 # after openning the app:
-"$ADB" logcat -d -v threadtime > vrset.log
+"$ADB" logcat -d -v threadtime > VRSet.log
 # and then in the logs you can search for " E Unity "
 
 # checking the files
