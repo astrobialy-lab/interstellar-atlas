@@ -474,9 +474,9 @@ Transform:
   m_GameObject: {fileID: 212480232}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 328.17834, y: -0.00001, z: 13666.999}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
+  m_ConstrainProportionsScale: 1
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
@@ -803,7 +803,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 8620736955965912419, guid: 54de786d1d753bd47b95e34075782852, type: 3}
       propertyPath: m_AnchoredPosition.y
-      value: 0
+      value: 0.0005301915
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -1384,6 +1384,8 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 376260064}
+  - component: {fileID: 376260066}
+  - component: {fileID: 376260065}
   m_Layer: 0
   m_Name: Landmarks
   m_TagString: Untagged
@@ -1400,15 +1402,60 @@ Transform:
   m_GameObject: {fileID: 376260063}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -1.12934, y: 0, z: -0.4546}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
+  m_ConstrainProportionsScale: 1
   m_Children:
   - {fileID: 2109148597}
   - {fileID: 1765479598}
   - {fileID: 1911078722}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &376260065
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 376260063}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e48d390dfadc71b41b5bf38cd89ce3f2, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FastTravelMenu
+  playerTransform: {fileID: 475100218}
+  fastTravelDuration: 3
+  landmarkBinaryDataPath: Landmarks/landmarks.bin
+  landmarkButtonPrefab: {fileID: 3911420065684786735, guid: 546852835d958a242b924a371ded3380, type: 3}
+  content: {fileID: 239089925}
+  scrollRect: {fileID: 239089926}
+  menuRoot: {fileID: 1911078725}
+--- !u!114 &376260066
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 376260063}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 01b0007bb1f204860a3ceff29bfefcd8, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::NewMonoBehaviourScript
+  landmarkBinaryDataPath: Landmarks/landmarks.bin
+  markersRoot: {fileID: 2109148595}
+  cloudMarkerPrefab: {fileID: 6192945478437891419, guid: 4c44e384801c1427bb6174880ec72245, type: 3}
+  starMarkerPrefab: {fileID: 6192945478437891419, guid: 0c446dcf4d3007f48beeadc17619b1d8, type: 3}
+  nebulaMarkerPrefab: {fileID: 6192945478437891419, guid: 8864130be5c790645b1407ed3adc26c4, type: 3}
+  clusterMarkerPrefab: {fileID: 6192945478437891419, guid: ec5c80618217a134f8afe3fa9925e28e, type: 3}
+  associationMarkerPrefab: {fileID: 6192945478437891419, guid: 92e2f1cbd0c03b643a831323dda7ec78, type: 3}
+  landmarkPopup: {fileID: 1765479602}
+  markerScale: 3
+  playerCamera: {fileID: 330585546}
+  colliderSizeMultiplier: 1
+  fallbackColliderRadius: 0.05
+  nearbyStarThreshold: 0.5
+  nearbyStarOffset: 0.35
 --- !u!1 &408597655
 GameObject:
   m_ObjectHideFlags: 0
@@ -1686,7 +1733,7 @@ Transform:
   m_GameObject: {fileID: 475100216}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: -2}
+  m_LocalPosition: {x: 0, y: 0, z: -10}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -1713,7 +1760,7 @@ MonoBehaviour:
   mouseSensitivity: 0.1
   maxLookAngle: 89
   rollSpeed: 60
-  landmarkMarkerGenerator: {fileID: 2109148596}
+  landmarkMarkerGenerator: {fileID: 376260066}
   landmarkPopup: {fileID: 1765479602}
   selectionRayDistance: 50
   landmarkLayerMask:
@@ -1735,7 +1782,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::QuestTankControls
   landmarkPopup: {fileID: 1765479602}
-  landmarkMarkerGenerator: {fileID: 2109148596}
+  landmarkMarkerGenerator: {fileID: 376260066}
   orientation: {fileID: 1666570262}
   xrOrigin: {fileID: 475100218}
   headsetCamera: {fileID: 330585546}
@@ -1930,7 +1977,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 8200, y: -0, z: 0}
-  m_LocalScale: {x: 0.3, y: 0.3, z: 0.3}
+  m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 1
   m_Children: []
   m_Father: {fileID: 0}
@@ -2076,9 +2123,9 @@ Transform:
   m_GameObject: {fileID: 586631262}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: -10}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
+  m_ConstrainProportionsScale: 1
   m_Children:
   - {fileID: 1534227109}
   - {fileID: 618384819}
@@ -3204,7 +3251,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 8620736955965912419, guid: 54de786d1d753bd47b95e34075782852, type: 3}
       propertyPath: m_AnchoredPosition.y
-      value: -0.00009887647
+      value: 0
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -5265,11 +5312,6 @@ RectTransform:
   m_CorrespondingSourceObject: {fileID: 4846160969777153553, guid: 03b72dde25c979049b864b97fc8417f9, type: 3}
   m_PrefabInstance: {fileID: 1534227108}
   m_PrefabAsset: {fileID: 0}
---- !u!1 &1534227111 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: 2490369595965279102, guid: 03b72dde25c979049b864b97fc8417f9, type: 3}
-  m_PrefabInstance: {fileID: 1534227108}
-  m_PrefabAsset: {fileID: 0}
 --- !u!1 &1534227112 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 2676583781794133734, guid: 03b72dde25c979049b864b97fc8417f9, type: 3}
@@ -5288,7 +5330,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ClusterFilterMenu
   clusterFilter: {fileID: 586631269}
-  menuRoot: {fileID: 1534227111}
   filterEnabledToggle: {fileID: 257874212}
   membershipToggle: {fileID: 1870726801}
   membershipInput: {fileID: 671807407}
@@ -5691,9 +5732,9 @@ Transform:
   m_GameObject: {fileID: 1666570262}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 328.18097, y: 0, z: 13666.947}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
+  m_ConstrainProportionsScale: 1
   m_Children:
   - {fileID: 408597656}
   m_Father: {fileID: 0}
@@ -6315,37 +6356,6 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1820920989}
   m_CullTransparentMesh: 1
---- !u!1 &1832397275
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 1832397276}
-  m_Layer: 0
-  m_Name: MarkersRoot
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 0
---- !u!4 &1832397276
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1832397275}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 2109148597}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &1842126661
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -6895,10 +6905,7 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 4846160969777153553, guid: 03b72dde25c979049b864b97fc8417f9, type: 3}
       insertIndex: -1
       addedObject: {fileID: 239089924}
-    m_AddedComponents:
-    - targetCorrespondingSourceObject: {fileID: 2676583781794133734, guid: 03b72dde25c979049b864b97fc8417f9, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 1911078726}
+    m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 03b72dde25c979049b864b97fc8417f9, type: 3}
 --- !u!224 &1911078722 stripped
 RectTransform:
@@ -6910,35 +6917,11 @@ RectTransform:
   m_CorrespondingSourceObject: {fileID: 4846160969777153553, guid: 03b72dde25c979049b864b97fc8417f9, type: 3}
   m_PrefabInstance: {fileID: 1911078721}
   m_PrefabAsset: {fileID: 0}
---- !u!1 &1911078724 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: 2490369595965279102, guid: 03b72dde25c979049b864b97fc8417f9, type: 3}
-  m_PrefabInstance: {fileID: 1911078721}
-  m_PrefabAsset: {fileID: 0}
 --- !u!1 &1911078725 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 2676583781794133734, guid: 03b72dde25c979049b864b97fc8417f9, type: 3}
   m_PrefabInstance: {fileID: 1911078721}
   m_PrefabAsset: {fileID: 0}
---- !u!114 &1911078726
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1911078725}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: e48d390dfadc71b41b5bf38cd89ce3f2, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::FastTravelMenu
-  playerTransform: {fileID: 475100218}
-  fastTravelDuration: 3
-  landmarkBinaryDataPath: Landmarks/landmarks.bin
-  landmarkButtonPrefab: {fileID: 3911420065684786735, guid: 546852835d958a242b924a371ded3380, type: 3}
-  content: {fileID: 239089925}
-  scrollRect: {fileID: 239089926}
-  menuRoot: {fileID: 1911078724}
 --- !u!1001 &1940793017
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -7434,9 +7417,9 @@ Transform:
   m_GameObject: {fileID: 2087614913}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -1.12934, y: 0, z: -0.4546}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
+  m_ConstrainProportionsScale: 1
   m_Children:
   - {fileID: 3388150213451414590}
   - {fileID: 753945319}
@@ -7458,7 +7441,7 @@ MonoBehaviour:
   infoCanvas: {fileID: 1285828844}
   infoTitleText: {fileID: 1882709477}
   infoBodyText: {fileID: 1399479744}
-  fastTravelMenu: {fileID: 1911078726}
+  fastTravelMenu: {fileID: 376260065}
   clusterFilterMenu: {fileID: 1534227113}
   landmarkPopup: {fileID: 1765479602}
   vrPlayerController: {fileID: 475100220}
@@ -7473,40 +7456,13 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 2109148597}
-  - component: {fileID: 2109148596}
   m_Layer: 0
   m_Name: LandmarkMarkers
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!114 &2109148596
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2109148595}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 01b0007bb1f204860a3ceff29bfefcd8, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::NewMonoBehaviourScript
-  landmarkBinaryDataPath: Landmarks/landmarks.bin
-  markersRoot: {fileID: 1832397275}
-  cloudMarkerPrefab: {fileID: 6192945478437891419, guid: 4c44e384801c1427bb6174880ec72245, type: 3}
-  starMarkerPrefab: {fileID: 6192945478437891419, guid: 0c446dcf4d3007f48beeadc17619b1d8, type: 3}
-  nebulaMarkerPrefab: {fileID: 6192945478437891419, guid: 8864130be5c790645b1407ed3adc26c4, type: 3}
-  clusterMarkerPrefab: {fileID: 6192945478437891419, guid: ec5c80618217a134f8afe3fa9925e28e, type: 3}
-  associationMarkerPrefab: {fileID: 6192945478437891419, guid: 92e2f1cbd0c03b643a831323dda7ec78, type: 3}
-  landmarkPopup: {fileID: 1765479602}
-  markerScale: 3
-  playerCamera: {fileID: 330585546}
-  colliderSizeMultiplier: 1
-  fallbackColliderRadius: 0.05
-  nearbyStarThreshold: 0.5
-  nearbyStarOffset: 0.35
+  m_IsActive: 0
 --- !u!4 &2109148597
 Transform:
   m_ObjectHideFlags: 0
@@ -7516,11 +7472,10 @@ Transform:
   m_GameObject: {fileID: 2109148595}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 1.12934, y: 0, z: -7.5454}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children:
-  - {fileID: 1832397276}
+  m_ConstrainProportionsScale: 1
+  m_Children: []
   m_Father: {fileID: 376260064}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &130500635075967279
@@ -10410,6 +10365,10 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 2087614914}
     m_Modifications:
+    - target: {fileID: 1142673487606445160, guid: 03b72dde25c979049b864b97fc8417f9, type: 3}
+      propertyPath: m_PresetInfoIsWorld
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 2676583781794133734, guid: 03b72dde25c979049b864b97fc8417f9, type: 3}
       propertyPath: m_Name
       value: MenuCanvas
@@ -10444,6 +10403,18 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 3706269602962232412, guid: 03b72dde25c979049b864b97fc8417f9, type: 3}
       propertyPath: m_SizeDelta.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3706269602962232412, guid: 03b72dde25c979049b864b97fc8417f9, type: 3}
+      propertyPath: m_LocalScale.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3706269602962232412, guid: 03b72dde25c979049b864b97fc8417f9, type: 3}
+      propertyPath: m_LocalScale.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3706269602962232412, guid: 03b72dde25c979049b864b97fc8417f9, type: 3}
+      propertyPath: m_LocalScale.z
       value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 3706269602962232412, guid: 03b72dde25c979049b864b97fc8417f9, type: 3}
@@ -13412,7 +13383,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 8620736955965912419, guid: 54de786d1d753bd47b95e34075782852, type: 3}
       propertyPath: m_AnchoredPosition.y
-      value: 0.000049438237
+      value: 0.00053143204
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []

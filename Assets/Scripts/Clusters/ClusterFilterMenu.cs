@@ -8,9 +8,6 @@ public class ClusterFilterMenu : MonoBehaviour
     [Header("Filter")]
     public GaiaClusterFilter clusterFilter;
 
-    [Header("Menu")]
-    public GameObject menuRoot;
-
     [Header("General")]
     public Toggle filterEnabledToggle;
 
@@ -43,42 +40,27 @@ public class ClusterFilterMenu : MonoBehaviour
 
     private void Start()
     {
-        if (menuRoot != null)
-        {
-            menuRoot.SetActive(false);
-        }
-
+        gameObject.SetActive(false);
         LoadCurrentSettings();
     }
 
     public bool IsOpen()
     {
-        return menuRoot != null &&
-               menuRoot.activeSelf;
+        return gameObject.activeSelf;
     }
 
     public void OpenMenu()
     {
-        if (menuRoot == null)
-        {
-            return;
-        }
-
         LoadCurrentSettings();
 
-        menuRoot.SetActive(true);
+        gameObject.SetActive(true);
 
         Canvas.ForceUpdateCanvases();
     }
 
     public void CloseMenu()
     {
-        if (menuRoot == null)
-        {
-            return;
-        }
-
-        menuRoot.SetActive(false);
+        gameObject.SetActive(false);
     }
 
     public void ToggleMenu()
@@ -113,116 +95,68 @@ public class ClusterFilterMenu : MonoBehaviour
             clusterFilter.CreateSnapshot();
 
         if (filterEnabledToggle != null)
-        {
-            filterEnabledToggle.isOn =
-                settings.enabled;
-        }
+            filterEnabledToggle.isOn = settings.enabled;
 
         if (membershipToggle != null)
-        {
-            membershipToggle.isOn =
-                settings.useMembershipProbability;
-        }
+            membershipToggle.isOn = settings.useMembershipProbability;
 
         if (membershipInput != null)
-        {
-            membershipInput.text =
-                settings.minMembershipProbability.ToString(
-                    CultureInfo.InvariantCulture
-                );
-        }
+            membershipInput.text = settings.minMembershipProbability.ToString(
+                CultureInfo.InvariantCulture
+            );
 
         if (ageToggle != null)
-        {
-            ageToggle.isOn =
-                settings.useAgeRange;
-        }
+            ageToggle.isOn = settings.useAgeRange;
 
         if (minAgeInput != null)
-        {
-            minAgeInput.text =
-                settings.minLogAge.ToString(
-                    CultureInfo.InvariantCulture
-                );
-        }
+            minAgeInput.text = settings.minLogAge.ToString(
+                CultureInfo.InvariantCulture
+            );
 
         if (maxAgeInput != null)
-        {
-            maxAgeInput.text =
-                settings.maxLogAge.ToString(
-                    CultureInfo.InvariantCulture
-                );
-        }
+            maxAgeInput.text = settings.maxLogAge.ToString(
+                CultureInfo.InvariantCulture
+            );
 
         if (distanceToggle != null)
-        {
-            distanceToggle.isOn =
-                settings.useDistanceRange;
-        }
+            distanceToggle.isOn = settings.useDistanceRange;
 
         if (minDistanceInput != null)
-        {
-            minDistanceInput.text =
-                settings.minDistancePc.ToString(
-                    CultureInfo.InvariantCulture
-                );
-        }
+            minDistanceInput.text = settings.minDistancePc.ToString(
+                CultureInfo.InvariantCulture
+            );
 
         if (maxDistanceInput != null)
-        {
-            maxDistanceInput.text =
-                settings.maxDistancePc.ToString(
-                    CultureInfo.InvariantCulture
-                );
-        }
+            maxDistanceInput.text = settings.maxDistancePc.ToString(
+                CultureInfo.InvariantCulture
+            );
 
         if (totalMassToggle != null)
-        {
-            totalMassToggle.isOn =
-                settings.useTotalMassRange;
-        }
+            totalMassToggle.isOn = settings.useTotalMassRange;
 
         if (minMassInput != null)
-        {
-            minMassInput.text =
-                settings.minTotalMass.ToString(
-                    CultureInfo.InvariantCulture
-                );
-        }
+            minMassInput.text = settings.minTotalMass.ToString(
+                CultureInfo.InvariantCulture
+            );
 
         if (maxMassInput != null)
-        {
-            maxMassInput.text =
-                settings.maxTotalMass.ToString(
-                    CultureInfo.InvariantCulture
-                );
-        }
+            maxMassInput.text = settings.maxTotalMass.ToString(
+                CultureInfo.InvariantCulture
+            );
 
         if (requireRjToggle != null)
-        {
-            requireRjToggle.isOn =
-                settings.requireInRj;
-        }
+            requireRjToggle.isOn = settings.requireInRj;
 
         if (requireRtToggle != null)
-        {
-            requireRtToggle.isOn =
-                settings.requireInRt;
-        }
+            requireRtToggle.isOn = settings.requireInRt;
 
         if (typeCodeToggle != null)
-        {
-            typeCodeToggle.isOn =
-                settings.useTypeCode;
-        }
+            typeCodeToggle.isOn = settings.useTypeCode;
 
         if (typeCodeInput != null)
-        {
-            typeCodeInput.text =
-                settings.typeCode.ToString(
-                    CultureInfo.InvariantCulture
-                );
-        }
+            typeCodeInput.text = settings.typeCode.ToString(
+                CultureInfo.InvariantCulture
+            );
     }
 
     /*
@@ -244,86 +178,47 @@ public class ClusterFilterMenu : MonoBehaviour
         GaiaClusterFilterSettings settings =
             clusterFilter.CreateSnapshot();
 
-        /*
-         * General
-         */
         settings.enabled =
             filterEnabledToggle != null &&
             filterEnabledToggle.isOn;
 
-        /*
-         * Membership probability
-         */
         settings.useMembershipProbability =
             membershipToggle != null &&
             membershipToggle.isOn;
 
         settings.minMembershipProbability =
-            ParseFloat(
-                membershipInput,
-                settings.minMembershipProbability
-            );
+            ParseFloat(membershipInput, settings.minMembershipProbability);
 
-        /*
-         * Age
-         */
         settings.useAgeRange =
             ageToggle != null &&
             ageToggle.isOn;
 
         settings.minLogAge =
-            ParseFloat(
-                minAgeInput,
-                settings.minLogAge
-            );
+            ParseFloat(minAgeInput, settings.minLogAge);
 
         settings.maxLogAge =
-            ParseFloat(
-                maxAgeInput,
-                settings.maxLogAge
-            );
+            ParseFloat(maxAgeInput, settings.maxLogAge);
 
-        /*
-         * Distance
-         */
         settings.useDistanceRange =
             distanceToggle != null &&
             distanceToggle.isOn;
 
         settings.minDistancePc =
-            ParseFloat(
-                minDistanceInput,
-                settings.minDistancePc
-            );
+            ParseFloat(minDistanceInput, settings.minDistancePc);
 
         settings.maxDistancePc =
-            ParseFloat(
-                maxDistanceInput,
-                settings.maxDistancePc
-            );
+            ParseFloat(maxDistanceInput, settings.maxDistancePc);
 
-        /*
-         * Total mass
-         */
         settings.useTotalMassRange =
             totalMassToggle != null &&
             totalMassToggle.isOn;
 
         settings.minTotalMass =
-            ParseFloat(
-                minMassInput,
-                settings.minTotalMass
-            );
+            ParseFloat(minMassInput, settings.minTotalMass);
 
         settings.maxTotalMass =
-            ParseFloat(
-                maxMassInput,
-                settings.maxTotalMass
-            );
+            ParseFloat(maxMassInput, settings.maxTotalMass);
 
-        /*
-         * Cluster location
-         */
         settings.requireInRj =
             requireRjToggle != null &&
             requireRjToggle.isOn;
@@ -332,25 +227,13 @@ public class ClusterFilterMenu : MonoBehaviour
             requireRtToggle != null &&
             requireRtToggle.isOn;
 
-        /*
-         * Cluster type
-         */
         settings.useTypeCode =
             typeCodeToggle != null &&
             typeCodeToggle.isOn;
 
-        int typeCode =
-            ParseInt(
-                typeCodeInput,
-                settings.typeCode
-            );
+        int typeCode = ParseInt(typeCodeInput, settings.typeCode);
 
-        settings.typeCode =
-            (byte)Mathf.Clamp(
-                typeCode,
-                0,
-                255
-            );
+        settings.typeCode = (byte)Mathf.Clamp(typeCode, 0, 255);
 
         clusterFilter.ApplySettings(settings);
     }
@@ -364,15 +247,10 @@ public class ClusterFilterMenu : MonoBehaviour
         CloseMenu();
     }
 
-    private float ParseFloat(
-        TMP_InputField input,
-        float fallback
-    )
+    private float ParseFloat(TMP_InputField input, float fallback)
     {
         if (input == null)
-        {
             return fallback;
-        }
 
         if (float.TryParse(
             input.text,
@@ -386,15 +264,10 @@ public class ClusterFilterMenu : MonoBehaviour
         return fallback;
     }
 
-    private int ParseInt(
-        TMP_InputField input,
-        int fallback
-    )
+    private int ParseInt(TMP_InputField input, int fallback)
     {
         if (input == null)
-        {
             return fallback;
-        }
 
         if (int.TryParse(
             input.text,
