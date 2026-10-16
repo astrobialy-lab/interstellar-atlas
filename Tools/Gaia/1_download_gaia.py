@@ -1,5 +1,5 @@
 from pathlib import Path
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from astroquery.gaia import Gaia
 import time
 import os
@@ -17,7 +17,7 @@ LEVEL = 3
 NPIXELS = 12 * 4**LEVEL
 DIVISOR = 2 ** (59 - 2 * LEVEL)
 
-MAX_WORKERS = 5 # use 20 when gaia is out of maintanance
+MAX_WORKERS = 1 # use 20 when gaia is out of maintanance
 
 
 def download_healpix(healpix):
@@ -239,11 +239,28 @@ Gaia.login(credentials_file=str(CREDENTIALS_FILE))
 # Download
 # -------------------------------------------------------------
 
+failures = []
+
 with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
 
-    futures = [
-        executor.submit(download_healpix, healpix)
-        for healpix in range(NPIXELS)
-    ]
+    futures = {
+        executor.submit(download_healpix, hp): hp
+        for hp in range(NPIXELS)
+    }
 
-print("Done.")
+    for future in as_completed(futures):
+        hp = futures[future]
+
+        try:
+            future.result()
+        except Exception as exc:
+            failures.append(hp)
+            print(f"FAILED {hp}: {exc}")
+
+if failures:
+    print(
+        f"Finished with {len(failures)} failed chunks: "
+        f"{failures}"
+    )
+else:
+    print("Done. All chunks downloaded.")

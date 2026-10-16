@@ -15,7 +15,7 @@
   but i can but the degree resolution in settings, and manage the number of threads automatically.
 
 - display stars using brightness lum_flame, and maybe add feature to scroll the visible band over different wavelengths.
-- add feature to filter stars by: mass_flame, age_flame, evolstage_flame
+- add feature to filter stars by: mass_flame, age_flame, evolstage_flame, teff_gspphot
 
 - figure out why there is a hole in some healpixes, maybe bcz i still filter by visible brightness instead of luminosity?
   if after that hole still remains, then use that visible brightness instead
@@ -23,9 +23,6 @@
 - fix the warnings when building apk
 
 - check if all controls in VR work
-
-- figure out how to sort to reduce sprites in dust, maybe random is the best. and sort the dust in python
-- add number of sprites in graphics settings
 
 
 BONUS:

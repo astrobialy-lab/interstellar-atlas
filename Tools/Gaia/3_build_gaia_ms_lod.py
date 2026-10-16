@@ -86,10 +86,13 @@ GAIA_DTYPE = np.dtype([
     ("abp", "<f4"),
     ("arp", "<f4"),
     ("ebp_rp", "<f4"),
+    ("mass", "<f4"),
+    ("age", "<f4"),
+    ("evolstage", "<i4"),
     ("flags", "u1"),
 ])
 
-assert GAIA_DTYPE.itemsize == 65
+assert GAIA_DTYPE.itemsize == 77
 
 
 # ============================================================
@@ -97,8 +100,6 @@ assert GAIA_DTYPE.itemsize == 65
 # ============================================================
 
 # absolute magnitude + everything needed later
-#
-# 4 + 8 + 5*4 = 32 bytes/star
 SORT_DTYPE = np.dtype([
     ("abs_mag", "<f4"),
     ("source_id", "<u8"),
@@ -107,9 +108,13 @@ SORT_DTYPE = np.dtype([
     ("z", "<f4"),
     ("g", "<f4"),
     ("bp_rp", "<f4"),
+    ("teff", "<f4"),
+    ("mass", "<f4"),
+    ("age", "<f4"),
+    ("evolstage", "<i4"),
 ])
 
-assert SORT_DTYPE.itemsize == 32
+assert SORT_DTYPE.itemsize == 48
 
 
 # ============================================================
@@ -124,9 +129,13 @@ PARTITION_DTYPE = np.dtype([
     ("z", "<f4"),
     ("g", "<f4"),
     ("bp_rp", "<f4"),
+    ("teff", "<f4"),
+    ("mass", "<f4"),
+    ("age", "<f4"),
+    ("evolstage", "<i4"),
 ])
 
-assert PARTITION_DTYPE.itemsize == 32
+assert PARTITION_DTYPE.itemsize == 48
 
 
 # ============================================================
@@ -139,9 +148,13 @@ RENDER_DTYPE = np.dtype([
     ("z", "<f4"),
     ("g", "<f4"),
     ("bp_rp", "<f4"),
+    ("teff", "<f4"),
+    ("mass", "<f4"),
+    ("age", "<f4"),
+    ("evolstage", "<i4"),
 ])
 
-assert RENDER_DTYPE.itemsize == 20
+assert RENDER_DTYPE.itemsize == 36
 
 
 # ============================================================
@@ -257,6 +270,10 @@ def prepare_sort_run(chunk):
     run["z"] = valid_records["z"]
     run["g"] = valid_records["g"]
     run["bp_rp"] = valid_records["bp_rp"]
+    run["teff"] = valid_records["teff"]
+    run["mass"] = valid_records["mass"]
+    run["age"] = valid_records["age"]
+    run["evolstage"] = valid_records["evolstage"]
 
     order = np.argsort(
         run["abs_mag"],
@@ -1116,6 +1133,10 @@ def write_partition_batch(
     partition["z"] = records["z"]
     partition["g"] = records["g"]
     partition["bp_rp"] = records["bp_rp"]
+    partition["teff"] = records["teff"]
+    partition["mass"] = records["mass"]
+    partition["age"] = records["age"]
+    partition["evolstage"] = records["evolstage"]
 
     bucket_ids = (
         partition["node_id"]
@@ -1502,6 +1523,10 @@ def write_final_node_files(
             render["z"] = group["z"]
             render["g"] = group["g"]
             render["bp_rp"] = group["bp_rp"]
+            render["teff"] = group["teff"]
+            render["mass"] = group["mass"]
+            render["age"] = group["age"]
+            render["evolstage"] = group["evolstage"]
 
             particle_path = (
                 particle_dir

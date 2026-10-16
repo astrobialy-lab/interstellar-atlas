@@ -25,6 +25,7 @@ public class MenuController : MonoBehaviour
 
     [Header("Other Menus")]
     public FastTravelMenu fastTravelMenu;
+    public GaiaStarFilterMenu starFilterMenu;
     public ClusterFilterMenu clusterFilterMenu;
     public LandmarkPopup landmarkPopup;
 
@@ -73,8 +74,9 @@ public class MenuController : MonoBehaviour
         bool clearSelection =
             (menuCanvas != null && menuCanvas.activeInHierarchy) ||
             (infoCanvas != null && infoCanvas.activeInHierarchy) ||
-            (settingsCanvas != null && settingsCanvas.gameObject.activeInHierarchy) ||
-            (clusterFilterMenu != null && clusterFilterMenu.IsOpen());
+            (starFilterMenu != null && starFilterMenu.IsOpen()) ||
+            (clusterFilterMenu != null && clusterFilterMenu.IsOpen()) ||
+            (settingsCanvas != null && settingsCanvas.gameObject.activeInHierarchy);
 
         if (!clearSelection)
             return;
@@ -136,6 +138,16 @@ public class MenuController : MonoBehaviour
         if (infoCanvas != null && infoCanvas.activeSelf)
         {
             CloseInfoMenu();
+            SetPlayerControlsEnabled(true);
+            return;
+        }
+
+        // Star Filter
+        if (starFilterMenu != null &&
+            starFilterMenu.IsOpen())
+        {
+            starFilterMenu.CloseMenu();
+            ClearCurrentSelection();
             SetPlayerControlsEnabled(true);
             return;
         }
@@ -372,6 +384,29 @@ public class MenuController : MonoBehaviour
 
         fastTravelWasOpen = true;
         fastTravelMenu.OpenMenu();
+    }
+
+    public void OpenStarFilter()
+    {
+        if (starFilterMenu == null)
+        {
+            Debug.LogError(
+                "MenuController: Star Filter Menu is not assigned."
+            );
+            return;
+        }
+
+        menuOpen = false;
+
+        ClearCurrentSelection();
+
+        if (menuCanvas != null)
+            menuCanvas.SetActive(false);
+
+        if (infoCanvas != null)
+            infoCanvas.SetActive(false);
+
+        starFilterMenu.OpenMenu();
     }
 
     public void OpenClusterFilter()

@@ -52,9 +52,9 @@ CHUNKS_DIR.mkdir(
 #
 # uint8 flags
 
-STAR_STRUCT = struct.Struct(
-    "<QffffffffffffffB"
-)
+STAR_STRUCT = struct.Struct("<Q16fiB")
+
+assert STAR_STRUCT.size == 77
 
 
 # ============================================================
@@ -67,6 +67,15 @@ HAS_GSPPHOT = 1 << 0
 # ============================================================
 # Helpers
 # ============================================================
+
+def safe_int(value, default=-1):
+    if value is None or value == "":
+        return default
+
+    try:
+        return int(value)
+    except (ValueError, TypeError):
+        return default
 
 def safe_float(value):
     if value is None or value == "":
@@ -153,9 +162,11 @@ def pack_star(
     abp,
     arp,
     ebp_rp,
+    mass,
+    age,
+    evolstage,
     flags,
 ):
-
     return STAR_STRUCT.pack(
         source_id,
 
@@ -177,9 +188,12 @@ def pack_star(
         float(arp),
         float(ebp_rp),
 
+        float(mass),
+        float(age),
+
+        int(evolstage),
         flags,
     )
-
 
 # ============================================================
 # Process one HEALPix CSV
@@ -223,33 +237,16 @@ def process_healpix(csv_file):
                     # Basic Gaia values
                     # ------------------------------------------------
 
-                    source_id = int(
-                        row["source_id"]
-                    )
-
-                    ra = safe_float(
-                        row["ra"]
-                    )
-
-                    dec = safe_float(
-                        row["dec"]
-                    )
-
-                    absolute_g_mag = safe_float(
-                        row["mg_gspphot"]
-                    )
-
-                    bp_rp = safe_float(
-                        row["bp_rp"]
-                    )
-
-                    ebp_rp = safe_float(
-                        row["ebpminrp_gspphot"]
-                    )
-
-                    distance = safe_float(
-                        row["distance_gspphot"]
-                    )
+                    source_id = int(row["source_id"])
+                    ra = safe_float(row["ra"])
+                    dec = safe_float(row["dec"])
+                    absolute_g_mag = safe_float(row["mg_gspphot"])
+                    bp_rp = safe_float(row["bp_rp"])
+                    ebp_rp = safe_float(row["ebpminrp_gspphot"])
+                    distance = safe_float(row["distance_gspphot"])
+                    mass = safe_float(row["mass_flame"])
+                    age = safe_float(row["age_flame"])
+                    evolstage = safe_int(row["evolstage_flame"])
 
                     # ------------------------------------------------
                     # Position
@@ -373,6 +370,10 @@ def process_healpix(csv_file):
                         abp,
                         arp,
                         ebp_rp,
+
+                        mass,
+                        age,
+                        evolstage,
 
                         flags,
                     )
