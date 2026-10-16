@@ -3776,7 +3776,7 @@ MonoBehaviour:
   starFilter: {fileID: 0}
   streamUpdateDistance: 1
   streamUpdateAngle: 2
-  maxConcurrentLoads: 100
+  maxConcurrentLoads: 10
   verboseLogging: 0
 --- !u!114 &586631269
 MonoBehaviour:

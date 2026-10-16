@@ -1499,8 +1499,7 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
             {
                 for (int i = 0; i < stars.Length; i++)
                 {
-                    stars[i] =
-                        ReadStar(reader, out _);
+                    stars[i] = ReadStarForGpu(reader);
                 }
             }
 
@@ -1645,6 +1644,27 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
         };
     }
 
+    private static GaiaStarGPU ReadStarForGpu(BinaryReader reader)
+    {
+        Vector3 position = new Vector3(
+            reader.ReadSingle(),
+            reader.ReadSingle(),
+            reader.ReadSingle()
+        );
+
+        float magnitude = reader.ReadSingle();
+        float bpRp = reader.ReadSingle();
+
+        // Skip temperature, mass, age and evolution stage.
+        reader.BaseStream.Seek(16, SeekOrigin.Current);
+
+        return new GaiaStarGPU
+        {
+            position = position,
+            magnitude = magnitude,
+            bpRp = bpRp
+        };
+    }
 
 
     // ========================================================
