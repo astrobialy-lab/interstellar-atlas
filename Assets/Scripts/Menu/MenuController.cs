@@ -1,8 +1,9 @@
 using TMPro;
 using UnityEngine;
-using UnityEngine.InputSystem;
 using UnityEngine.EventSystems;
-
+using UnityEngine.InputSystem;
+using UnityEngine.UI;
+using UnityEngine.XR.OpenXR;
 using XRCommonUsages = UnityEngine.XR.CommonUsages;
 using XRInputDevice = UnityEngine.XR.InputDevice;
 using XRInputDevices = UnityEngine.XR.InputDevices;
@@ -17,6 +18,10 @@ public class MenuController : MonoBehaviour
     public GameObject infoCanvas;
     public TextMeshProUGUI infoTitleText;
     public TextMeshProUGUI infoBodyText;
+
+    [Header("Settings Menu")]
+    [SerializeField] private Button settingsButton;
+    [SerializeField] private Canvas settingsCanvas;
 
     [Header("Other Menus")]
     public FastTravelMenu fastTravelMenu;
@@ -46,8 +51,11 @@ public class MenuController : MonoBehaviour
         if (infoCanvas != null)
             infoCanvas.SetActive(false);
 
+        if (settingsCanvas != null)
+            settingsCanvas.gameObject.SetActive(false);
+
         ClearCurrentSelection();
-        RestoreSceneAfterMenu();
+        SetPlayerControlsEnabled(true);
     }
 
     private void Update()
@@ -65,6 +73,7 @@ public class MenuController : MonoBehaviour
         bool clearSelection =
             (menuCanvas != null && menuCanvas.activeInHierarchy) ||
             (infoCanvas != null && infoCanvas.activeInHierarchy) ||
+            (settingsCanvas != null && settingsCanvas.gameObject.activeInHierarchy) ||
             (clusterFilterMenu != null && clusterFilterMenu.IsOpen());
 
         if (!clearSelection)
@@ -101,7 +110,7 @@ public class MenuController : MonoBehaviour
             !menuOpen)
         {
             ClearCurrentSelection();
-            RestoreSceneAfterMenu();
+            SetPlayerControlsEnabled(true);
         }
 
         fastTravelWasOpen = fastTravelActive;
@@ -127,7 +136,7 @@ public class MenuController : MonoBehaviour
         if (infoCanvas != null && infoCanvas.activeSelf)
         {
             CloseInfoMenu();
-            RestoreSceneAfterMenu();
+            SetPlayerControlsEnabled(true);
             return;
         }
 
@@ -137,7 +146,7 @@ public class MenuController : MonoBehaviour
         {
             clusterFilterMenu.CloseMenu();
             ClearCurrentSelection();
-            RestoreSceneAfterMenu();
+            SetPlayerControlsEnabled(true);
             return;
         }
 
@@ -147,7 +156,7 @@ public class MenuController : MonoBehaviour
         {
             fastTravelMenu.CloseMenu();
             ClearCurrentSelection();
-            RestoreSceneAfterMenu();
+            SetPlayerControlsEnabled(true);
             return;
         }
 
@@ -157,7 +166,14 @@ public class MenuController : MonoBehaviour
         {
             landmarkPopup.Hide();
             ClearCurrentSelection();
-            RestoreSceneAfterMenu();
+            SetPlayerControlsEnabled(true);
+            return;
+        }
+
+        // Settings Menu
+        if (settingsCanvas != null && settingsCanvas.gameObject.activeSelf)
+        {
+            CloseSettings();
             return;
         }
 
@@ -234,11 +250,7 @@ public class MenuController : MonoBehaviour
         if (menuCanvas != null)
             menuCanvas.SetActive(true);
 
-        if (vrPlayerController != null)
-            vrPlayerController.enabled = false;
-
-        if (desktopPlayerController != null)
-            desktopPlayerController.enabled = false;
+        SetPlayerControlsEnabled(false);
 
         Canvas.ForceUpdateCanvases();
     }
@@ -254,16 +266,16 @@ public class MenuController : MonoBehaviour
             infoCanvas.SetActive(false);
 
         ClearCurrentSelection();
-        RestoreSceneAfterMenu();
+        SetPlayerControlsEnabled(true);
     }
 
-    private void RestoreSceneAfterMenu()
+    public void SetPlayerControlsEnabled(bool enabled)
     {
         if (vrPlayerController != null)
-            vrPlayerController.enabled = true;
+            vrPlayerController.enabled = enabled;
 
         if (desktopPlayerController != null)
-            desktopPlayerController.enabled = true;
+            desktopPlayerController.enabled = enabled;
     }
 
     public void ShowControls()
@@ -383,6 +395,43 @@ public class MenuController : MonoBehaviour
             infoCanvas.SetActive(false);
 
         clusterFilterMenu.OpenMenu();
+    }
+
+    public void OpenSettings()
+    {
+        if (settingsCanvas == null)
+        {
+            Debug.LogError(
+                "MenuController: Settings Canvas is not assigned."
+            );
+            return;
+        }
+
+        menuOpen = false;
+        fastTravelWasOpen = false;
+
+        ClearCurrentSelection();
+
+        if (menuCanvas != null)
+            menuCanvas.SetActive(false);
+
+        if (infoCanvas != null)
+            infoCanvas.SetActive(false);
+
+        settingsCanvas.gameObject.SetActive(true);
+
+        SetPlayerControlsEnabled(false);
+
+        Canvas.ForceUpdateCanvases();
+    }
+
+    public void CloseSettings()
+    {
+        if (settingsCanvas != null)
+            settingsCanvas.gameObject.SetActive(false);
+
+        ClearCurrentSelection();
+        SetPlayerControlsEnabled(true);
     }
 
     public void OpenLink()

@@ -74,6 +74,9 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
     // CONSTANTS
     // ========================================================
 
+    private const string SolidAngleThresholdPreferenceKey = "GaiaMSLODLoader.SolidAngleThreshold";
+    private const float MinimumSolidAngleThreshold = 1e-8f;
+
     private const int STAR_GPU_SIZE = 20;
     private const int SOURCE_ID_SIZE = 8;
 
@@ -192,6 +195,13 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
 
     private void Awake()
     {
+        float savedThreshold = PlayerPrefs.GetFloat(SolidAngleThresholdPreferenceKey, solidAngleThreshold);
+
+        if (!float.IsNaN(savedThreshold) && !float.IsInfinity(savedThreshold) && savedThreshold > 0f)
+        {
+            solidAngleThreshold = Mathf.Max(MinimumSolidAngleThreshold, savedThreshold);
+        }
+
         if (targetCamera == null)
         {
             targetCamera = Camera.main;
@@ -2041,5 +2051,59 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
         public Vector3 position;
         public float magnitude;
         public float bpRp;
+    }
+
+    // ========================================================
+    // Solid Angle Threshold
+    // ========================================================
+
+    public float SolidAngleThreshold => solidAngleThreshold;
+
+    public void SetSolidAngleThreshold(float value)
+    {
+        if (float.IsNaN(value) || float.IsInfinity(value))
+            return;
+
+        solidAngleThreshold = Mathf.Max(
+            MinimumSolidAngleThreshold,
+            value
+        );
+    }
+
+    public void CommitSolidAngleThreshold()
+    {
+        PlayerPrefs.SetFloat(
+            SolidAngleThresholdPreferenceKey,
+            solidAngleThreshold
+        );
+
+        PlayerPrefs.Save();
+
+        // Recalculate the desired LOD nodes immediately.
+        if (isReady && targetCamera != null)
+        {
+            UpdateStreaming();
+        }
+    }
+
+    private void SaveSolidAngleThreshold()
+    {
+        PlayerPrefs.SetFloat(
+            SolidAngleThresholdPreferenceKey,
+            solidAngleThreshold
+        );
+
+        PlayerPrefs.Save();
+    }
+
+    private void OnApplicationPause(bool paused)
+    {
+        if (paused)
+            SaveSolidAngleThreshold();
+    }
+
+    private void OnApplicationQuit()
+    {
+        SaveSolidAngleThreshold();
     }
 }

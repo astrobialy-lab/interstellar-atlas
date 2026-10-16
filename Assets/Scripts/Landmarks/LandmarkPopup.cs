@@ -3,6 +3,9 @@ using UnityEngine;
 
 public class LandmarkPopup : MonoBehaviour
 {
+    [Header("Main Menu")]
+    public MenuController menuController;
+
     [Header("Text References")]
     public TMP_Text titleText;
     public TMP_Text shortText;
@@ -20,6 +23,9 @@ public class LandmarkPopup : MonoBehaviour
 
         gameObject.SetActive(true);
 
+        if (menuController != null)
+            menuController.SetPlayerControlsEnabled(false);
+
         if (titleText != null)
             titleText.text = info.objectName;
 
@@ -35,5 +41,8 @@ public class LandmarkPopup : MonoBehaviour
     public void Hide()
     {
         gameObject.SetActive(false);
+
+        if (menuController != null)
+            menuController.SetPlayerControlsEnabled(true);
     }
 }

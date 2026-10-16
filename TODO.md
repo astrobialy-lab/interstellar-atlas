@@ -9,7 +9,7 @@
                     else:
                         bp_rp_intrinsic = bp_rp
 
-- increase/descrease resolution automatically to remain stable fps (maybe change max threads that can ran in parallel when loading stars).
+- increase/descrease resolution automatically to remain stable fps (maybe change max threads that can run in parallel when loading stars).
   based on fps or rendered/waiting nodes i can automatically change the number of threads running.
   i cant change the degree resolution cuz it will reset all of the nodes thats rendered.
   but i can but the degree resolution in settings, and manage the number of threads automatically.
@@ -24,9 +24,8 @@
 
 - check if all controls in VR work
 
-
-- disable controls when displaying landmark info
-
+- figure out how to sort to reduce sprites in dust, maybe random is the best. and sort the dust in python
+- add number of sprites in graphics settings
 
 
 BONUS:
