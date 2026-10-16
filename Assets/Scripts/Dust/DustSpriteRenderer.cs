@@ -14,6 +14,13 @@ public sealed class DustSpriteRenderer : MonoBehaviour
     [Header("Data")]
     [SerializeField] private string relativeDataPath = "Dust/dust_sprites.bin";
 
+    public const int MaxAllowedSprites = 20000;
+
+    private const int GeneratedSpriteCount = MaxAllowedSprites;
+    private const string MaxSpritesPreferenceKey = "DustSpriteRenderer.MaxSpritesToLoad";
+
+    [SerializeField, Range(1, MaxAllowedSprites)] private int maxSpritesToLoad = MaxAllowedSprites;
+
     [Header("Rendering")]
     [SerializeField] private Shader spriteShader;
     [SerializeField] private Color spriteTint = Color.white;
@@ -77,6 +84,7 @@ public sealed class DustSpriteRenderer : MonoBehaviour
     private bool layerWarningPrinted;
 
     public int SpriteCount => spriteCount;
+    public int MaxSpritesToLoad => maxSpritesToLoad;
 
     /// <summary>Called by GaiaStarRenderFeature when its display mode changes.</summary>
     public void SetEnhancedMode(bool enabled)
@@ -108,6 +116,8 @@ public sealed class DustSpriteRenderer : MonoBehaviour
             enabled = false;
             return;
         }
+
+        maxSpritesToLoad = Mathf.Clamp( PlayerPrefs.GetInt(MaxSpritesPreferenceKey, maxSpritesToLoad), 1, GeneratedSpriteCount );
 
         LoadSprites();
     }
@@ -250,7 +260,8 @@ public sealed class DustSpriteRenderer : MonoBehaviour
                 if (count > int.MaxValue)
                     throw new InvalidDataException($"Sprite count {count} exceeds the supported array-size limit.");
 
-                sprites = new SpriteGpuData[(int)count];
+                int spritesToLoad = Mathf.Min((int)count, Mathf.Clamp(maxSpritesToLoad, 1, GeneratedSpriteCount));
+                sprites = new SpriteGpuData[spritesToLoad];
                 for (int i = 0; i < sprites.Length; i++)
                 {
                     float x = reader.ReadSingle();
@@ -470,5 +481,24 @@ public sealed class DustSpriteRenderer : MonoBehaviour
         cloudTexture = null;
         properties = null;
         spriteCount = 0;
+    }
+
+    public void SetMaxSpritesToLoad(int value)
+    {
+        value = Mathf.Clamp(value, 1, GeneratedSpriteCount);
+
+        bool changed = value != maxSpritesToLoad;
+        maxSpritesToLoad = value;
+
+        PlayerPrefs.SetInt(MaxSpritesPreferenceKey, value);
+        PlayerPrefs.Save();
+
+        if (!changed || !loadAttempted || !enabled)
+            return;
+
+        // Rebuild the sprite buffer using the new limit.
+        ReleaseGpuResources();
+        loadAttempted = false;
+        LoadSprites();
     }
 }

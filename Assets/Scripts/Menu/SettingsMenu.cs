@@ -6,14 +6,18 @@ public class SettingsMenu : MonoBehaviour
 {
     [Header("References")]
     [SerializeField] private Canvas settingsCanvas;
+
+    [Header("Dust Settings")]
+    [SerializeField] private DustSpriteRenderer dustSpriteRenderer;
+    [SerializeField] private TMP_InputField maxDustSpritesInput;
+
+    [Header("Stars Settings")]
     [SerializeField] private GaiaMSLODLoader loader;
     [SerializeField] private TMP_InputField thresholdInput;
-
-    [Header("Solid Angle Range (steradians)")]
     [SerializeField] private float minThreshold = 2.4e-5f;
     [SerializeField] private float maxThreshold = 10f;
 
-    private bool wasCanvasEnabled;
+    private bool wasCanvasActive;
     private bool initialized;
 
     private void Start()
@@ -21,12 +25,17 @@ public class SettingsMenu : MonoBehaviour
         if (loader == null)
             loader = FindAnyObjectByType<GaiaMSLODLoader>();
 
+        if (dustSpriteRenderer == null)
+            dustSpriteRenderer = FindAnyObjectByType<DustSpriteRenderer>();
+
         if (settingsCanvas == null ||
             loader == null ||
-            thresholdInput == null)
+            thresholdInput == null ||
+            dustSpriteRenderer == null ||
+            maxDustSpritesInput == null)
         {
             Debug.LogError(
-                "SettingsMenu: Canvas, Loader, or Input Field is missing."
+                "SettingsMenu: A required Canvas, loader, or input field is missing."
             );
 
             enabled = false;
@@ -39,7 +48,6 @@ public class SettingsMenu : MonoBehaviour
             minThreshold * 1.001f
         );
 
-        // Keep the saved value within the allowed range.
         float threshold = Mathf.Clamp(
             loader.SolidAngleThreshold,
             minThreshold,
@@ -52,13 +60,21 @@ public class SettingsMenu : MonoBehaviour
             loader.CommitSolidAngleThreshold();
         }
 
+        maxDustSpritesInput.contentType =
+            TMP_InputField.ContentType.IntegerNumber;
+
         thresholdInput.onEndEdit.AddListener(
             OnThresholdInputEndEdit
         );
 
-        RefreshInput();
+        maxDustSpritesInput.onEndEdit.AddListener(
+            OnMaxDustSpritesInputEndEdit
+        );
 
-        wasCanvasEnabled = settingsCanvas.enabled;
+        RefreshInputs();
+
+        // The whole Canvas GameObject is activated/deactivated.
+        wasCanvasActive = settingsCanvas.gameObject.activeInHierarchy;
         initialized = true;
     }
 
@@ -67,22 +83,21 @@ public class SettingsMenu : MonoBehaviour
         if (!initialized)
             return;
 
-        bool canvasEnabled = settingsCanvas.enabled;
+        bool canvasActive =
+            settingsCanvas.gameObject.activeInHierarchy;
 
-        if (canvasEnabled == wasCanvasEnabled)
+        if (canvasActive == wasCanvasActive)
             return;
 
-        wasCanvasEnabled = canvasEnabled;
+        wasCanvasActive = canvasActive;
 
-        if (canvasEnabled)
+        if (canvasActive)
         {
-            // Menu opened: show the current setting.
-            RefreshInput();
+            RefreshInputs();
         }
         else
         {
-            // Menu closed: apply and save the input.
-            ApplyInputAndSave();
+            ApplyInputsAndSave();
         }
     }
 
@@ -95,27 +110,52 @@ public class SettingsMenu : MonoBehaviour
             );
         }
 
-        if (initialized && loader != null)
-            ApplyInputAndSave();
+        if (maxDustSpritesInput != null)
+        {
+            maxDustSpritesInput.onEndEdit.RemoveListener(
+                OnMaxDustSpritesInputEndEdit
+            );
+        }
+
+        if (initialized)
+            ApplyInputsAndSave();
     }
 
     private void OnDisable()
     {
-        if (initialized && loader != null)
-            ApplyInputAndSave();
+        if (initialized)
+            ApplyInputsAndSave();
     }
 
     private void OnThresholdInputEndEdit(string input)
     {
-        ApplyInputAndSave();
+        ApplyThresholdInputAndSave();
     }
 
-    private void ApplyInputAndSave()
+    private void OnMaxDustSpritesInputEndEdit(string input)
     {
-        if (!TryParseThreshold(thresholdInput.text, out float threshold))
+        ApplyMaxDustSpritesInputAndSave();
+    }
+
+    private void ApplyInputsAndSave()
+    {
+        if (loader != null && thresholdInput != null)
+            ApplyThresholdInputAndSave();
+
+        if (dustSpriteRenderer != null &&
+            maxDustSpritesInput != null)
         {
-            // Invalid input: restore the previous valid value.
-            RefreshInput();
+            ApplyMaxDustSpritesInputAndSave();
+        }
+    }
+
+    private void ApplyThresholdInputAndSave()
+    {
+        if (!TryParseThreshold(
+                thresholdInput.text,
+                out float threshold))
+        {
+            RefreshThresholdInput();
             loader.CommitSolidAngleThreshold();
             return;
         }
@@ -129,10 +169,35 @@ public class SettingsMenu : MonoBehaviour
         loader.SetSolidAngleThreshold(threshold);
         loader.CommitSolidAngleThreshold();
 
-        RefreshInput();
+        RefreshThresholdInput();
     }
 
-    private bool TryParseThreshold(string input, out float threshold)
+    private void ApplyMaxDustSpritesInputAndSave()
+    {
+        if (!int.TryParse(
+                maxDustSpritesInput.text,
+                NumberStyles.Integer,
+                CultureInfo.InvariantCulture,
+                out int count))
+        {
+            RefreshDustSpritesInput();
+            return;
+        }
+
+        count = Mathf.Clamp(
+            count,
+            1,
+            DustSpriteRenderer.MaxAllowedSprites
+        );
+
+        dustSpriteRenderer.SetMaxSpritesToLoad(count);
+
+        RefreshDustSpritesInput();
+    }
+
+    private bool TryParseThreshold(
+        string input,
+        out float threshold)
     {
         bool valid = float.TryParse(
             input,
@@ -146,8 +211,17 @@ public class SettingsMenu : MonoBehaviour
                !float.IsInfinity(threshold);
     }
 
-    private void RefreshInput()
+    private void RefreshInputs()
     {
+        RefreshThresholdInput();
+        RefreshDustSpritesInput();
+    }
+
+    private void RefreshThresholdInput()
+    {
+        if (loader == null || thresholdInput == null)
+            return;
+
         float threshold = Mathf.Clamp(
             loader.SolidAngleThreshold,
             minThreshold,
@@ -157,6 +231,21 @@ public class SettingsMenu : MonoBehaviour
         thresholdInput.SetTextWithoutNotify(
             threshold.ToString(
                 "G6",
+                CultureInfo.InvariantCulture
+            )
+        );
+    }
+
+    private void RefreshDustSpritesInput()
+    {
+        if (dustSpriteRenderer == null ||
+            maxDustSpritesInput == null)
+        {
+            return;
+        }
+
+        maxDustSpritesInput.SetTextWithoutNotify(
+            dustSpriteRenderer.MaxSpritesToLoad.ToString(
                 CultureInfo.InvariantCulture
             )
         );
