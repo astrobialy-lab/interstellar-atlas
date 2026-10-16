@@ -18,10 +18,6 @@
 
 - check if all controls in VR work
 
-- when moving camera left and right, looks like the star is rendered at different pixels than its glow
-- also its lagging a bit when moving the camera left and right
-
-
 BONUS:
 - maybe increase landmarks resolution
 

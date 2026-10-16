@@ -48,7 +48,7 @@ public sealed class DustSpriteRenderer : MonoBehaviour
 
     // Five size levels: 0.4, 0.8, 1.2, 1.6, 2.0.
     private int spriteSizeStepIndex = 4;
-    private float spriteSizeMultiplier = 2.0f;
+    private float spriteSizeMultiplier = 1.2f;
 
     private const int ColorSchemeCount = 6;
     private const int SpriteSizeStepCount = 5;

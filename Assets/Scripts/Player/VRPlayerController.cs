@@ -20,7 +20,7 @@ public class VRPlayerController : MonoBehaviour
     [Header("Movement")]
     public float moveSpeed = 1.25f;
     public float speedChangeFactor = 2.0f;
-    public float turnSpeed = 35.0f;
+    public float turnSpeed = 50.0f;
 
     public float inputDeadzone = 0.15f;
     public float movementSmoothing = 4.0f;
@@ -34,7 +34,6 @@ public class VRPlayerController : MonoBehaviour
     [Header("Dust")]
     public DustSpriteRenderer dustSpriteRenderer;
 
-    private float smoothedMove = 0f;
     private float smoothedTurn = 0f;
 
     private bool previousLeftX = false;
@@ -89,11 +88,6 @@ public class VRPlayerController : MonoBehaviour
                 ? leftStick.x
                 : 0f;
 
-        smoothedMove = Mathf.Lerp(
-            smoothedMove,
-            rawMove,
-            movementSmoothing * Time.deltaTime);
-
         smoothedTurn = Mathf.Lerp(
             smoothedTurn,
             rawTurn,
@@ -116,7 +110,7 @@ public class VRPlayerController : MonoBehaviour
         right.Normalize();
 
         Vector3 movement =
-            forward * smoothedMove * moveSpeed +
+            forward * rawMove * moveSpeed +
             right * rightStick.x * moveSpeed +
             Vector3.up * rightStick.y * moveSpeed;
 

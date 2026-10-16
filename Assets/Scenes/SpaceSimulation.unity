@@ -671,7 +671,7 @@ MonoBehaviour:
   m_SnapTurn: {fileID: -7374733323251553461, guid: c348712bda248c246b8c49b3db54643f, type: 3}
   m_Move: {fileID: 6972639530819350904, guid: c348712bda248c246b8c49b3db54643f, type: 3}
   m_UIScroll: {fileID: 2464016903823916871, guid: c348712bda248c246b8c49b3db54643f, type: 3}
-  m_SmoothMotionEnabled: 1
+  m_SmoothMotionEnabled: 0
   m_SmoothTurnEnabled: 0
   m_NearFarEnableTeleportDuringNearInteraction: 1
   m_UIScrollingEnabled: 1
@@ -1150,7 +1150,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::DustSpriteRenderer
   relativeDataPath: Dust/dust_sprites.bin
-  maxSpritesToLoad: 20000
+  maxSpritesToLoad: 10000
   spriteShader: {fileID: 4800000, guid: cf10ac3c3bd202b49b38400f53f2797c, type: 3}
   spriteTint: {r: 1, g: 1, b: 1, a: 1}
   opacity: 0.2
@@ -1568,11 +1568,11 @@ Transform:
   m_GameObject: {fileID: 236225342}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 10}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 475100218}
+  m_Father: {fileID: 2087614914}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &236225346
 MonoBehaviour:
@@ -3113,7 +3113,6 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 938372575}
-  - {fileID: 236225345}
   - {fileID: 1455809629}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
@@ -3165,7 +3164,7 @@ MonoBehaviour:
   msLODBoundsVisualizer: {fileID: 618384818}
   moveSpeed: 10
   speedChangeFactor: 2
-  turnSpeed: 60
+  turnSpeed: 35
   inputDeadzone: 0.15
   movementSmoothing: 4
   turnSmoothing: 4
@@ -3770,13 +3769,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::GaiaMSLODLoader
   metadataDirectoryDataPath: Gaia/lod
   targetCamera: {fileID: 330585545}
-  solidAngleThreshold: 4
+  solidAngleThreshold: 5
   frustumCulling: 1
   clusterFilter: {fileID: 586631269}
   starFilter: {fileID: 0}
   streamUpdateDistance: 1
   streamUpdateAngle: 2
-  maxConcurrentLoads: 10
+  maxConcurrentLoads: 3
   verboseLogging: 0
 --- !u!114 &586631269
 MonoBehaviour:
@@ -12496,6 +12495,7 @@ Transform:
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 1
   m_Children:
+  - {fileID: 236225345}
   - {fileID: 3388150213451414590}
   - {fileID: 753945319}
   - {fileID: 958449498}
