@@ -67,6 +67,9 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
     [Min(1)]
     private int maxConcurrentLoads = 10;
 
+    private const string MaxConcurrentLoadsPreferenceKey = "GaiaMSLODLoader.MaxConcurrentLoads";
+    public const int MaxAllowedConcurrentLoads = 64;
+
 
     // ========================================================
     // DEBUG
@@ -210,6 +213,9 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
         {
             solidAngleThreshold = Mathf.Max(MinimumSolidAngleThreshold, savedThreshold);
         }
+
+        int savedMaxConcurrentLoads = PlayerPrefs.GetInt(MaxConcurrentLoadsPreferenceKey, maxConcurrentLoads);
+        maxConcurrentLoads = Mathf.Clamp(savedMaxConcurrentLoads, 1, MaxAllowedConcurrentLoads);
 
         if (targetCamera == null)
         {
@@ -2224,5 +2230,32 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
     private void OnApplicationQuit()
     {
         SaveSolidAngleThreshold();
+    }
+
+    public int MaxConcurrentLoads => maxConcurrentLoads;
+
+    public void SetMaxConcurrentLoads(int value)
+    {
+        maxConcurrentLoads = Mathf.Clamp(
+            value,
+            1,
+            MaxAllowedConcurrentLoads
+        );
+    }
+
+    public void CommitMaxConcurrentLoads()
+    {
+        PlayerPrefs.SetInt(
+            MaxConcurrentLoadsPreferenceKey,
+            maxConcurrentLoads
+        );
+
+        PlayerPrefs.Save();
+
+        // Fill any newly available loading slots immediately.
+        if (isReady)
+        {
+            StartPendingLoads();
+        }
     }
 }

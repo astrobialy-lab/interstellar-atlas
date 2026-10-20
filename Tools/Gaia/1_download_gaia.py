@@ -6,7 +6,7 @@ import os
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
-RAW_DIR = PROJECT_ROOT / "DataRaw" / "Gaia3" / "downloaded"
+RAW_DIR = PROJECT_ROOT / "DataRaw" / "Gaia" / "downloaded"
 RAW_DIR.mkdir(parents=True, exist_ok=True)
 
 CREDENTIALS_FILE = PROJECT_ROOT.parent / "gaia_credentials.txt"
@@ -17,8 +17,9 @@ LEVEL = 3
 NPIXELS = 12 * 4**LEVEL
 DIVISOR = 2 ** (59 - 2 * LEVEL)
 
-MAX_WORKERS = 1 # use 20 when gaia is out of maintanance
+MAX_DISTANCE_KPC = 1.1
 
+MAX_WORKERS = 1 # use 20 when gaia is out of maintanance
 
 def download_healpix(healpix):
 
@@ -59,59 +60,6 @@ def download_healpix(healpix):
     # ---------------------------------------------------------
     # Query
     # ---------------------------------------------------------
-
-    # query = f"""
-    # SELECT
-    #     g.source_id,
-
-    #     -- Gaia observation
-    #     g.ra,
-    #     g.dec,
-    #     g.parallax,
-    #     g.phot_g_mean_mag,
-    #     g.bp_rp,
-
-    #     -- GSP-Phot stellar estimates
-    #     ap.teff_gspphot,
-    #     ap.logg_gspphot,
-    #     ap.mh_gspphot,
-
-    #     ap.distance_gspphot,
-    #     ap.radius_gspphot,
-
-    #     -- Estimated extinction
-    #     ap.azero_gspphot,
-    #     ap.ag_gspphot,
-    #     ap.abp_gspphot,
-    #     ap.arp_gspphot,
-    #     ap.ebpminrp_gspphot,
-
-    #     -- Absolute magnitude
-    #     ap.mg_gspphot,
-
-    #     -- Which synthetic stellar library was selected
-    #     ap.libname_gspphot,
-
-    #     -- FLAME stellar properties
-    #     ap.mass_flame,
-    #     ap.age_flame,
-    #     ap.lum_flame,
-    #     ap.evolstage_flame
-
-    # FROM gaiadr3.gaia_source AS g
-
-    # JOIN gaiadr3.astrophysical_parameters AS ap
-    #     ON g.source_id = ap.source_id
-
-    # WHERE
-    #     g.source_id >= {source_id_min}
-    #     AND g.source_id < {source_id_max}
-
-    #     AND ap.distance_gspphot IS NOT NULL
-    #     AND ap.lum_flame IS NOT NULL
-    #     AND g.bp_rp IS NOT NULL
-    #     AND ap.ebpminrp_gspphot IS NOT NULL
-    # """
 
     query = f"""
     SELECT
@@ -160,6 +108,7 @@ def download_healpix(healpix):
         g.source_id >= {source_id_min}
         AND g.source_id < {source_id_max}
 
+        AND ap.distance_gspphot <= {MAX_DISTANCE_KPC}
         AND g.ra IS NOT NULL
         AND g.dec IS NOT NULL
 

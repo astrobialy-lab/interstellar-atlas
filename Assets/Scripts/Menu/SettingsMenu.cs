@@ -7,15 +7,17 @@ public class SettingsMenu : MonoBehaviour
     [Header("References")]
     [SerializeField] private Canvas settingsCanvas;
 
-    [Header("Dust Settings")]
-    [SerializeField] private DustSpriteRenderer dustSpriteRenderer;
-    [SerializeField] private TMP_InputField maxDustSpritesInput;
-
     [Header("Stars Settings")]
     [SerializeField] private GaiaMSLODLoader loader;
     [SerializeField] private TMP_InputField thresholdInput;
     [SerializeField] private float minThreshold = 2.4e-5f;
     [SerializeField] private float maxThreshold = 10f;
+
+    [SerializeField] private TMP_InputField maxConcurrentLoadsInput;
+
+    [Header("Dust Settings")]
+    [SerializeField] private DustSpriteRenderer dustSpriteRenderer;
+    [SerializeField] private TMP_InputField maxDustSpritesInput;
 
     private bool wasCanvasActive;
     private bool initialized;
@@ -31,6 +33,7 @@ public class SettingsMenu : MonoBehaviour
         if (settingsCanvas == null ||
             loader == null ||
             thresholdInput == null ||
+            maxConcurrentLoadsInput == null ||
             dustSpriteRenderer == null ||
             maxDustSpritesInput == null)
         {
@@ -60,16 +63,12 @@ public class SettingsMenu : MonoBehaviour
             loader.CommitSolidAngleThreshold();
         }
 
-        maxDustSpritesInput.contentType =
-            TMP_InputField.ContentType.IntegerNumber;
+        maxConcurrentLoadsInput.contentType =TMP_InputField.ContentType.IntegerNumber;
+        maxConcurrentLoadsInput.onEndEdit.AddListener(OnMaxConcurrentLoadsInputEndEdit);
 
-        thresholdInput.onEndEdit.AddListener(
-            OnThresholdInputEndEdit
-        );
-
-        maxDustSpritesInput.onEndEdit.AddListener(
-            OnMaxDustSpritesInputEndEdit
-        );
+        maxDustSpritesInput.contentType = TMP_InputField.ContentType.IntegerNumber;
+        thresholdInput.onEndEdit.AddListener(OnThresholdInputEndEdit);
+        maxDustSpritesInput.onEndEdit.AddListener(OnMaxDustSpritesInputEndEdit);
 
         RefreshInputs();
 
@@ -110,6 +109,13 @@ public class SettingsMenu : MonoBehaviour
             );
         }
 
+        if (maxConcurrentLoadsInput != null)
+        {
+            maxConcurrentLoadsInput.onEndEdit.RemoveListener(
+                OnMaxConcurrentLoadsInputEndEdit
+            );
+        }
+
         if (maxDustSpritesInput != null)
         {
             maxDustSpritesInput.onEndEdit.RemoveListener(
@@ -140,7 +146,14 @@ public class SettingsMenu : MonoBehaviour
     private void ApplyInputsAndSave()
     {
         if (loader != null && thresholdInput != null)
+        {
             ApplyThresholdInputAndSave();
+        }
+
+        if (loader != null && maxConcurrentLoadsInput != null)
+        {
+            ApplyMaxConcurrentLoadsInputAndSave();
+        }
 
         if (dustSpriteRenderer != null &&
             maxDustSpritesInput != null)
@@ -215,6 +228,7 @@ public class SettingsMenu : MonoBehaviour
     {
         RefreshThresholdInput();
         RefreshDustSpritesInput();
+        RefreshMaxConcurrentLoadsInput();
     }
 
     private void RefreshThresholdInput()
@@ -246,6 +260,50 @@ public class SettingsMenu : MonoBehaviour
 
         maxDustSpritesInput.SetTextWithoutNotify(
             dustSpriteRenderer.MaxSpritesToLoad.ToString(
+                CultureInfo.InvariantCulture
+            )
+        );
+    }
+
+    private void OnMaxConcurrentLoadsInputEndEdit(string input)
+    {
+        ApplyMaxConcurrentLoadsInputAndSave();
+    }
+
+    private void ApplyMaxConcurrentLoadsInputAndSave()
+    {
+        if (loader == null || maxConcurrentLoadsInput == null)
+            return;
+
+        if (!int.TryParse(
+                maxConcurrentLoadsInput.text,
+                NumberStyles.Integer,
+                CultureInfo.InvariantCulture,
+                out int count))
+        {
+            RefreshMaxConcurrentLoadsInput();
+            return;
+        }
+
+        count = Mathf.Clamp(
+            count,
+            1,
+            GaiaMSLODLoader.MaxAllowedConcurrentLoads
+        );
+
+        loader.SetMaxConcurrentLoads(count);
+        loader.CommitMaxConcurrentLoads();
+
+        RefreshMaxConcurrentLoadsInput();
+    }
+
+    private void RefreshMaxConcurrentLoadsInput()
+    {
+        if (loader == null || maxConcurrentLoadsInput == null)
+            return;
+
+        maxConcurrentLoadsInput.SetTextWithoutNotify(
+            loader.MaxConcurrentLoads.ToString(
                 CultureInfo.InvariantCulture
             )
         );

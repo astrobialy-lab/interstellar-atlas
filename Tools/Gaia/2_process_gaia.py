@@ -4,9 +4,10 @@ import math
 import struct
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
-# for DR3 more than 32,000 is just single stars.
-# the smaller total volume the less files in LOD.
-MAX_DISTANCE = 32_000
+# Dust bounding box, centered on the Sun (Unity origin), in pc.
+BOX_HALF_X = 1010.0
+BOX_HALF_Y = 410.0
+BOX_HALF_Z = 1010.0
 
 MAX_WORKERS = 20
 
@@ -249,19 +250,6 @@ def process_healpix(csv_file):
                     evolstage = safe_int(row["evolstage_flame"])
 
                     # ------------------------------------------------
-                    # Position
-                    # ------------------------------------------------
-
-                    if not (
-                        valid_number(ra)
-                        and valid_number(dec)
-                        and valid_number(distance)
-                        and 0 < distance <= MAX_DISTANCE
-                    ):
-                        skipped += 1
-                        continue
-
-                    # ------------------------------------------------
                     # Brightness
                     # ------------------------------------------------
 
@@ -297,6 +285,18 @@ def process_healpix(csv_file):
                         dec,
                         distance
                     )
+
+                    # ------------------------------------------------
+                    # Dust bounding-box filter
+                    # ------------------------------------------------
+
+                    if not (
+                        -BOX_HALF_X <= x <= BOX_HALF_X
+                        and -BOX_HALF_Y <= y <= BOX_HALF_Y
+                        and -BOX_HALF_Z <= z <= BOX_HALF_Z
+                    ):
+                        skipped += 1
+                        continue
 
                     # ------------------------------------------------
                     # GSP-Phot

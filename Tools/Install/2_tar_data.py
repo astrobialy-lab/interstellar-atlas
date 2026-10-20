@@ -16,7 +16,7 @@ ARCHIVE_PREFIX = "Data_QuestTransfer_"
 MANIFEST_PATH = PROJECT_DIR / "Data_QuestTransfer_manifest.json"
 LEGACY_ARCHIVE = PROJECT_DIR / "Data_QuestTransfer.tar"
 PART_COUNT = 20
-MAX_WORKERS = 10  # One worker process per TAR.
+MAX_WORKERS = 20  # One worker process per TAR.
 PROGRESS_EVERY = 2000
 MANIFEST_VERSION = 2
 

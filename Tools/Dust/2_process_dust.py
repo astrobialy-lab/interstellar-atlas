@@ -44,8 +44,8 @@ MANIFEST_PATH = PROCESSED_DIR / "manifest.json"
 # Practical modern estimate for the Sun's distance from the Galactic
 # center. Different methods disagree slightly; 8.23 kpc is an adopted
 # reference value, not an exact value. See Leung et al. (2023), who found
-# R0 = 8.23 +/- 0.12 kpc from Galactic-bar kinematics.
-SUN_X_KPC = 8.23
+# R0 = 8.5 kpc from Galactic-bar kinematics (for this specific data).
+SUN_X_KPC = 8.5
 
 # The Sun is above the Galactic disk mid-plane. Bennett & Bovy (2019)
 # measured z_sun = 20.8 +/- 0.3 pc. This assumes the source Z=0 plane is

@@ -1,23 +1,22 @@
 # Gaia Star Rendering — Unity VR
 
-This document describes the current Gaia DR3 star-rendering, LOD, streaming, and far-field caching system used by the Unity VR space-simulation project.
+This document describes the Gaia DR3 star-rendering, LOD, streaming, and HDR/glare pipeline used by the Unity VR space-simulation project.
 
 The rendering approach is independently implemented in Unity/URP and is inspired by:
 
-> S. Schneegans, A. Kreskowski, and A. Gerndt, “Smaller than Pixels: Rendering Millions of Stars in Real-Time,” Eurographics 2025.
+> S. Schneegans, A. Kreskowski, and A. Gerndt, “Smaller than Pixels: Rendering Millions of Stars in Real-Time,” *Eurographics 2025 — Short Papers*.
 
-The project follows the paper's central idea of treating distant stars as sub-pixel sources and rasterizing them on the GPU, but uses its own Gaia data preparation, octree/MS LOD system, binary format, streaming system, XR integration, and RenderGraph pipeline.
+The project follows the paper's central idea of treating stars as sub-pixel sources and rasterizing their contributions on the GPU. It uses its own Gaia data preparation, octree/MS LOD system, binary formats, streaming, XR integration, and RenderGraph pipeline. It is not the CosmoScout VR implementation.
 
 ---
 
 ## 1. System overview
 
-The current runtime has four closely connected parts:
+The current runtime has three closely connected parts:
 
-1. **MS LOD + streaming** — selects and loads the star nodes needed by the current view.
-2. **Live star rasterization** — renders nearby stars directly from GPU star buffers.
-3. **Far-star cache** — stores very distant stars as a dynamically generated 360° panorama around the player.
-4. **HDR glare** — combines live and cached stars, then generates the final star/glare image.
+1. **MS LOD and streaming** — selects and loads the star nodes needed by the current view.
+2. **Live star rasterization** — renders selected stars directly from GPU star buffers.
+3. **HDR composition and glare** — reconstructs the star image, generates glare, and composites the result with the camera image.
 
 The runtime flow is:
 
@@ -26,33 +25,31 @@ Gaia DR3
     ↓
 offline preprocessing
     ↓
-HEALPix + distance-shell data
+HEALPix + distance-shell index
     ↓
 MS LOD octree + particle files
     ↓
 GaiaMSLODLoader
     ├── frustum culling
-    ├── solid-angle LOD
-    ├── async loading
+    ├── solid-angle LOD selection
+    ├── asynchronous loading
     └── GPU GraphicsBuffers
             ↓
-      GaiaStarRasterizer
+     GaiaStarRasterizer
             ↓
-   GaiaStarRasterizer.compute
+  GaiaStarRasterizer.compute
             ↓
-   fixed-point star accumulation
+  fixed-point star accumulation
             ↓
-   GaiaStarComposite.shader
+  GaiaStarComposite.shader
             ↓
-        Star HDR
+          Star HDR
             ↓
-   live stars + far cache
+       glare pyramid
             ↓
-      glare pyramid
+  GaiaStarFinalComposite.shader
             ↓
-GaiaStarFinalComposite.shader
-            ↓
-      final VR image
+       final camera image
 ```
 
 Stars are not represented by individual Unity GameObjects, meshes, or billboard objects.
@@ -61,12 +58,12 @@ Stars are not represented by individual Unity GameObjects, meshes, or billboard 
 
 ## 2. Gaia data and preprocessing
 
-The project uses **Gaia DR3** as a local offline stellar catalogue. Unity does not download Gaia data during runtime.
+The project uses **Gaia Data Release 3 (DR3)** as a local offline stellar catalogue. Unity does not download Gaia data during runtime.
 
 The original catalogue organization uses:
 
 - HEALPix level 6
-- radial distance shells
+- Radial-distance shells
 
 ```text
 0–100 pc
@@ -87,13 +84,23 @@ The active runtime files are:
 
 ```text
 Data/Gaia/index.bin
-Data/Gaia/lod_test/metadata.bin
-Data/Gaia/lod_test/particles/particles_XXXXXXXX.bin
+Data/Gaia/lod/metadata.bin
+Data/Gaia/lod/particles/particles_XXXXXXXX.bin
 ```
 
-`index.bin` describes the original Gaia chunk organization. `metadata.bin` and `particles/` are the active MS LOD representation used by `GaiaMSLODLoader.cs`.
+`index.bin` describes the original Gaia chunk organization. `metadata.bin` and `particles/` are the active MS LOD representation used by `GaiaMSLODLoader.cs`. The old `GaiaStarLoader.cs` is no longer part of the active runtime architecture.
 
-The old `GaiaStarLoader.cs` is no longer part of the active runtime architecture.
+### Spatial bounds
+
+The processed star volume is configured to fit the project's dust bounding box, rather than using an independent radial-distance cutoff. In Unity coordinates, the dust box is centered on the Sun and uses half-extents of approximately:
+
+```text
+X: ±1010 pc
+Y:  ±410 pc
+Z: ±1010 pc
+```
+
+The galactic plane maps to Unity's XZ plane, with Y up. Keep the Gaia preprocessing bounds aligned with the dust-volume bounds when either dataset's extent or coordinate mapping changes. The exact selected stars depend on the current preprocessing configuration.
 
 ---
 
@@ -103,7 +110,7 @@ The old `GaiaStarLoader.cs` is no longer part of the active runtime architecture
 
 This is the active runtime LOD and star-data loader.
 
-The processed catalogue is represented as spatially bounded octree nodes. Runtime selection is based primarily on **apparent angular/solid angle**, not just distance.
+The processed catalogue is represented as spatially bounded octree nodes. Runtime selection is based primarily on **apparent angular size / solid angle**, rather than distance alone.
 
 Conceptually:
 
@@ -117,9 +124,7 @@ node apparent-size test
   └── large → recurse into children
 ```
 
-The loader therefore increases spatial detail when a region occupies more of the viewer's field of view and uses coarser nodes when it is visually small.
-
-The current selection also uses preload and fade ranges around the main LOD threshold.
+The loader requests more spatial detail when a region occupies more of the viewer's field of view and uses coarser nodes when it is visually small. The selection also uses preload and fade ranges around the main LOD threshold.
 
 ### Streaming
 
@@ -128,13 +133,13 @@ After LOD selection, the loader compares the desired node set with currently res
 ```text
 Desired nodes
     ├── already resident → keep
-    ├── missing          → async load
-    └── no longer needed → unload
+    ├── missing           → load asynchronously
+    └── no longer needed  → unload
 ```
 
-Particle files are read asynchronously and uploaded to `GraphicsBuffer`s. `maxConcurrentLoads` limits how many node loads may be active at once; the current working setting is **16**.
+Particle files are read asynchronously and uploaded to `GraphicsBuffer` objects. `maxConcurrentLoads` limits how many node loads may be active at once; the effective value is set by the current runtime configuration.
 
-Only the selected nodes need to be resident in CPU/GPU memory. The complete Gaia catalogue remains on disk.
+Only the selected nodes need to be resident in CPU/GPU memory. The complete local catalogue and processed files remain on disk.
 
 ---
 
@@ -142,7 +147,7 @@ Only the selected nodes need to be resident in CPU/GPU memory. The complete Gaia
 
 ### `GaiaStarRasterizer.cs`
 
-Owns the screen-sized GPU accumulation buffers and provides the loaded star buffers to the RenderGraph renderer.
+Owns the screen-sized GPU accumulation buffers and provides loaded star buffers to the RenderGraph renderer.
 
 ### `GaiaStarRasterizer.compute`
 
@@ -150,15 +155,15 @@ The compute shader processes approximately one star per GPU thread:
 
 ```text
 star
- ↓
+  ↓
 project to screen
- ↓
+  ↓
 find sub-pixel position
- ↓
-calculate brightness
- ↓
+  ↓
+calculate brightness contribution
+  ↓
 distribute to 2×2 neighbouring pixels
- ↓
+  ↓
 atomic fixed-point accumulation
 ```
 
@@ -166,7 +171,7 @@ The 2×2 distribution reduces pixel popping and gives smoother star motion when 
 
 The accumulation uses integer `uint` buffers with a fixed-point scale, allowing many star contributions to be combined with atomic operations.
 
-The runtime GPU star record is only 20 bytes:
+The runtime GPU star record is 20 bytes:
 
 ```text
 float3 position
@@ -178,87 +183,21 @@ The current colour model derives an approximate star colour from BP-RP.
 
 ---
 
-## 5. Far-star cache
-
-Very distant stars are not kept as continuously rendered individual stars. Instead, the project uses a **dynamic far-field image cache**.
-
-### Representation
-
-The cache is a single **2:1 equirectangular HDR panorama**:
-
-```text
-2048 × 1024
-360° horizontal
-180° vertical
-```
-
-It represents the entire sky around a cache position. It is not a cubemap, so there are no separate cube faces to update.
-
-### Current distance split
-
-The current configuration is:
-
-```text
-≤ 10,000 Unity units  → live MS LOD rendering
-> 10,000 Unity units  → far panorama cache
-```
-
-The live rasterizer uses the same cache position and distance to reject stars outside the live range, preventing duplicate rendering.
-
-### Cache generation
-
-`GaiaFarStarCache.cs` selects octree nodes that can contribute stars beyond the far-distance boundary, loads those nodes, and rasterizes their far stars into accumulation buffers. The accumulated data are then reconstructed into the equirectangular HDR panorama.
-
-The published cache is kept intact while a new one is being generated. When generation finishes, the new panorama is swapped in.
-
-Thus the cache is **runtime-generated and local**, not a set of prebaked images stored for every possible location.
-
-### Cache refresh
-
-The cache is regenerated when the player has moved enough that the angular error of the existing far view exceeds the configured threshold.
-
-Current settings:
-
-```text
-Far Cache Distance      = 10,000
-Cache Angular Error     = 1°
-```
-
-The corresponding movement threshold is approximately:
-
-```text
-10,000 × tan(1°) ≈ 175 Unity units
-```
-
-So the current cache is normally regenerated after roughly 175 units of player translation. Rotation alone does not require regeneration because the panorama already covers the full 360° sky.
-
-### VR sampling
-
-The panorama itself is shared by both eyes. During final rendering, each eye reconstructs its own world-space viewing ray and samples the same panorama. This preserves the world-space alignment of the cache while keeping the stereo view dependent on the actual left/right eye cameras.
-
----
-
-## 6. HDR composition and glare
+## 5. HDR composition and glare
 
 ### `GaiaStarComposite.shader`
 
-Reconstructs the live star accumulation into HDR and, when valid, adds the far panorama sample in the same pass.
-
-The result is a single star HDR signal:
+Reconstructs the live star accumulation into an HDR star image:
 
 ```text
-live nearby stars
-       +
-far cached stars
-       ↓
-    StarHDR
+live star accumulation
+          ↓
+        StarHDR
 ```
 
 ### Glare pipeline
 
-The HDR star image is then processed through a multi-resolution glare pyramid. The current pyramid has five progressively smaller levels, reaching approximately 1/32 of the original resolution.
-
-Each level is downsampled and blurred with separable horizontal/vertical Gaussian passes.
+The HDR star image is processed through a multi-resolution glare pyramid. The current pyramid has five progressively smaller levels, reaching approximately 1/32 of the original resolution. Each level is downsampled and blurred with separable horizontal/vertical Gaussian passes.
 
 ### `GaiaStarFinalComposite.shader`
 
@@ -274,17 +213,15 @@ The result is written back as the final camera image.
 
 ---
 
-## 7. XR / VR
+## 6. XR / VR
 
 The rendering path is designed for XR and supports mono and stereo cameras.
 
-For stereo rendering, the live compute rasterizer receives independent left/right view-projection matrices. The far-cache sampling path likewise reconstructs an independent world ray for each eye while using the same world-space panorama.
-
-This is important because a single cached image is shared spatial information; it should not be interpreted using one eye's camera transform for both eyes.
+For stereo rendering, the live compute rasterizer receives independent left/right view-projection matrices. Each eye's stars are projected using that eye's view, preserving the correct stereo view.
 
 ---
 
-## 8. RenderGraph structure
+## 7. RenderGraph structure
 
 `GaiaStarRenderFeature.cs` connects the GPU stages through Unity URP RenderGraph:
 
@@ -302,41 +239,31 @@ final composite
 
 Intermediate HDR textures are tracked as RenderGraph resources. Resources shared between separate passes use the explicit RenderGraph global-texture mechanism rather than relying on unrestricted global command-buffer state.
 
-The far panorama is an externally owned runtime `RenderTexture` that is imported into RenderGraph when it is valid.
+---
+
+## 8. Memory model
+
+The system separates catalogue storage, resident LOD data, and screen-space rendering:
+
+```text
+Full Gaia catalogue / processed files
+              ↓
+        local files on disk
+              ↓
+        selected LOD nodes
+              ↓
+      CPU / GPU resident buffers
+              ↓
+    screen-sized accumulation
+              ↓
+       HDR star image + glare
+```
+
+This lets the runtime use a large local stellar catalogue without loading the entire catalogue into CPU/GPU memory or continuously representing stars as individual scene objects. Runtime memory usage depends on selected nodes, streaming concurrency, GPU buffer sizes, and screen-space render targets.
 
 ---
 
-## 9. Memory model
-
-The system deliberately separates **catalogue storage**, **resident LOD data**, and **screen-space rendering**:
-
-```text
-Full Gaia catalogue
-        ↓
-local binary files on disk
-        ↓
-selected LOD nodes
-        ↓
-CPU / GPU resident buffers
-        ↓
-screen-sized accumulation
-```
-
-For the far field, the design adds another layer:
-
-```text
-very distant stars
-        ↓
-dynamic equirectangular HDR cache
-        ↓
-shared 360° panorama
-```
-
-This allows the project to retain the visual presence of a much larger stellar catalogue without continuously rendering every distant star as an individual source.
-
----
-
-## 10. Main runtime classes
+## 9. Main runtime classes
 
 | Class | Responsibility |
 |---|---|
@@ -344,14 +271,17 @@ This allows the project to retain the visual presence of a much larger stellar c
 | `GaiaMSLODLoader` | Active octree LOD selection, streaming, and GPU star buffers. |
 | `GaiaStarBufferProvider` | Interface between star-data providers and rendering. |
 | `GaiaStarRasterizer` | Owns live accumulation buffers and renderer settings. |
-| `GaiaStarRenderFeature` | URP/RenderGraph integration for the complete star pipeline. |
-| `GaiaFarStarCache` | Builds, refreshes, and publishes the far-field panorama. |
+| `GaiaStarRenderFeature` | URP/RenderGraph integration for the star-rendering pipeline. |
+| `GaiaStarFilter` | Optional filtering of stars by supported stellar properties. |
+| `GaiaClusterFilter` | Optional filtering of cluster data. |
+
+The old `GaiaStarLoader.cs` is not part of the active runtime architecture.
 
 ---
 
-## 11. Current status
+## 10. Current status
 
-The current architecture has the following major pieces working:
+The current architecture includes the following major components:
 
 ```text
 [done] Gaia DR3 offline data
@@ -359,69 +289,60 @@ The current architecture has the following major pieces working:
 [done] MS LOD octree
 [done] Frustum culling
 [done] Solid-angle LOD selection
-[done] Async node streaming
+[done] Asynchronous node streaming
 [done] GPU star buffers
 [done] Compute sub-pixel rasterization
 [done] Fixed-point accumulation
 [done] HDR star reconstruction
-[done] Dynamic far-star panorama cache
-[done] Live/far distance separation
 [done] Five-level glare pipeline
 [done] XR-aware per-eye rendering path
 [done] Final camera composite
 ```
 
-The main remaining work is refinement and calibration rather than replacing the basic architecture.
+The main remaining work is refinement and calibration rather than replacing the basic architecture. Validate this checklist against the current Unity project before using it as a release checklist.
 
 ---
 
-## 12. Future work
+## 11. Future work
 
 Potential next improvements include:
 
-- stricter resident-memory budgets and eviction policies
-- photometric calibration of Gaia magnitude to displayed luminance
-- improved stellar colour/temperature mapping
-- tighter integration with exposure and tone mapping
-- better far-cache generation performance and refresh scheduling
-- dust extinction and scattering
-- further XR/mobile GPU profiling and optimization
+- stricter resident-memory budgets and eviction policies;
+- photometric calibration of Gaia magnitude to displayed luminance;
+- improved stellar colour/temperature mapping;
+- tighter integration with exposure and tone mapping;
+- dust extinction and scattering;
+- further XR/mobile GPU profiling and optimization.
 
 ---
 
-## 13. References
+## 12. References
 
 ### Rendering reference
 
-Schneegans, S., Kreskowski, A., & Gerndt, A. (2025).
-**Smaller than Pixels: Rendering Millions of Stars in Real-Time.**
-Eurographics 2025 — Short Papers.
+Schneegans, S., Kreskowski, A., & Gerndt, A. (2025). **“Smaller than Pixels: Rendering Millions of Stars in Real-Time.”** *Eurographics 2025 — Short Papers*.
 
-DOI: https://doi.org/10.2312/egs.20251029
-
-DLR: https://elib.dlr.de/215930/
+- DOI: <https://doi.org/10.2312/egs.20251029>
+- DLR: <https://elib.dlr.de/215930/>
+- Eurographics Digital Library: <https://diglib.eg.org/items/fc13d662-0f6a-4a23-9ae2-d7f1ec1afc78>
 
 ### Reference software
 
-**CosmoScout VR** — open-source scientific visualization software associated with the paper:
-https://github.com/cosmoscout/cosmoscout-vr
+**CosmoScout VR** — open-source scientific visualization software associated with the paper: <https://github.com/cosmoscout/cosmoscout-vr>.
 
 ### Gaia data
 
 **Gaia Data Release 3 (DR3)**
 
-Gaia Archive: https://gea.esac.esa.int/archive/
-
-Gaia DR3 documentation: https://gea.esac.esa.int/archive/documentation/GDR3/
-
-Gaia credit/citation instructions:
-https://gea.esac.esa.int/archive/documentation/GDR3/Miscellaneous/sec_credit_and_citation_instructions/
+- Gaia Archive: <https://gea.esac.esa.int/archive/>
+- Gaia DR3 documentation: <https://gea.esac.esa.int/archive/documentation/GDR3/>
+- Gaia credit/citation instructions: <https://gea.esac.esa.int/archive/documentation/GDR3/Miscellaneous/sec_credit_and_citation_instructions/>
 
 The project should retain the official Gaia acknowledgement and citation requirements when distributing or publishing work based on Gaia DR3.
 
 ---
 
-## 14. Attribution
+## 13. Attribution
 
 This is an independent Unity/URP implementation inspired by the cited Eurographics paper. It is not an official CosmoScout VR implementation.
 
