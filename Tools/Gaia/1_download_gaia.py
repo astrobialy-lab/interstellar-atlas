@@ -6,7 +6,7 @@ import os
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
-RAW_DIR = PROJECT_ROOT / "DataRaw" / "Gaia" / "downloaded"
+RAW_DIR = PROJECT_ROOT / "DataRaw" / "Gaia3" / "downloaded" # TODO change to folder "Gaia" instead of "Gaia3"
 RAW_DIR.mkdir(parents=True, exist_ok=True)
 
 CREDENTIALS_FILE = PROJECT_ROOT.parent / "gaia_credentials.txt"
@@ -17,9 +17,9 @@ LEVEL = 3
 NPIXELS = 12 * 4**LEVEL
 DIVISOR = 2 ** (59 - 2 * LEVEL)
 
-MAX_DISTANCE_KPC = 1.1
+MAX_DISTANCE_PC = 1100.0
 
-MAX_WORKERS = 1 # use 20 when gaia is out of maintanance
+MAX_WORKERS = 10 # use 20 when gaia is out of maintanance
 
 def download_healpix(healpix):
 
@@ -108,7 +108,7 @@ def download_healpix(healpix):
         g.source_id >= {source_id_min}
         AND g.source_id < {source_id_max}
 
-        AND ap.distance_gspphot <= {MAX_DISTANCE_KPC}
+        AND ap.distance_gspphot <= {MAX_DISTANCE_PC}
         AND g.ra IS NOT NULL
         AND g.dec IS NOT NULL
 

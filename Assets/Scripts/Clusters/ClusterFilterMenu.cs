@@ -6,7 +6,7 @@ using UnityEngine.UI;
 public class ClusterFilterMenu : MonoBehaviour
 {
     [Header("Filter")]
-    public GaiaClusterFilter clusterFilter;
+    public ClusterFilter clusterFilter;
 
     [Header("General")]
     public Toggle filterEnabledToggle;

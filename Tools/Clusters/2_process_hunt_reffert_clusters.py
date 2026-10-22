@@ -6,6 +6,10 @@ import struct
 
 import numpy as np
 
+# Dust bounding box, centered on the Sun (Unity origin), in pc.
+BOX_HALF_X = 1010.0
+BOX_HALF_Y = 410.0
+BOX_HALF_Z = 1010.0
 
 # ============================================================
 # Paths
@@ -151,14 +155,6 @@ MEMBER_FLAG_INRT = 1 << 1
 
 
 # ============================================================
-# Expected catalogue sizes
-# ============================================================
-
-EXPECTED_CLUSTERS = 7_167
-EXPECTED_MEMBERS = 1_291_929
-
-
-# ============================================================
 # Helpers
 # ============================================================
 
@@ -264,6 +260,51 @@ def get_column_indices(
             )
 
     return indices
+
+
+def galactic_to_unity_position(
+    glon_deg: float,
+    glat_deg: float,
+    distance_pc: float,
+):
+    """
+    Convert heliocentric Galactic coordinates into Unity positions.
+
+    Galactic longitude: degrees
+    Galactic latitude: degrees
+    Distance: parsecs
+
+    Unity:
+        +X = Galactic center direction
+        +Y = North Galactic Pole
+        +Z = opposite conventional Galactic Y
+
+    1 Unity unit = 1 pc
+    """
+
+    if not all(
+        math.isfinite(value)
+        for value in (
+            glon_deg,
+            glat_deg,
+            distance_pc,
+        )
+    ):
+        return math.nan, math.nan, math.nan
+
+    if distance_pc < 0:
+        return math.nan, math.nan, math.nan
+
+    l = math.radians(glon_deg)
+    b = math.radians(glat_deg)
+
+    cos_b = math.cos(b)
+
+    x = distance_pc * cos_b * math.cos(l)
+    y = distance_pc * math.sin(b)
+    z = -distance_pc * cos_b * math.sin(l)
+
+    return x, y, z
 
 
 # ============================================================
@@ -417,6 +458,54 @@ def process_clusters():
             ) == 1:
                 flags |= CLUSTER_FLAG_GMM
 
+            # ------------------------------------------------
+            # Calculate Sun-centered Unity coordinates.
+            #
+            # Do not use the catalogue's X, Y, Z columns here.
+            # ------------------------------------------------
+
+            glon = safe_float(
+                row[indices["GLON"]]
+            )
+
+            glat = safe_float(
+                row[indices["GLAT"]]
+            )
+
+            distance = safe_float(
+                row[indices["dist50"]]
+            )
+
+            x_unity, y_unity, z_unity = (
+                galactic_to_unity_position(
+                    glon,
+                    glat,
+                    distance,
+                )
+            )
+
+            # ------------------------------------------------
+            # Keep only clusters whose centers are inside
+            # the dust bounding box.
+            # ------------------------------------------------
+
+            if not all(
+                math.isfinite(value)
+                for value in (
+                    x_unity,
+                    y_unity,
+                    z_unity,
+                )
+            ):
+                continue
+
+            if (
+                abs(x_unity) > BOX_HALF_X
+                or abs(y_unity) > BOX_HALF_Y
+                or abs(z_unity) > BOX_HALF_Z
+            ):
+                continue
+
             record = (
                 cluster_id,
                 type_code,
@@ -441,9 +530,9 @@ def process_clusters():
                 safe_float(row[indices["dist50"]]),
                 safe_float(row[indices["dist84"]]),
 
-                safe_float(row[indices["X"]]),
-                safe_float(row[indices["Y"]]),
-                safe_float(row[indices["Z"]]),
+                x_unity,
+                y_unity,
+                z_unity,
 
                 safe_float(row[indices["RV"]]),
 
@@ -474,13 +563,6 @@ def process_clusters():
             names.append(
                 row[indices["Name"]].strip()
             )
-
-    if len(records) != EXPECTED_CLUSTERS:
-        raise RuntimeError(
-            f"Cluster row count mismatch.\n"
-            f"Expected: {EXPECTED_CLUSTERS:,}\n"
-            f"Found:    {len(records):,}"
-        )
 
     cluster_array = np.array(
         records,
@@ -630,27 +712,10 @@ def process_members():
     # predictable.
     # --------------------------------------------------------
 
-    source_ids = np.empty(
-        EXPECTED_MEMBERS,
-        dtype="<u8"
-    )
-
-    cluster_ids = np.empty(
-        EXPECTED_MEMBERS,
-        dtype="<u2"
-    )
-
-    flags = np.empty(
-        EXPECTED_MEMBERS,
-        dtype="<u2"
-    )
-
-    probabilities = np.empty(
-        EXPECTED_MEMBERS,
-        dtype="<f4"
-    )
-
-    count = 0
+    source_ids = []
+    cluster_ids = []
+    flags = []
+    probabilities = []
 
     # --------------------------------------------------------
     # Read memberships
@@ -701,12 +766,6 @@ def process_members():
             if source_id < 0:
                 continue
 
-            if count >= EXPECTED_MEMBERS:
-                raise RuntimeError(
-                    "More membership records were found "
-                    "than expected."
-                )
-
             member_flags = 0
 
             if safe_int(
@@ -719,27 +778,14 @@ def process_members():
             ) == 1:
                 member_flags |= MEMBER_FLAG_INRT
 
-            source_ids[count] = source_id
-            cluster_ids[count] = cluster_id
-            flags[count] = member_flags
-            probabilities[count] = (
-                safe_float(
-                    row[indices["Prob"]]
-                )
-            )
+            source_ids.append(source_id)
+            cluster_ids.append(cluster_id)
+            flags.append(member_flags)
+            probabilities.append(safe_float(row[indices["Prob"]]))
 
-            count += 1
+    count = len(source_ids)
 
-    if count != EXPECTED_MEMBERS:
-        raise RuntimeError(
-            f"Membership row count mismatch.\n"
-            f"Expected: {EXPECTED_MEMBERS:,}\n"
-            f"Found:    {count:,}"
-        )
-
-    print(
-        f"Membership rows: {count:,}"
-    )
+    print(f"Membership rows: {count:,}")
 
     # --------------------------------------------------------
     # Sort by Gaia source_id.
@@ -749,9 +795,12 @@ def process_members():
     # all memberships for the same star are contiguous.
     # --------------------------------------------------------
 
-    print(
-        "Sorting memberships by Gaia source_id..."
-    )
+    print("Sorting memberships by Gaia source_id...")
+
+    source_ids = np.asarray(source_ids, dtype="<u8")
+    cluster_ids = np.asarray(cluster_ids, dtype="<u2")
+    flags = np.asarray(flags, dtype="<u2")
+    probabilities = np.asarray(probabilities, dtype="<f4")
 
     order = np.lexsort(
         (

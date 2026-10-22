@@ -27,7 +27,7 @@ public class MenuController : MonoBehaviour
     public FastTravelMenu fastTravelMenu;
     public GaiaStarFilterMenu starFilterMenu;
     public ClusterFilterMenu clusterFilterMenu;
-    public LandmarkPopup landmarkPopup;
+    public MarkerPopup markerPopup;
 
     [Header("Player References")]
     public VRPlayerController vrPlayerController;
@@ -173,10 +173,10 @@ public class MenuController : MonoBehaviour
         }
 
         // Landmark Popup
-        if (landmarkPopup != null &&
-            landmarkPopup.gameObject.activeSelf)
+        if (markerPopup != null &&
+            markerPopup.gameObject.activeSelf)
         {
-            landmarkPopup.Hide();
+            markerPopup.Hide();
             ClearCurrentSelection();
             SetPlayerControlsEnabled(true);
             return;

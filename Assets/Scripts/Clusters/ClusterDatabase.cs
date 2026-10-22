@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 
-public sealed class GaiaClusterDatabase
+public sealed class ClusterDatabase
 {
     private const uint CLUSTER_MAGIC = 0x434C5354;
     private const uint CLUSTER_VERSION = 1;
@@ -17,10 +17,11 @@ public sealed class GaiaClusterDatabase
     private readonly ClusterRecord[] clusters;
     private readonly MembershipRecord[] memberships;
 
-    private readonly Dictionary<ushort, int>
-        clusterIndexById;
+    private readonly Dictionary<ushort, int> clusterIndexById;
+    private readonly bool[,] hasMembershipByFlags;
+    private readonly float[,] maxProbabilityByFlags;
 
-    private GaiaClusterDatabase(
+    private ClusterDatabase(
         ClusterRecord[] clusters,
         MembershipRecord[] memberships)
     {
@@ -38,6 +39,64 @@ public sealed class GaiaClusterDatabase
                 clusters[i].id
             ] = i;
         }
+
+        hasMembershipByFlags =
+            new bool[clusters.Length, 4];
+
+        maxProbabilityByFlags =
+            new float[clusters.Length, 4];
+
+        for (int i = 0; i < clusters.Length; i++)
+        {
+            for (int flags = 0; flags < 4; flags++)
+            {
+                maxProbabilityByFlags[i, flags] =
+                    float.NegativeInfinity;
+            }
+        }
+
+        for (int i = 0; i < memberships.Length; i++)
+        {
+            MembershipRecord membership = memberships[i];
+
+            if (!clusterIndexById.TryGetValue(
+                    membership.clusterId,
+                    out int clusterIndex))
+            {
+                continue;
+            }
+
+            // Bit 0 = inRj; bit 1 = inRt.
+            int flagCombination = membership.flags & 3;
+
+            hasMembershipByFlags[
+                clusterIndex,
+                flagCombination] = true;
+
+            float probability = membership.probability;
+
+            if (!float.IsNaN(probability) &&
+                !float.IsInfinity(probability) &&
+                probability > maxProbabilityByFlags[
+                    clusterIndex,
+                    flagCombination])
+            {
+                maxProbabilityByFlags[
+                    clusterIndex,
+                    flagCombination] = probability;
+            }
+        }
+    }
+
+    public ClusterRecord GetClusterAt(int index)
+    {
+        if (index < 0 || index >= clusters.Length)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(index));
+        }
+
+        return clusters[index];
     }
 
     public int ClusterCount
@@ -50,7 +109,7 @@ public sealed class GaiaClusterDatabase
         get { return memberships.Length; }
     }
 
-    public static GaiaClusterDatabase Load(
+    public static ClusterDatabase Load(
         string projectRoot,
         string relativeDirectory)
     {
@@ -98,7 +157,7 @@ public sealed class GaiaClusterDatabase
                 membersPath
             );
 
-        return new GaiaClusterDatabase(
+        return new ClusterDatabase(
             clusters,
             memberships
         );
@@ -616,5 +675,57 @@ public sealed class GaiaClusterDatabase
         public ushort clusterId;
         public ushort flags;
         public float probability;
+    }
+
+    public bool ClusterHasMatchingMembership(
+        ushort clusterId,
+        GaiaClusterFilterSettings settings)
+    {
+        if (!clusterIndexById.TryGetValue(
+                clusterId,
+                out int clusterIndex))
+        {
+            return false;
+        }
+
+        for (int combination = 0; combination < 4; combination++)
+        {
+            if (settings.requireInRj &&
+                (combination & 1) == 0)
+            {
+                continue;
+            }
+
+            if (settings.requireInRt &&
+                (combination & 2) == 0)
+            {
+                continue;
+            }
+
+            if (!hasMembershipByFlags[
+                    clusterIndex,
+                    combination])
+            {
+                continue;
+            }
+
+            if (settings.useMembershipProbability)
+            {
+                float maxProbability =
+                    maxProbabilityByFlags[
+                        clusterIndex,
+                        combination];
+
+                if (float.IsNegativeInfinity(maxProbability) ||
+                    maxProbability < settings.minMembershipProbability)
+                {
+                    continue;
+                }
+            }
+
+            return true;
+        }
+
+        return false;
     }
 }

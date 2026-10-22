@@ -40,7 +40,7 @@ PARTITION_DIR = BUILD_DIR / "_node_partitions"
 MAX_FILES = None
 
 N_SIGMA = 2_000
-MAX_OCTREE_DEPTH = 21
+MAX_OCTREE_DEPTH = 20
 NODE_INITIAL_CAPACITY = 65_536
 
 # Maximum number of records held while making one sorted run.

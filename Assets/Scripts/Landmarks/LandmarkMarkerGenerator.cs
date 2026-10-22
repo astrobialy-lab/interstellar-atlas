@@ -20,9 +20,6 @@ public class LandmarkMarkerGenerator : MonoBehaviour
     public GameObject clusterMarkerPrefab;
     public GameObject associationMarkerPrefab;
 
-    [Header("Popup")]
-    public LandmarkPopup landmarkPopup;
-
     [Header("Marker Settings")]
     [Tooltip("Visible size of each marker.")]
     public float markerScale = 0.1f;
@@ -332,7 +329,7 @@ public class LandmarkMarkerGenerator : MonoBehaviour
         string shortDescription,
         string paragraphDescription)
     {
-        LandmarkInfo info = marker.GetComponent<LandmarkInfo>();
+        MarkerInfo info = marker.GetComponent<MarkerInfo>();
 
         if (info == null)
         {

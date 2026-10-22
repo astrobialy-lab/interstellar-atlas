@@ -4,6 +4,9 @@ import math
 import struct
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
+# Big stars filtering
+STAR_MIN_MASS_SOLAR = 2.0
+
 # Dust bounding box, centered on the Sun (Unity origin), in pc.
 BOX_HALF_X = 1010.0
 BOX_HALF_Y = 410.0
@@ -248,6 +251,17 @@ def process_healpix(csv_file):
                     mass = safe_float(row["mass_flame"])
                     age = safe_float(row["age_flame"])
                     evolstage = safe_int(row["evolstage_flame"])
+
+                    # ------------------------------------------------
+                    # Massive-star filter
+                    # ------------------------------------------------
+
+                    if (
+                        not valid_number(mass)
+                        or mass < STAR_MIN_MASS_SOLAR
+                    ):
+                        skipped += 1
+                        continue
 
                     # ------------------------------------------------
                     # Brightness

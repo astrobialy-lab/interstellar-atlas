@@ -18,7 +18,7 @@ public class DesktopPlayerController : MonoBehaviour
 
     [Header("Landmarks")]
     public LandmarkMarkerGenerator landmarkMarkerGenerator;
-    public LandmarkPopup landmarkPopup;
+    public MarkerPopup markerPopup;
     public float selectionRayDistance = 50.0f;
     public LayerMask landmarkLayerMask = ~0;
 
@@ -336,7 +336,7 @@ public class DesktopPlayerController : MonoBehaviour
             selectionRayDistance
         ))
         {
-            LandmarkInfo info = hit.collider.GetComponentInParent<LandmarkInfo>();
+            MarkerInfo info = hit.collider.GetComponentInParent<MarkerInfo>();
 
             if (info != null)
             {
@@ -345,15 +345,15 @@ public class DesktopPlayerController : MonoBehaviour
                     info.objectName
                 );
 
-                if (landmarkPopup != null)
+                if (markerPopup != null)
                 {
-                    landmarkPopup.Show(info);
+                    markerPopup.Show(info);
                 }
             }
             else
             {
                 Debug.Log(
-                    "Ray hit object without LandmarkInfo: " +
+                    "Ray hit object without MarkerInfo: " +
                     hit.collider.name
                 );
             }

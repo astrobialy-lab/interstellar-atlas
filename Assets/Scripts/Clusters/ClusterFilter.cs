@@ -2,7 +2,7 @@ using System;
 using System.IO;
 using UnityEngine;
 
-public class GaiaClusterFilter : MonoBehaviour
+public class ClusterFilter : MonoBehaviour
 {
     [Header("Data")]
     [SerializeField]
@@ -63,7 +63,7 @@ public class GaiaClusterFilter : MonoBehaviour
     private bool requireInRt = false;
 
 
-    private GaiaClusterDatabase database;
+    private ClusterDatabase database;
     private int lastSettingsHash;
 
     public bool FilterEnabled
@@ -71,7 +71,7 @@ public class GaiaClusterFilter : MonoBehaviour
         get { return filterEnabled; }
     }
 
-    public GaiaClusterDatabase Database
+    public ClusterDatabase Database
     {
         get { return database; }
     }
@@ -145,10 +145,10 @@ public class GaiaClusterFilter : MonoBehaviour
         {
             string dataRoot = ResolveDataRoot();
 
-            database = GaiaClusterDatabase.Load(DataPath.Root, clusterDirectoryDataPath);
+            database = ClusterDatabase.Load(DataPath.Root, clusterDirectoryDataPath);
 
             Debug.Log(
-                $"GaiaClusterFilter: Loaded cluster database. " +
+                $"ClusterFilter: Loaded cluster database. " +
                 $"Clusters={database.ClusterCount}, " +
                 $"Memberships={database.MembershipCount}, " +
                 $"Path={Path.Combine(DataPath.Root, clusterDirectoryDataPath)}"

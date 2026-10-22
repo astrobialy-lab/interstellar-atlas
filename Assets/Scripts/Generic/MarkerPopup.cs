@@ -1,7 +1,7 @@
 using TMPro;
 using UnityEngine;
 
-public class LandmarkPopup : MonoBehaviour
+public class MarkerPopup : MonoBehaviour
 {
     [Header("Main Menu")]
     public MenuController menuController;
@@ -16,7 +16,7 @@ public class LandmarkPopup : MonoBehaviour
         gameObject.SetActive(false);
     }
 
-    public void Show(LandmarkInfo info)
+    public void Show(MarkerInfo info)
     {
         if (info == null)
             return;

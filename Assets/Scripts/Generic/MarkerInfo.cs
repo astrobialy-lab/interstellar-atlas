@@ -1,6 +1,6 @@
 using UnityEngine;
 
-public class LandmarkInfo : MonoBehaviour
+public class MarkerInfo : MonoBehaviour
 {
     public string objectName;
     public string typeCode;

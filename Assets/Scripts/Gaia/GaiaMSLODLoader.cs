@@ -42,7 +42,7 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
 
     [Header("Cluster Filtering")]
     [SerializeField]
-    private GaiaClusterFilter clusterFilter;
+    private ClusterFilter clusterFilter;
 
     // ========================================================
     // STAR FILTERING
@@ -261,14 +261,12 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
 
         if (clusterFilter == null)
         {
-            clusterFilter =
-                GetComponent<GaiaClusterFilter>();
+            clusterFilter = GetComponent<ClusterFilter>();
         }
 
         if (clusterFilter == null)
         {
-            clusterFilter =
-                FindAnyObjectByType<GaiaClusterFilter>();
+            clusterFilter = FindAnyObjectByType<ClusterFilter>();
         }
 
         if (starFilter == null)

@@ -5,7 +5,7 @@ using UnityEngine.XR.Management;
 
 public class VRPlayerController : MonoBehaviour
 {
-    public LandmarkPopup landmarkPopup;
+    public MarkerPopup markerPopup;
     public LandmarkMarkerGenerator landmarkMarkerGenerator;
 
     [Header("Orientation")]
@@ -264,20 +264,20 @@ public class VRPlayerController : MonoBehaviour
 
         if (Physics.Raycast(ray, out RaycastHit hit, selectionRayDistance))
         {
-            LandmarkInfo info =
-                hit.collider.GetComponentInParent<LandmarkInfo>();
+            MarkerInfo info =
+                hit.collider.GetComponentInParent<MarkerInfo>();
 
             if (info != null)
             {
-                Debug.Log("Selected landmark: " + info.objectName);
+                Debug.Log("Selected marker: " + info.objectName);
 
-                if (landmarkPopup != null)
-                    landmarkPopup.Show(info);
+                if (markerPopup != null)
+                    markerPopup.Show(info);
             }
             else
             {
                 Debug.Log(
-                    "Ray hit object without LandmarkInfo: " + hit.collider.name);
+                    "Ray hit object without MarkerInfo: " + hit.collider.name);
             }
         }
         else
