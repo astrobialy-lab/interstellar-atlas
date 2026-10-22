@@ -7395,7 +7395,12 @@ MonoBehaviour:
   clusterDataDirectory: Clusters/HuntReffert2024
   markersRoot: {fileID: 52352036}
   clusterMarkerPrefab: {fileID: 6192945478437891419, guid: 30882241335cffa4b89ba20c57bc3bad, type: 3}
-  markerScale: 0.1
+  markerScale: 3
+  smallestMassSolar: 100
+  largestMassSolar: 10000
+  smallestMassScale: 0.65
+  largestMassScale: 2
+  unknownMassScale: 1
   clusterFilter: {fileID: 1069188329}
   colliderSizeMultiplier: 1
   fallbackColliderRadius: 0.05
@@ -8477,7 +8482,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 1750815344416579785, guid: 546852835d958a242b924a371ded3380, type: 3}
       propertyPath: m_OnClick.m_PersistentCalls.m_Calls.Array.data[0].m_MethodName
-      value: ShowAbout
+      value: ShowCredits
       objectReference: {fileID: 0}
     - target: {fileID: 1750815344416579785, guid: 546852835d958a242b924a371ded3380, type: 3}
       propertyPath: m_OnClick.m_PersistentCalls.m_Calls.Array.data[0].m_TargetAssemblyTypeName
@@ -8569,11 +8574,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 3911420065684786735, guid: 546852835d958a242b924a371ded3380, type: 3}
       propertyPath: m_Name
-      value: About
+      value: Credits
       objectReference: {fileID: 0}
     - target: {fileID: 4828350019030351429, guid: 546852835d958a242b924a371ded3380, type: 3}
       propertyPath: m_text
-      value: About
+      value: Credits
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []

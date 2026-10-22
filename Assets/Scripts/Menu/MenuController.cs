@@ -310,20 +310,12 @@ public class MenuController : MonoBehaviour
         OpenInfoMenu("Controls", controls);
     }
 
-    public void ShowAbout()
+    public void ShowCredits()
     {
         OpenInfoMenu(
-            "About",
-            "This visualization uses the publicly " +
-            "available Edenhofer et al. (2024) " +
-            "three-dimensional dust map of the " +
-            "local Milky Way.\n\n" +
-            "The map traces interstellar dust near " +
-            "the Sun. In this VR version, dust " +
-            "density is represented by " +
-            "semi-transparent particles so users " +
-            "can explore nearby Galactic dust " +
-            "structure from inside the data."
+            "Credits",
+            "This visualization uses the publicly available Edenhofer et al. (2024) three-dimensional dust map of the local Milky Way.\n\n" +
+            "The map traces interstellar dust near the Sun. In this VR version, dust density is represented by semi-transparent particles so users can explore nearby Galactic dust structure from inside the data."
         );
     }
 

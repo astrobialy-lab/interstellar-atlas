@@ -19,9 +19,30 @@ public class ClusterMarkerGenerator : MonoBehaviour
     public GameObject clusterMarkerPrefab;
 
     [Header("Marker Settings")]
-    [Tooltip("Visible size of each marker.")]
+    [Tooltip("Base size of each marker.")]
     [Min(0.001f)]
-    public float markerScale = 0.1f;
+    public float markerScale = 1.0f;
+
+    [Header("Mass-Based Size")]
+    [Tooltip("Mass in solar masses mapped to the minimum size.")]
+    [Min(0.001f)]
+    public float smallestMassSolar = 100f;
+
+    [Tooltip("Mass in solar masses mapped to the maximum size.")]
+    [Min(0.001f)]
+    public float largestMassSolar = 10000f;
+
+    [Tooltip("Size multiplier for low-mass clusters.")]
+    [Min(0.01f)]
+    public float smallestMassScale = 0.65f;
+
+    [Tooltip("Size multiplier for high-mass clusters.")]
+    [Min(0.01f)]
+    public float largestMassScale = 2f;
+
+    [Tooltip("Size multiplier when mass is unavailable.")]
+    [Min(0.01f)]
+    public float unknownMassScale = 1f;
 
     [Header("Filtering")]
     public ClusterFilter clusterFilter;
@@ -117,13 +138,16 @@ public class ClusterMarkerGenerator : MonoBehaviour
                 Quaternion.identity,
                 markersRoot.transform);
 
+            float massScale =
+                GetMassScaleMultiplier(record.massTot);
+
             marker.transform.localScale =
-                Vector3.one * markerScale;
+                Vector3.one * markerScale * massScale;
 
             marker.name = $"ClusterMarker_{record.id}";
 
             ConfigureCollider(marker);
-
+            ApplyAgeColor(marker, record);
             ConfigureClusterInfo(marker, record);
 
             generatedMarkers.Add(marker);
@@ -637,5 +661,80 @@ public class ClusterMarkerGenerator : MonoBehaviour
         }
 
         return true;
+    }
+
+    private float GetMassScaleMultiplier(float massSolar)
+    {
+        if (!IsPositive(massSolar))
+            return unknownMassScale;
+
+        float minMass = Mathf.Max(0.001f, smallestMassSolar);
+        float maxMass = Mathf.Max(minMass * 1.001f, largestMassSolar);
+
+        float t = Mathf.InverseLerp(
+            Mathf.Log10(minMass),
+            Mathf.Log10(maxMass),
+            Mathf.Log10(massSolar));
+
+        return Mathf.Lerp(
+            smallestMassScale,
+            largestMassScale,
+            t);
+    }
+
+    private static Color GetAgeColor(float logAge)
+    {
+        // Gray for missing or invalid age data.
+        if (!IsFinite(logAge) || logAge <= 0f || logAge > 12.5f)
+            return new Color(0.65f, 0.65f, 0.65f);
+
+        Color veryYoung = new Color(1f, 0.20f, 0.18f); // Red
+        Color young = new Color(1f, 0.55f, 0.15f); // Orange
+        Color middle = new Color(1f, 0.88f, 0.25f); // Yellow
+        Color old = new Color(0.25f, 0.85f, 0.70f); // Teal
+        Color veryOld = new Color(0.30f, 0.52f, 1f); // Blue
+
+        if (logAge < 7f)
+            return Color.Lerp(
+                veryYoung, young,
+                Mathf.InverseLerp(6f, 7f, logAge));
+
+        if (logAge < 8f)
+            return Color.Lerp(
+                young, middle,
+                Mathf.InverseLerp(7f, 8f, logAge));
+
+        if (logAge < 9f)
+            return Color.Lerp(
+                middle, old,
+                Mathf.InverseLerp(8f, 9f, logAge));
+
+        if (logAge < 9.69897f)
+            return Color.Lerp(
+                old, veryOld,
+                Mathf.InverseLerp(9f, 9.69897f, logAge));
+
+        return veryOld;
+    }
+
+    private static void ApplyAgeColor(
+        GameObject marker,
+        ClusterDatabase.ClusterRecord record)
+    {
+        Color ageColor = GetAgeColor(record.logAge50);
+
+        SpriteRenderer[] sprites =
+            marker.GetComponentsInChildren<SpriteRenderer>(true);
+
+        foreach (SpriteRenderer sprite in sprites)
+        {
+            Color current = sprite.color;
+
+            sprite.color = new Color(
+                ageColor.r,
+                ageColor.g,
+                ageColor.b,
+                current.a);
+        }
     }
 }
