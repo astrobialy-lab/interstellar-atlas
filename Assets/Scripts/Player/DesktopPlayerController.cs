@@ -25,6 +25,9 @@ public class DesktopPlayerController : MonoBehaviour
     [Header("Orientation")]
     public GameObject orientation;
 
+    [Header("Star Display")]
+    public GaiaStarFilter starFilter;
+
     [Header("MS-LOD Debug")]
     public GaiaMSLODBoundsVisualizer msLODBoundsVisualizer;
 
@@ -47,6 +50,11 @@ public class DesktopPlayerController : MonoBehaviour
         {
             Destroy(this);
             return;
+        }
+
+        if (starFilter == null)
+        {
+            starFilter = FindAnyObjectByType<GaiaStarFilter>();
         }
 
         if (dustSpriteRenderer == null)
@@ -273,12 +281,17 @@ public class DesktopPlayerController : MonoBehaviour
             }
         }
 
-        // 5 = cycle dust sprite sizes
+        // 5 = cycle star display stage
         if (Keyboard.current.digit5Key.wasPressedThisFrame)
         {
-            if (dustSpriteRenderer != null)
+            if (starFilter != null)
             {
-                dustSpriteRenderer.CycleSpriteSizeMultiplier();
+                starFilter.CycleDisplayStage();
+            }
+            else
+            {
+                Debug.LogWarning(
+                    "DesktopPlayerController: GaiaStarFilter not found.");
             }
         }
 
@@ -376,7 +389,7 @@ public class DesktopPlayerController : MonoBehaviour
         "= / -: increase / decrease speed",
         "3: cycle dust sprite transparency",
         "4: next dust color scheme",
-        "5: cycle dust sprite size",
+        "5: cycle stars and clusters display stage",
         "6: show / hide landmarks and orientation",
         "7: select landmark",
         "8: refresh Gaia MS-LOD bounds",

@@ -1187,6 +1187,7 @@ MonoBehaviour:
   opacity: 0.2
   targetCamera: {fileID: 330585545}
   customSpriteTexture: {fileID: 2800000, guid: 383a4b07d1e11f042b69e9098ce8b621, type: 3}
+  spriteSizeMultiplier: 1.2
 --- !u!1 &223379401
 GameObject:
   m_ObjectHideFlags: 0
@@ -3170,6 +3171,7 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 4294967295
   orientation: {fileID: 1666570262}
+  starFilter: {fileID: 0}
   msLODBoundsVisualizer: {fileID: 618384818}
   dustSpriteRenderer: {fileID: 212480235}
 --- !u!114 &475100220
@@ -3190,6 +3192,8 @@ MonoBehaviour:
   xrOrigin: {fileID: 475100218}
   headsetCamera: {fileID: 330585546}
   rightControllerTransform: {fileID: 1165375209}
+  maxLookAngle: 89
+  rollSpeed: 20
   msLODBoundsVisualizer: {fileID: 618384818}
   moveSpeed: 10
   speedChangeFactor: 2
@@ -3203,6 +3207,7 @@ MonoBehaviour:
     m_Bits: 4294967295
   rightRayLine: {fileID: 2761784064872778051}
   dustSpriteRenderer: {fileID: 212480235}
+  rightTriggerDoubleClickWindow: 0.3
 --- !u!114 &475100222
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3880,8 +3885,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a3867c3839354a14fb5bf9ca2f7a4190, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::GaiaStarFilter
+  clusterMarkerGenerator: {fileID: 1069188328}
   settings:
     enabled: 0
+    displayStage: 0
     useMassRange: 0
     minMassSolar: 0
     maxMassSolar: 100

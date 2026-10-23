@@ -6,6 +6,8 @@ public struct GaiaStarFilterSettings
 {
     public bool enabled;
 
+    public int displayStage;
+
     public bool useMassRange;
     public float minMassSolar;
     public float maxMassSolar;
@@ -28,15 +30,56 @@ public struct GaiaStarFilterSettings
         useEvolutionStageRange ||
         useTemperatureRange;
 
+    public bool IsNoStarsStage => displayStage == 5;
+
+    private bool UsesMagnitudeLimit =>
+        displayStage >= 1 && displayStage <= 3;
+
     public bool IsActive =>
-        enabled && HasAnyCriterion;
+        IsNoStarsStage ||
+        UsesMagnitudeLimit ||
+        (enabled && HasAnyCriterion);
 
     public bool Matches(
+        float magnitude,
         float massSolar,
         float ageGyr,
         int evolutionStage,
         float temperatureK)
     {
+        // Stage 5: display no stars.
+        if (displayStage == 5)
+            return false;
+
+        // THESE VALUES WERE ADJUSTED FOR STARS PROCESSING SCRIPT THAT FILTERS FOR ALL STARS OVER MASS OF MASS OF 2.0 [SOLAR MASS]
+        // Brightness limits apply independently of the
+        // other optional stellar-property filters.
+        switch (displayStage)
+        {
+            case 1:
+                // Approximately 2% of stars.
+                if (!IsFinite(magnitude) || magnitude > -1.5f)
+                    return false;
+                break;
+
+            case 2:
+                // Approximately 8% of stars.
+                if (!IsFinite(magnitude) || magnitude > -0.2f)
+                    return false;
+                break;
+
+            case 3:
+                // Approximately 40% of stars.
+                if (!IsFinite(magnitude) || magnitude > 0.85f)
+                    return false;
+                break;
+
+                // Stage 4: all stars.
+                // Stage 5: no stars, handled above.
+        }
+
+        // Keep the existing mass, age, evolution-stage,
+        // and temperature filters working as before.
         if (!enabled)
             return true;
 
@@ -84,10 +127,15 @@ public struct GaiaStarFilterSettings
 
 public sealed class GaiaStarFilter : MonoBehaviour
 {
-    [SerializeField]
-    private GaiaStarFilterSettings settings =
+    [Header("Cluster Sprites")]
+    [SerializeField] private ClusterMarkerGenerator clusterMarkerGenerator;
+
+    [Header("Settings")]
+    [SerializeField] private GaiaStarFilterSettings settings =
         new GaiaStarFilterSettings
         {
+            displayStage = 4,
+
             minMassSolar = 0f,
             maxMassSolar = 100f,
 
@@ -142,7 +190,14 @@ public sealed class GaiaStarFilter : MonoBehaviour
             newSettings.maxEvolutionStage = temp;
         }
 
+        if (newSettings.displayStage < 1 ||
+            newSettings.displayStage > 5)
+        {
+            newSettings.displayStage = 4;
+        }
+
         settings = newSettings;
+        UpdateClusterSpriteVisibility();
 
         unchecked
         {
@@ -174,5 +229,96 @@ public sealed class GaiaStarFilter : MonoBehaviour
             minimum = maximum;
             maximum = temp;
         }
+    }
+
+    public int DisplayStage => settings.displayStage;
+
+    public int CycleDisplayStage()
+    {
+        // Cycle from most stars to fewest stars.
+        switch (settings.displayStage)
+        {
+            case 4:
+                settings.displayStage = 3; // 40%
+                break;
+
+            case 3:
+                settings.displayStage = 2; // 8%
+                break;
+
+            case 2:
+                settings.displayStage = 1; // 2%
+                break;
+
+            case 1:
+                settings.displayStage = 5; // No stars
+                break;
+
+            case 5:
+            default:
+                settings.displayStage = 4; // All stars
+                break;
+        }
+
+        UpdateClusterSpriteVisibility();
+
+        unchecked
+        {
+            revision++;
+        }
+
+        // THESE VALUES WERE ADJUSTED FOR STARS PROCESSING SCRIPT THAT FILTERS FOR ALL STARS OVER MASS OF MASS OF 2.0 [SOLAR MASS]
+        string description = settings.displayStage switch
+        {
+            1 => "G <= -1.5 (approximately 2%)",
+            2 => "G <= -0.2 (approximately 8%)",
+            3 => "G <= 0.85 (approximately 40%)",
+            4 => "All stars (100%)",
+            5 => "No stars (0%)",
+            _ => "Unknown"
+        };
+
+        Debug.Log(
+            $"GaiaStarFilter: Stage {settings.displayStage}/5 - " +
+            description);
+
+        return settings.displayStage;
+    }
+
+    private void Start()
+    {
+        if (clusterMarkerGenerator == null)
+        {
+            clusterMarkerGenerator =
+                FindAnyObjectByType<ClusterMarkerGenerator>();
+        }
+
+        UpdateClusterSpriteVisibility();
+    }
+
+    private void Awake()
+    {
+        // Always start with all stars visible.
+        if (settings.displayStage != 4)
+        {
+            settings.displayStage = 4;
+
+            unchecked
+            {
+                revision++;
+            }
+        }
+
+        Debug.Log("GaiaStarFilter: Starting at Stage 4/5 - All stars");
+    }
+
+    private void UpdateClusterSpriteVisibility()
+    {
+        if (clusterMarkerGenerator == null)
+            return;
+
+        clusterMarkerGenerator.SetMarkersVisible(
+            settings.displayStage == 5
+        );
     }
 }

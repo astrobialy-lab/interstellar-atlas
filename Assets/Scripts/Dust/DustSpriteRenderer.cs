@@ -29,6 +29,7 @@ public sealed class DustSpriteRenderer : MonoBehaviour
 
     [Header("Sprite Texture")]
     [SerializeField] private Texture2D customSpriteTexture;
+    [SerializeField] private float spriteSizeMultiplier = 1.2f;
 
     private const string FileMagic = "DUSTSPR1";
     private const uint FileVersion = 1;
@@ -46,15 +47,7 @@ public sealed class DustSpriteRenderer : MonoBehaviour
 
     private int colorScheme = 0;
 
-    // Five size levels: 0.4, 0.8, 1.2, 1.6, 2.0.
-    private int spriteSizeStepIndex = 4;
-    private float spriteSizeMultiplier = 1.2f;
-
     private const int ColorSchemeCount = 6;
-    private const int SpriteSizeStepCount = 5;
-    private const float MinSpriteSizeMultiplier = 0.4f;
-    private const float SpriteSizeMultiplierStep = 0.4f;
-    private const float MaxSpriteSizeMultiplier = 2.0f;
 
     // Six transparency levels: 0%, 20%, 40%, 60%, 80%, 100%.
     private int spriteTransparencyStepIndex = 5;
@@ -291,10 +284,17 @@ public sealed class DustSpriteRenderer : MonoBehaviour
                     };
 
                     Vector3 center = new Vector3(x, y, z);
-                    float radius = size * Mathf.Max(1f, aspect) * MaxSpriteSizeMultiplier * 0.75f;
+
+                    float effectiveSize = size * spriteSizeMultiplier;
+                    float maxDimension = effectiveSize * Mathf.Max(1f, aspect);
+
+                    // Bounding radius: 75% of the sprite's largest dimension.
+                    float radius = maxDimension * 0.75f;
+
                     min = Vector3.Min(min, center - Vector3.one * radius);
                     max = Vector3.Max(max, center + Vector3.one * radius);
-                    largestSize = Mathf.Max(largestSize, size * Mathf.Max(1f, aspect));
+
+                    largestSize = Mathf.Max(largestSize, maxDimension);
                 }
             }
 
@@ -412,21 +412,6 @@ public sealed class DustSpriteRenderer : MonoBehaviour
 
         if (properties != null)
             properties.SetFloat(ColorSchemeId, colorScheme);
-    }
-
-    public void CycleSpriteSizeMultiplier()
-    {
-        spriteSizeStepIndex =
-            (spriteSizeStepIndex + 1) % SpriteSizeStepCount;
-
-        spriteSizeMultiplier =
-            MinSpriteSizeMultiplier +
-            spriteSizeStepIndex * SpriteSizeMultiplierStep;
-
-        if (properties != null)
-            properties.SetFloat(
-                SpriteSizeMultiplierId,
-                spriteSizeMultiplier);
     }
 
     public void CycleSpriteTransparency()

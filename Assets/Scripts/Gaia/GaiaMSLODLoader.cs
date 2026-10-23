@@ -1357,8 +1357,23 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
             return result;
         }
 
-        uint starCount =
-            node.starCount;
+        uint starCount = node.starCount;
+
+        // Stage 5: no stars are needed.
+        // Skip reading particle files entirely.
+        if (starFilterSettings.IsNoStarsStage)
+        {
+            result.success = true;
+
+            result.stars = Array.Empty<GaiaStarGPU>();
+
+            result.drawBounds = new Bounds(
+                node.center,
+                node.halfSize * 2.0f
+            );
+
+            return result;
+        }
 
         // Valid internal node with no stars directly stored
         // in it. There is intentionally no particle file.
@@ -1552,6 +1567,7 @@ public class GaiaMSLODLoader : GaiaStarBufferProvider
                 if (useStarFilter)
                 {
                     keep = starFilterSettings.Matches(
+                        star.magnitude,
                         properties.massSolar,
                         properties.ageGyr,
                         properties.evolutionStage,
