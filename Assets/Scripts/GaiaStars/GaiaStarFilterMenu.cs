@@ -9,8 +9,9 @@ public class GaiaStarFilterMenu : MonoBehaviour
     [Header("Filter")]
     public GaiaStarFilter starFilter;
 
-    [Header("General")]
-    public Toggle filterEnabledToggle;
+    [Header("Brightness (apparent G magnitude)")]
+    public Toggle brightnessToggle;
+    public TMP_InputField maxMagnitudeInput;
 
     [Header("Mass (solar masses)")]
     public Toggle massToggle;
@@ -36,6 +37,41 @@ public class GaiaStarFilterMenu : MonoBehaviour
     {
         LoadCurrentSettings();
         gameObject.SetActive(false);
+    }
+
+    private void OnEnable()
+    {
+        if (starFilter != null)
+        {
+            starFilter.BrightnessFilterChanged +=
+                HandleBrightnessFilterChanged;
+        }
+    }
+
+    private void OnDisable()
+    {
+        if (starFilter != null)
+        {
+            starFilter.BrightnessFilterChanged -=
+                HandleBrightnessFilterChanged;
+        }
+    }
+
+    private void HandleBrightnessFilterChanged(
+        bool enabled,
+        float maxMagnitude)
+    {
+        if (brightnessToggle != null)
+        {
+            brightnessToggle.SetIsOnWithoutNotify(enabled);
+        }
+
+        if (maxMagnitudeInput != null)
+        {
+            maxMagnitudeInput.SetTextWithoutNotify(
+                maxMagnitude.ToString(
+                    CultureInfo.InvariantCulture));
+        }
     }
 
     public bool IsOpen()
@@ -74,11 +110,9 @@ public class GaiaStarFilterMenu : MonoBehaviour
             return;
         }
 
-        GaiaStarFilterSettings settings =
-            starFilter.CreateSnapshot();
+        GaiaStarFilterSettings settings = starFilter.CreateSnapshot();
 
-        if (filterEnabledToggle != null)
-            filterEnabledToggle.isOn = settings.enabled;
+        HandleBrightnessFilterChanged(settings.useMagnitudeLimit, settings.maxMagnitude);
 
         if (massToggle != null)
             massToggle.isOn = settings.useMassRange;
@@ -143,9 +177,6 @@ public class GaiaStarFilterMenu : MonoBehaviour
         GaiaStarFilterSettings settings =
             starFilter.CreateSnapshot();
 
-        if (filterEnabledToggle != null)
-            settings.enabled = filterEnabledToggle.isOn;
-
         if (massToggle != null)
             settings.useMassRange = massToggle.isOn;
 
@@ -191,6 +222,16 @@ public class GaiaStarFilterMenu : MonoBehaviour
             ParseFloat(
                 maxTemperatureInput,
                 settings.maxTemperatureK);
+
+        if (brightnessToggle != null)
+        {
+            settings.useMagnitudeLimit =
+                brightnessToggle.isOn;
+        }
+
+        settings.maxMagnitude = ParseFloat(
+            maxMagnitudeInput,
+            settings.maxMagnitude);
 
         starFilter.ApplySettings(settings);
     }

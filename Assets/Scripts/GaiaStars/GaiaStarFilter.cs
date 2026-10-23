@@ -4,9 +4,10 @@ using UnityEngine;
 [System.Serializable]
 public struct GaiaStarFilterSettings
 {
-    public bool enabled;
-
     public int displayStage;
+
+    public bool useMagnitudeLimit;
+    public float maxMagnitude;
 
     public bool useMassRange;
     public float minMassSolar;
@@ -32,13 +33,10 @@ public struct GaiaStarFilterSettings
 
     public bool IsNoStarsStage => displayStage == 5;
 
-    private bool UsesMagnitudeLimit =>
-        displayStage >= 1 && displayStage <= 3;
-
     public bool IsActive =>
         IsNoStarsStage ||
-        UsesMagnitudeLimit ||
-        (enabled && HasAnyCriterion);
+        useMagnitudeLimit ||
+        HasAnyCriterion;
 
     public bool Matches(
         float magnitude,
@@ -51,37 +49,16 @@ public struct GaiaStarFilterSettings
         if (displayStage == 5)
             return false;
 
-        // THESE VALUES WERE ADJUSTED FOR STARS PROCESSING SCRIPT THAT FILTERS FOR ALL STARS OVER MASS OF MASS OF 2.0 [SOLAR MASS]
-        // Brightness limits apply independently of the
-        // other optional stellar-property filters.
-        switch (displayStage)
+        // Optional apparent G-magnitude limit.
+        // Lower magnitude values represent brighter stars.
+        if (useMagnitudeLimit)
         {
-            case 1:
-                // Approximately 2% of stars.
-                if (!IsFinite(magnitude) || magnitude > -1.5f)
-                    return false;
-                break;
-
-            case 2:
-                // Approximately 8% of stars.
-                if (!IsFinite(magnitude) || magnitude > -0.2f)
-                    return false;
-                break;
-
-            case 3:
-                // Approximately 40% of stars.
-                if (!IsFinite(magnitude) || magnitude > 0.85f)
-                    return false;
-                break;
-
-                // Stage 4: all stars.
-                // Stage 5: no stars, handled above.
+            if (!IsFinite(magnitude) ||
+                magnitude > maxMagnitude)
+            {
+                return false;
+            }
         }
-
-        // Keep the existing mass, age, evolution-stage,
-        // and temperature filters working as before.
-        if (!enabled)
-            return true;
 
         if (useMassRange)
         {
@@ -136,6 +113,9 @@ public sealed class GaiaStarFilter : MonoBehaviour
         {
             displayStage = 4,
 
+            useMagnitudeLimit = false,
+            maxMagnitude = 0.85f,
+
             minMassSolar = 0f,
             maxMassSolar = 100f,
 
@@ -152,6 +132,8 @@ public sealed class GaiaStarFilter : MonoBehaviour
     private int revision;
 
     public int Revision => revision;
+
+    public event System.Action<bool, float> BrightnessFilterChanged;
 
     public GaiaStarFilterSettings CreateSnapshot()
     {
@@ -196,8 +178,26 @@ public sealed class GaiaStarFilter : MonoBehaviour
             newSettings.displayStage = 4;
         }
 
+        if (float.IsNaN(newSettings.maxMagnitude) ||
+            float.IsInfinity(newSettings.maxMagnitude))
+        {
+            newSettings.maxMagnitude = 0.85f;
+        }
+
+        // Allow a brightness filter to be enabled from the menu
+        // even when the current state is "no stars".
+        if (newSettings.displayStage == 5 &&
+            newSettings.useMagnitudeLimit)
+        {
+            newSettings.displayStage = 4;
+        }
+
         settings = newSettings;
         UpdateClusterSpriteVisibility();
+
+        BrightnessFilterChanged?.Invoke(
+            settings.useMagnitudeLimit,
+            settings.maxMagnitude);
 
         unchecked
         {
@@ -235,32 +235,43 @@ public sealed class GaiaStarFilter : MonoBehaviour
 
     public int CycleDisplayStage()
     {
+        // THESE VALUES WERE ADJUSTED FOR STARS PROCESSING SCRIPT THAT FILTERS FOR ALL STARS OVER MASS OF MASS OF 2.0 [SOLAR MASS]
         // Cycle from most stars to fewest stars.
         switch (settings.displayStage)
         {
             case 4:
-                settings.displayStage = 3; // 40%
+                settings.displayStage = 3;
+                settings.useMagnitudeLimit = true;
+                settings.maxMagnitude = 0.85f;
                 break;
 
             case 3:
-                settings.displayStage = 2; // 8%
+                settings.displayStage = 2;
+                settings.useMagnitudeLimit = true;
+                settings.maxMagnitude = -0.2f;
                 break;
 
             case 2:
-                settings.displayStage = 1; // 2%
+                settings.displayStage = 1;
+                settings.useMagnitudeLimit = true;
+                settings.maxMagnitude = -1.5f;
                 break;
 
             case 1:
-                settings.displayStage = 5; // No stars
+                settings.displayStage = 5;
+                settings.useMagnitudeLimit = false;
                 break;
 
             case 5:
             default:
-                settings.displayStage = 4; // All stars
+                settings.displayStage = 4;
+                settings.useMagnitudeLimit = false;
                 break;
         }
 
         UpdateClusterSpriteVisibility();
+
+        BrightnessFilterChanged?.Invoke(settings.useMagnitudeLimit, settings.maxMagnitude);
 
         unchecked
         {
@@ -299,17 +310,17 @@ public sealed class GaiaStarFilter : MonoBehaviour
     private void Awake()
     {
         // Always start with all stars visible.
-        if (settings.displayStage != 4)
+        if (settings.displayStage != 4 ||
+            settings.useMagnitudeLimit)
         {
             settings.displayStage = 4;
+            settings.useMagnitudeLimit = false;
 
             unchecked
             {
                 revision++;
             }
         }
-
-        Debug.Log("GaiaStarFilter: Starting at Stage 4/5 - All stars");
     }
 
     private void UpdateClusterSpriteVisibility()

@@ -1,7 +1,5 @@
 # TODO:
 
-- flip x and y
-
 - make cluster sprite a circle
 - the clusters sprites are flickering
 
