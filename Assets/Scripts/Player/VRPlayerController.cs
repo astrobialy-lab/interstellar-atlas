@@ -265,16 +265,16 @@ public class VRPlayerController : MonoBehaviour
         leftHand.TryGetFeatureValue(CommonUsages.primaryButton, out leftX);
         leftHand.TryGetFeatureValue(CommonUsages.secondaryButton, out leftY);
 
-        // X = increase speed.
+        // X = decrease speed.
         if (leftX && !previousLeftX)
         {
-            moveSpeed *= speedChangeFactor;
+            moveSpeed /= speedChangeFactor;
         }
 
-        // Y = decrease speed.
+        // Y = increase speed.
         if (leftY && !previousLeftY)
         {
-            moveSpeed /= speedChangeFactor;
+            moveSpeed *= speedChangeFactor;
         }
 
         previousLeftX = leftX;
@@ -413,7 +413,7 @@ public class VRPlayerController : MonoBehaviour
         "Left Stick: move / strafe",
         "Right Stick: look around",
         "Left / Right Stick press: roll counter-clockwise / clockwise",
-        "X / Y: speed increase / decrease",
+        "Y / X: speed increase / decrease",
         "B / A: move up / down relative to viewing direction",
         "Left Trigger: next dust color scheme",
         "Left Grip: cycle dust sprite transparency",

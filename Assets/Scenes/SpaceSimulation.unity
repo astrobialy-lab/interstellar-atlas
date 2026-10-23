@@ -3194,6 +3194,7 @@ MonoBehaviour:
   rightControllerTransform: {fileID: 1165375209}
   maxLookAngle: 89
   rollSpeed: 20
+  starFilter: {fileID: 0}
   msLODBoundsVisualizer: {fileID: 618384818}
   moveSpeed: 10
   speedChangeFactor: 2

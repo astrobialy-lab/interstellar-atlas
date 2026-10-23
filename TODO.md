@@ -1,9 +1,8 @@
 # TODO:
 
-- background top and bottom look ugly
-- background quality is too low
-- the line when background connects is glitching
+- flip x and y
 
+- make cluster sprite a circle
 - the clusters sprites are flickering
 
 - redownload whole gaia data. there is a missing block
