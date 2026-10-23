@@ -1,8 +1,5 @@
 # TODO:
 
-- make cluster sprite a circle
-- the clusters sprites are flickering
-
 - redownload whole gaia data. there is a missing block
 
 
