@@ -312,11 +312,82 @@ public class MenuController : MonoBehaviour
 
     public void ShowCredits()
     {
-        OpenInfoMenu(
-            "Credits",
-            "This visualization uses the publicly available Edenhofer et al. (2024) three-dimensional dust map of the local Milky Way.\n\n" +
-            "The map traces interstellar dust near the Sun. In this VR version, dust density is represented by semi-transparent particles so users can explore nearby Galactic dust structure from inside the data."
-        );
+        string credits = string.Join("\n", new[]
+        {
+
+        // Project team and acknowledgments.
+        "PROJECT TEAM AND ACKNOWLEDGMENTS",
+        "Star Formation and Interstellar Medium Laboratory",
+        "Technion – Israel Institute of Technology",
+        "",
+        "Scientific Guidance and Project Supervision",
+        "Prof. Shmuel Bialy",
+        "",
+        "Initial VR Dust Simulation",
+        "Benny Bairrington",
+        "",
+        "Stellar Simulation and Development",
+        "Zakhar Pecherichny",
+        "",
+        "This project builds upon the work initiated by Benny Bairrington, who began developing the VR space simulation to visualize interstellar dust. The project was subsequently continued by Zakhar Pecherichny, who extended the simulation to include stars. The project was carried out under the scientific guidance and supervision of Prof. Shmuel Bialy.",
+        "",
+
+        // Background image.
+        "DATA AND ASSET CREDITS",
+        "",
+        "MILKY WAY BACKGROUND",
+        "The Milky Way Panorama",
+        "Credit: ESO/S. Brunier",
+        "Source: https://www.eso.org/public/images/eso0932a/",
+        "License: Creative Commons Attribution 4.0 International (CC BY 4.0)",
+        "License URL: https://creativecommons.org/licenses/by/4.0/",
+        "",
+
+        // Gaia DR3.
+        "GAIA DR3 STAR CATALOGUE",
+        "Credit: European Space Agency (ESA), Gaia mission, and Gaia Data Processing and Analysis Consortium (DPAC).",
+        "Source: https://www.cosmos.esa.int/gaia",
+        "References: Gaia Collaboration et al. (2016), Astronomy & Astrophysics, 595, A1; Gaia Collaboration et al. (2023), Astronomy & Astrophysics, 674, A1.",
+        "License: CC BY-NC 3.0 IGO",
+        "License URL: https://creativecommons.org/licenses/by-nc/3.0/igo/",
+        "Commercial use requires separate authorization. See GAIA_README.md.",
+        "",
+
+        // Open cluster catalogue.
+        "OPEN CLUSTER CATALOGUE",
+        "Hunt, E. L. & Reffert, S. (2024). Improving the open cluster census. III. Using cluster masses, radii, and dynamics to create a cleaned open cluster catalogue.",
+        "Publication: Astronomy & Astrophysics, 686, A42.",
+        "Article DOI: https://doi.org/10.1051/0004-6361/202348662",
+        "Catalogue: CDS/VizieR J/A+A/686/A42",
+        "Catalogue DOI: https://doi.org/10.26093/cds/vizier.36860042",
+        "VizieR service DOI: https://doi.org/10.26093/cds/vizier",
+        "See CLUSTERS_README.md for catalogue usage and licensing information.",
+        "",
+
+        // Molecular cloud landmarks.
+        "MOLECULAR CLOUD LANDMARKS",
+        "Selected data from Table 1, 'Skeletonization Results,' of Zucker et al. (2021) are used for in-game landmarks.",
+        "Article: On the Three-Dimensional Structure of Local Molecular Clouds.",
+        "Authors: Catherine Zucker et al. (2021).",
+        "Publication: The Astrophysical Journal, 919, 35 (2021).",
+        "Article DOI: https://doi.org/10.3847/1538-4357/ac1f96",
+        "Source: https://arxiv.org/abs/2109.09765",
+        "License: Creative Commons Attribution 4.0 International (CC BY 4.0), arXiv version.",
+        "License URL: https://creativecommons.org/licenses/by/4.0/",
+        "Changes: Selected coordinate data have been adapted for this application's visualization and coordinate system.",
+        "",
+
+        // 3D dust map.
+        "THREE-DIMENSIONAL DUST MAP",
+        "Edenhofer, G. et al. (2024). A parsec-scale Galactic 3D dust map out to 1.25 kpc from the Sun.",
+        "Publication: Astronomy & Astrophysics, 685, A82.",
+        "Article DOI: https://doi.org/10.1051/0004-6361/202347628",
+        "Dataset DOI: https://doi.org/10.5281/zenodo.8187942",
+        "Dataset license: Creative Commons Attribution 4.0 International (CC BY 4.0)",
+        "License URL: https://creativecommons.org/licenses/by/4.0/"
+    });
+
+        OpenInfoMenu("Credits", credits);
     }
 
     private void OpenInfoMenu(string title, string body)

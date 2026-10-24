@@ -2,14 +2,13 @@
 
 - redownload whole gaia data. there is a missing block
 
-
+- in edit -> project settings -> player -> androind other settings -> Identification -> package name
+  do i need to put shmuel or can i keep it as technion?
 
 - check the requirements to publish the app.
-- the data licence needs to be seperate: THIRD_PARTY_NOTICES.md + their credit
-- use MIT
-- for background image: Add ESO/S. Brunier as the image credit in your app's Credits section, with links to the original image and CC BY 4.0 license.
-- also check credits for other data sources. maybe i need to add build in credits button.
 
+- rename the project
+- rename on github, scene name, "package name", folder name.
 
 
 # BONUS:
