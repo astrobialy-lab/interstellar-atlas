@@ -19,7 +19,7 @@ ADB = Path(
     r"C:\Program Files\Unity\Hub\Editor\6000.4.9f1\Editor\Data"
     r"\PlaybackEngines\AndroidPlayer\SDK\platform-tools\adb.exe"
 )
-APK = PROJECT_DIR / "space-simulation.apk"
+APK = PROJECT_DIR / "interstellar-atlas.apk"
 DATA_DIR = PROJECT_DIR / "Data"
 PROJECT_SETTINGS = PROJECT_DIR / "ProjectSettings" / "ProjectSettings.asset"
 MANIFEST_PATH = PROJECT_DIR / "Data_QuestTransfer_manifest.json"
@@ -28,7 +28,7 @@ ARCHIVE_PREFIX = "Data_QuestTransfer_"
 ANDROID_OBB_ROOT = "/sdcard/Android/obb"
 STAGING_DIR_NAME = ".Data_QuestExtracting"
 STAGING_SIGNATURE_NAME = ".Data_QuestExtracting.signature"
-COMPLETE_MARKER_NAME = ".SpaceSimulationDataInstallComplete"
+COMPLETE_MARKER_NAME = ".InterstellarAtlasDataInstallComplete"
 COMPLETE_MARKER_VALUE = "installed_by=2_install_apk_to_device_obb.py"
 MANIFEST_VERSION = 2
 MAX_PROCESSES = 5
