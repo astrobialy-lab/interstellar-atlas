@@ -8,7 +8,7 @@
 ## git bash:
 ```bash
 ADB='/c/Program Files/Unity/Hub/Editor/6000.4.9f1/Editor/Data/PlaybackEngines/AndroidPlayer/SDK/platform-tools/adb.exe'
-DST='/sdcard/Android/obb/com.Technion.SpaceSimulation'
+DST='/sdcard/Android/obb/com.TechnionStarFormation.InterstellarAtlas'
 
 # right before opening the app:
 "$ADB" logcat -c
