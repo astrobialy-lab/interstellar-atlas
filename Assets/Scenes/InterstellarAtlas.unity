@@ -3363,6 +3363,7 @@ MonoBehaviour:
   speedChangeFactor: 10
   cameraTransform: {fileID: 330585546}
   mouseSensitivity: 0.1
+  arrowLookSpeed: 50
   maxLookAngle: 89
   rollSpeed: 60
   landmarkMarkerGenerator: {fileID: 376260066}

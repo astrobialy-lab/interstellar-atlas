@@ -7,7 +7,7 @@
 
 ## git bash:
 ```bash
-ADB='/c/Program Files/Unity/Hub/Editor/6000.4.9f1/Editor/Data/PlaybackEngines/AndroidPlayer/SDK/platform-tools/adb.exe'
+ADB='/c/Program Files/Unity/Hub/Editor/6000.4.12f1/Editor/Data/PlaybackEngines/AndroidPlayer/SDK/platform-tools/adb.exe'
 DST='/sdcard/Android/obb/com.TechnionStarFormation.InterstellarAtlas'
 
 # right before opening the app:

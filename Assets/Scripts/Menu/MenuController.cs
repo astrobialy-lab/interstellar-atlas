@@ -288,6 +288,22 @@ public class MenuController : MonoBehaviour
 
         if (desktopPlayerController != null)
             desktopPlayerController.enabled = enabled;
+
+        // Manage the mouse cursor in desktop mode only.
+        if (desktopPlayerController != null &&
+            !UnityEngine.XR.XRSettings.isDeviceActive)
+        {
+            if (enabled)
+            {
+                Cursor.lockState = CursorLockMode.Locked;
+                Cursor.visible = false;
+            }
+            else
+            {
+                Cursor.lockState = CursorLockMode.None;
+                Cursor.visible = true;
+            }
+        }
     }
 
     public void ShowControls()

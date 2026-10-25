@@ -3,7 +3,12 @@
 - redownload whole gaia data. there is a missing block
 
 - check the requirements to publish the app.
-- add release on git for my version with + Data folder + apk + windows + mac + linux.
+- add release on git for my version with + Data folder + apk
++ windows
++ mac
++ linux.
+
+- add pictures both to github and vr appstore
 
 
 - check x,y,z of every datasource

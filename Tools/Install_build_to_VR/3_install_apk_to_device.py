@@ -16,10 +16,10 @@ from pathlib import Path, PurePosixPath
 # Assumes this script is saved in <UnityProject>/Tools/Install/.
 PROJECT_DIR = Path(__file__).resolve().parents[2]
 ADB = Path(
-    r"C:\Program Files\Unity\Hub\Editor\6000.4.9f1\Editor\Data"
+    r"C:\Program Files\Unity\Hub\Editor\6000.4.12f1\Editor\Data"
     r"\PlaybackEngines\AndroidPlayer\SDK\platform-tools\adb.exe"
 )
-APK = PROJECT_DIR / "interstellar-atlas.apk"
+APK = PROJECT_DIR / "Builds" / "Android" / "Interstellar Atlas.apk"
 DATA_DIR = PROJECT_DIR / "Data"
 PROJECT_SETTINGS = PROJECT_DIR / "ProjectSettings" / "ProjectSettings.asset"
 MANIFEST_PATH = PROJECT_DIR / "Data_QuestTransfer_manifest.json"

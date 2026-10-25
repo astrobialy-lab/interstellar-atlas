@@ -11,6 +11,7 @@ public class DesktopPlayerController : MonoBehaviour
     [Header("Mouse Look")]
     public Transform cameraTransform;
     public float mouseSensitivity = 0.1f;
+    public float arrowLookSpeed = 30.0f;
     public float maxLookAngle = 89.0f;
 
     [Header("Camera Roll")]
@@ -90,6 +91,7 @@ public class DesktopPlayerController : MonoBehaviour
 
         HandleMovement();
         HandleMouseLook();
+        HandleArrowKeyLook();
         HandleRoll();
         HandleControls();
     }
@@ -144,21 +146,50 @@ public class DesktopPlayerController : MonoBehaviour
         if (Mouse.current == null || cameraTransform == null)
             return;
 
-        Vector2 mouseDelta =
-            Mouse.current.delta.ReadValue();
+        Vector2 mouseDelta = Mouse.current.delta.ReadValue();
 
-        float mouseX =
-            mouseDelta.x * mouseSensitivity;
+        ApplyLook(
+            mouseDelta.x * mouseSensitivity,
+            mouseDelta.y * mouseSensitivity
+        );
+    }
 
-        float mouseY =
-            mouseDelta.y * mouseSensitivity;
+    private void HandleArrowKeyLook()
+    {
+        if (cameraTransform == null)
+            return;
 
+        float horizontal = 0f;
+        float vertical = 0f;
+
+        if (Keyboard.current.leftArrowKey.isPressed)
+            horizontal -= 1f;
+
+        if (Keyboard.current.rightArrowKey.isPressed)
+            horizontal += 1f;
+
+        if (Keyboard.current.upArrowKey.isPressed)
+            vertical += 1f;
+
+        if (Keyboard.current.downArrowKey.isPressed)
+            vertical -= 1f;
+
+        if (horizontal == 0f && vertical == 0f)
+            return;
+
+        float lookDelta = arrowLookSpeed * Time.deltaTime;
+
+        ApplyLook(
+            horizontal * lookDelta,
+            vertical * lookDelta
+        );
+    }
+
+    private void ApplyLook(float lookX, float lookY)
+    {
         // Rotation caused by the current roll, but WITHOUT the current pitch.
         Quaternion rollRotation =
-            Quaternion.AngleAxis(
-                cameraRoll,
-                Vector3.forward
-            );
+            Quaternion.AngleAxis(cameraRoll, Vector3.forward);
 
         // "Up" after applying roll, but before pitch.
         Vector3 rolledUp =
@@ -173,17 +204,17 @@ public class DesktopPlayerController : MonoBehaviour
             );
 
         // LEFT / RIGHT: rotate around the current rolled-up axis.
-        if (mouseX != 0f)
+        if (lookX != 0f)
         {
             transform.Rotate(
                 rolledUp,
-                mouseX,
+                lookX,
                 Space.World
             );
         }
 
         // UP / DOWN: rotate around the current rolled-right axis.
-        cameraPitch -= mouseY;
+        cameraPitch -= lookY;
 
         cameraPitch = Mathf.Clamp(
             cameraPitch,
@@ -384,7 +415,7 @@ public class DesktopPlayerController : MonoBehaviour
         "W / S: forward / backward",
         "A / D: strafe left / right",
         "Space / Shift: move up / down",
-        "Mouse: look around",
+        "Mouse / Arrow keys: look around",
         "Q / E: roll",
         "= / -: increase / decrease speed",
         "3: cycle dust sprite transparency",
