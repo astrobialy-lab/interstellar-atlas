@@ -1187,7 +1187,7 @@ MonoBehaviour:
   opacity: 0.2
   targetCamera: {fileID: 330585545}
   customSpriteTexture: {fileID: 2800000, guid: 383a4b07d1e11f042b69e9098ce8b621, type: 3}
-  spriteSizeMultiplier: 1.2
+  spriteSizeMultiplier: 1.4
 --- !u!1 &223379401
 GameObject:
   m_ObjectHideFlags: 0
@@ -4067,13 +4067,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::GaiaMSLODLoader
   metadataDirectoryDataPath: Gaia/lod
   targetCamera: {fileID: 330585545}
-  solidAngleThreshold: 0.5
+  solidAngleThreshold: 0.1
   frustumCulling: 1
   clusterFilter: {fileID: 1069188329}
   starFilter: {fileID: 586631270}
   streamUpdateDistance: 1
   streamUpdateAngle: 2
-  maxConcurrentLoads: 3
+  maxConcurrentLoads: 10
   verboseLogging: 0
 --- !u!114 &586631270
 MonoBehaviour:

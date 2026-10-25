@@ -39,7 +39,7 @@ PARTITION_DIR = BUILD_DIR / "_node_partitions"
 # None = use every processed Gaia chunk.
 MAX_FILES = None
 
-N_SIGMA = 2_000
+N_SIGMA = 100
 MAX_OCTREE_DEPTH = 20
 NODE_INITIAL_CAPACITY = 65_536
 

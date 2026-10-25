@@ -19,7 +19,7 @@ DIVISOR = 2 ** (59 - 2 * LEVEL)
 
 MAX_DISTANCE_PC = 1100.0
 
-MAX_WORKERS = 10 # use 20 when gaia is out of maintanance
+MAX_WORKERS = 3 # use 20 when gaia is out of maintanance
 
 def download_healpix(healpix):
 

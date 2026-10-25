@@ -18,6 +18,9 @@ DST='/sdcard/Android/obb/com.TechnionStarFormation.InterstellarAtlas'
 
 # checking the files
 "$ADB" shell "ls $DST"
+
+# deleting Data from OBB
+"$ADB" shell "rm -rf $DST/Data"
 ```
 
 ## powershell:

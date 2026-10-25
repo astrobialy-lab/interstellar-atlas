@@ -2,6 +2,7 @@ from pathlib import Path
 import csv
 import math
 import struct
+import shutil
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
 # Big stars filtering
@@ -22,12 +23,15 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 RAW_DIR = PROJECT_ROOT / "DataRaw" / "Gaia" / "downloaded"
 PROCESSED_DIR = PROJECT_ROOT / "DataRaw" / "Gaia"
+
+# Current working data used by the LOD builder.
 CHUNKS_DIR = PROCESSED_DIR / "processed"
 
-CHUNKS_DIR.mkdir(
-    parents=True,
-    exist_ok=True
-)
+# New data is built here first.
+BUILD_CHUNKS_DIR = PROCESSED_DIR / "processed_building"
+
+# Temporary backup during replacement.
+BACKUP_CHUNKS_DIR = PROCESSED_DIR / "processed_previous"
 
 
 # ============================================================
@@ -213,7 +217,7 @@ def process_healpix(csv_file):
     # becomes:
     # healpix_00000.bin
     output_file = (
-        CHUNKS_DIR /
+        BUILD_CHUNKS_DIR /
         f"{healpix_name}.bin"
     )
 
@@ -430,24 +434,35 @@ if __name__ == "__main__":
     )
 
     if not csv_files:
-
         raise RuntimeError(
             f"No Gaia CSV files found in:\n"
             f"{RAW_DIR}"
         )
 
-    print(
-        f"Found {len(csv_files):,} HEALPix files."
-    )
-
-    print(
-        "Output: one .bin file per HEALPix."
-    )
-
+    print(f"Found {len(csv_files):,} HEALPix files.")
+    print(f"Output staging directory:\n{BUILD_CHUNKS_DIR}")
     print()
+
+    # --------------------------------------------------------
+    # Create a fresh staging directory.
+    # Do not modify the existing processed data yet.
+    # --------------------------------------------------------
+
+    if BUILD_CHUNKS_DIR.exists():
+        shutil.rmtree(BUILD_CHUNKS_DIR)
+
+    BUILD_CHUNKS_DIR.mkdir(
+        parents=True,
+        exist_ok=True
+    )
 
     total_written = 0
     total_skipped = 0
+    failed_files = []
+
+    # --------------------------------------------------------
+    # Process all CSV files
+    # --------------------------------------------------------
 
     with ProcessPoolExecutor(
         max_workers=MAX_WORKERS
@@ -457,52 +472,132 @@ if __name__ == "__main__":
             executor.submit(
                 process_healpix,
                 csv_file
-            ): (
-                i,
-                csv_file
-            )
-
-            for i, csv_file
-            in enumerate(
-                csv_files,
-                1
-            )
+            ): (i, csv_file)
+            for i, csv_file in enumerate(csv_files, 1)
         }
 
-        for future in as_completed(
-            futures
-        ):
+        for future in as_completed(futures):
 
             i, csv_file = futures[future]
 
             try:
-
-                written, skipped = (
-                    future.result()
-                )
+                written, skipped = future.result()
 
                 total_written += written
                 total_skipped += skipped
 
             except Exception as e:
-
                 print(
                     f"[{i}/{len(csv_files)}] "
-                    f"ERROR processing "
-                    f"{csv_file.name}: {e}"
+                    f"ERROR processing {csv_file.name}: {e}"
                 )
 
-    print()
-    print("======================================")
-    print("Finished")
-    print("======================================")
+                failed_files.append(
+                    (csv_file.name, str(e))
+                )
+
+    # --------------------------------------------------------
+    # Print processing results
+    # --------------------------------------------------------
 
     print()
+    print("======================================")
+    print("PROCESSING RESULTS")
+    print("======================================")
+    print(f"Stars written: {total_written:,}")
+    print(f"Stars skipped: {total_skipped:,}")
+    print(f"Files failed:  {len(failed_files):,}")
 
-    print(
-        f"Stars written:   {total_written:,}"
+    # --------------------------------------------------------
+    # Abort if any CSV failed.
+    # Preserve the previous processed data.
+    # --------------------------------------------------------
+
+    if failed_files:
+        shutil.rmtree(
+            BUILD_CHUNKS_DIR,
+            ignore_errors=True
+        )
+
+        print()
+        print("FAILED. Previous processed data was preserved.")
+
+        raise RuntimeError(
+            f"{len(failed_files):,} CSV files failed. "
+            f"First failed file: {failed_files[0][0]}"
+        )
+
+    # --------------------------------------------------------
+    # Verify that every CSV produced an output file
+    # --------------------------------------------------------
+
+    output_files = list(
+        BUILD_CHUNKS_DIR.glob("healpix_*.bin")
     )
 
-    print(
-        f"Stars skipped:   {total_skipped:,}"
-    )
+    if len(output_files) != len(csv_files):
+        actual_count = len(output_files)
+
+        shutil.rmtree(
+            BUILD_CHUNKS_DIR,
+            ignore_errors=True
+        )
+
+        raise RuntimeError(
+            "Output file count mismatch.\n"
+            f"Expected: {len(csv_files):,}\n"
+            f"Found: {actual_count:,}\n"
+            "Previous processed data was preserved."
+        )
+
+    # --------------------------------------------------------
+    # Replace existing processed data
+    # --------------------------------------------------------
+
+    print()
+    print("All files processed successfully.")
+    print("Replacing old processed data...")
+
+    if CHUNKS_DIR.exists():
+
+        # Remove any leftover backup first.
+        if BACKUP_CHUNKS_DIR.exists():
+            shutil.rmtree(BACKUP_CHUNKS_DIR)
+
+        # Keep the current version as a backup.
+        CHUNKS_DIR.rename(BACKUP_CHUNKS_DIR)
+
+    try:
+        # Install the newly processed data.
+        BUILD_CHUNKS_DIR.rename(CHUNKS_DIR)
+
+    except Exception:
+        # Restore the backup if installation fails.
+        if (
+            not CHUNKS_DIR.exists()
+            and BACKUP_CHUNKS_DIR.exists()
+        ):
+            BACKUP_CHUNKS_DIR.rename(CHUNKS_DIR)
+
+        raise
+
+    # --------------------------------------------------------
+    # Delete old data only after successful replacement
+    # --------------------------------------------------------
+
+    if BACKUP_CHUNKS_DIR.exists():
+        shutil.rmtree(BACKUP_CHUNKS_DIR)
+
+    # --------------------------------------------------------
+    # Final report
+    # --------------------------------------------------------
+
+    print()
+    print("======================================")
+    print("GAIA PROCESSING COMPLETE")
+    print("======================================")
+    print(f"CSV files processed: {len(csv_files):,}")
+    print(f"Output files:        {len(output_files):,}")
+    print(f"Stars written:       {total_written:,}")
+    print(f"Stars skipped:       {total_skipped:,}")
+    print(f"Final output:        {CHUNKS_DIR}")

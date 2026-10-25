@@ -5,6 +5,7 @@ DataRaw/
 Data/Gaia/
 Data/Dust/
 trash/
+Data_QuestTransfer_manifest.json
 
 # pernosnal
 .vscode/
