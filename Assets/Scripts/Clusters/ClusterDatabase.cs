@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Globalization;
 
 public sealed class ClusterDatabase
 {
@@ -152,6 +153,20 @@ public sealed class ClusterDatabase
                 clustersPath
             );
 
+        string namesPath = Path.Combine(directory, "cluster_names.tsv");
+        Dictionary<ushort, string> names = ReadClusterNames(namesPath);
+
+        for (int i = 0; i < clusters.Length; i++)
+        {
+            ClusterRecord cluster = clusters[i];
+
+            cluster.name = names.TryGetValue(cluster.id, out string name)
+                ? name
+                : $"Cluster {cluster.id}";
+
+            clusters[i] = cluster;
+        }
+
         MembershipRecord[] memberships =
             ReadMemberships(
                 membersPath
@@ -161,6 +176,38 @@ public sealed class ClusterDatabase
             clusters,
             memberships
         );
+    }
+
+    private static Dictionary<ushort, string> ReadClusterNames(string path)
+    {
+        if (!File.Exists(path))
+            throw new FileNotFoundException("Cluster names file not found.", path);
+
+        var names = new Dictionary<ushort, string>();
+
+        foreach (string line in File.ReadLines(path))
+        {
+            if (string.IsNullOrWhiteSpace(line))
+                continue;
+
+            int tab = line.IndexOf('\t');
+            if (tab <= 0)
+                continue;
+
+            if (!ushort.TryParse(
+                    line.Substring(0, tab).Trim(),
+                    NumberStyles.Integer,
+                    CultureInfo.InvariantCulture,
+                    out ushort id))
+                continue;
+
+            string name = line.Substring(tab + 1).Trim();
+
+            if (name.Length > 0)
+                names[id] = name;
+        }
+
+        return names;
     }
 
     private static ClusterRecord[] ReadClusters(
@@ -619,6 +666,7 @@ public sealed class ClusterDatabase
     public struct ClusterRecord
     {
         public ushort id;
+        public string name;
         public byte type;
         public byte flags;
 

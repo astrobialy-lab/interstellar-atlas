@@ -225,11 +225,11 @@ def output_grid_geometry(X, Y, Z, nx, ny, nz):
     dy_pc = float(np.median(np.diff(Z)) * SOURCE_TO_PC)
     dz_pc = float(np.median(np.diff(Y)) * SOURCE_TO_PC)
 
-    # First output voxel centers map to source (X[-1], Z[0], Y[-1]).
+    # First output voxel centers map to source (X[-1], Z[0], Y[0]).
     first_center_pc = [
         (SUN_X_KPC - float(X[-1])) * SOURCE_TO_PC,
         (float(Z[0]) - SUN_Z_KPC) * SOURCE_TO_PC,
-        -(float(Y[-1]) - SUN_Y_KPC) * SOURCE_TO_PC,
+        (float(Y[0]) - SUN_Y_KPC) * SOURCE_TO_PC,
     ]
 
     voxel_spacing_pc = [dx_pc, dy_pc, dz_pc]
@@ -292,8 +292,9 @@ def process_chunks(dust, X, Y, Z):
                 # Output +Unity Z corresponds to decreasing source Y.
                 out_z0 = cz * CHUNK_SIZE
                 out_z1 = min(out_z0 + CHUNK_SIZE, ny)
-                source_y0 = ny - out_z1
-                source_y1 = ny - out_z0
+                # Reverse the Galactic Y direction.
+                source_y0 = out_z0
+                source_y1 = out_z1
 
                 # Source block order: source X,Y,Z.
                 source_block = np.asarray(
@@ -306,7 +307,7 @@ def process_chunks(dust, X, Y, Z):
 
                 # Reverse source X and Y, then put the axes in Unity X,Y,Z order.
                 # Output shape: (source-X count, source-Z count, source-Y count).
-                block = source_block[::-1, ::-1, :].transpose(0, 2, 1)
+                block = source_block[::-1, :, :].transpose(0, 2, 1)
 
                 valid = np.isfinite(block) & (block > 0)
                 if not np.any(valid):
@@ -404,13 +405,13 @@ def write_manifest(X, Y, Z, dust_shape, spacings, stats):
         "sun_unity_position_pc_xyz": [0.0, 0.0, 0.0],
         "assumed_source_axes": {
             "source_x_positive": "outward from Galactic center toward the Sun",
-            "source_y_positive": "direction of Galactic rotation; maps to negative Unity Z",
+            "source_y_positive": "direction of Galactic rotation; maps to positive Unity Z and negative Galactic Y in the HUD",
             "source_z_positive": "toward Galactic north; maps to positive Unity Y",
         },
         "mapping_source_kpc_to_unity_pc": {
             "unity_x": "(SUN_X_KPC - source_X_KPC) * 1000",
             "unity_y": "(source_Z_KPC - SUN_Z_KPC) * 1000",
-            "unity_z": "-(source_Y_KPC - SUN_Y_KPC) * 1000",
+            "unity_z": "(source_Y_KPC - SUN_Y_KPC) * 1000",
         },
         "unity_chunk_position_rule": (
             "For chunk (cx,cy,cz), its geometric center in Unity units is "

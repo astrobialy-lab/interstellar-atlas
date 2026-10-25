@@ -876,40 +876,26 @@ def process_members():
 # Cluster names
 # ============================================================
 
-def write_cluster_names(
-    clusters,
-    names
-):
-
-    output_path = (
-        OUTPUT_DIR /
-        "cluster_names.json"
-    )
-
-    result = {}
-
-    for cluster_id, name in zip(
-        clusters["id"],
-        names
-    ):
-
-        result[str(int(cluster_id))] = name
+def write_cluster_names(clusters, names):
+    output_path = OUTPUT_DIR / "cluster_names.tsv"
 
     with output_path.open(
         "w",
-        encoding="utf-8"
+        encoding="utf-8",
+        newline=""
     ) as f:
-
-        json.dump(
-            result,
+        writer = csv.writer(
             f,
-            indent=2,
-            ensure_ascii=False
+            delimiter="\t",
+            lineterminator="\n"
         )
 
-    print(
-        f"Wrote: {output_path}"
-    )
+        writer.writerow(["ID", "Name"])
+
+        for cluster_id, name in zip(clusters["id"], names):
+            writer.writerow([int(cluster_id), name])
+
+    print(f"Wrote: {output_path}")
 
 
 # ============================================================

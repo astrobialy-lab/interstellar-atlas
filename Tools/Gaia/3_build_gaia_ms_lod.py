@@ -207,55 +207,24 @@ def prepare_sort_run(chunk):
         over="ignore"
     ):
 
-        distance = np.sqrt(
-            x * x + y * y + z * z
-        ).astype(
-            np.float32,
-            copy=False
-        )
-
         g = chunk["g"]
-        ag = chunk["ag"]
-
-        g_intrinsic = np.where(
-            np.isfinite(ag),
-            g - ag,
-            g
-        )
 
         valid = (
             np.isfinite(x)
             & np.isfinite(y)
             & np.isfinite(z)
-            & np.isfinite(g_intrinsic)
-            & np.isfinite(distance)
-            & (distance > 0.0)
+            & np.isfinite(g)
         )
 
-        invalid_count = int(
-            np.count_nonzero(~valid)
-        )
+        invalid_count = int(np.count_nonzero(~valid))
 
         if invalid_count == len(chunk):
-            return (
-                None,
-                0,
-                None,
-                None,
-                invalid_count
-            )
+            return None, 0, None, None, invalid_count
 
         valid_records = chunk[valid]
-        valid_distance = distance[valid]
-        valid_g_intrinsic = g_intrinsic[valid]
 
-        abs_mag = (
-            valid_g_intrinsic
-            - 5.0 * np.log10(valid_distance)
-            + 5.0
-        ).astype(
-            np.float32,
-            copy=False
+        abs_mag = valid_records["g"].astype(
+            np.float32, copy=False
         )
 
     run = np.empty(

@@ -196,7 +196,7 @@ public class ClusterMarkerGenerator : MonoBehaviour
             return;
         }
 
-        info.objectName = $"Cluster {record.id}";
+        info.objectName = record.name;
         info.typeCode = "cluster";
         info.shortDescription =
             BuildShortDescription(record);
@@ -209,7 +209,7 @@ public class ClusterMarkerGenerator : MonoBehaviour
     {
         StringBuilder description = new StringBuilder();
 
-        description.AppendLine($"Cluster {record.id}");
+        description.AppendLine($"ID: {record.id}");
         description.AppendLine($"Type code: {record.type}");
 
         description.AppendLine("Catalogue counts:");
@@ -241,7 +241,8 @@ public class ClusterMarkerGenerator : MonoBehaviour
         StringBuilder description = new StringBuilder();
 
         // General information
-        description.AppendLine("Cluster:");
+        description.AppendLine("Cluster information:");
+        description.AppendLine($"  Name: {record.name}");
         description.AppendLine($"  ID: {record.id}");
         description.AppendLine($"  Catalogue type code: {record.type}");
 
@@ -269,7 +270,7 @@ public class ClusterMarkerGenerator : MonoBehaviour
 
         // Position
         description.AppendLine();
-        description.AppendLine("Stored Unity position (Sun-centered):");
+        description.AppendLine("Galactic Cartesian coordinates (Sun-centered):");
         description.AppendLine($"  X: {FormatNumber(record.x)} pc");
         description.AppendLine($"  Y: {FormatNumber(record.y)} pc");
         description.AppendLine($"  Z: {FormatNumber(record.z)} pc");
