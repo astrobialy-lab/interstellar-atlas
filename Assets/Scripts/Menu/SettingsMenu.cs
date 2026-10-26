@@ -8,11 +8,8 @@ public class SettingsMenu : MonoBehaviour
     [SerializeField] private Canvas settingsCanvas;
 
     [Header("Stars Settings")]
-    [SerializeField] private GaiaMSLODLoader loader;
-    [SerializeField] private TMP_InputField thresholdInput;
-    [SerializeField] private float minThreshold = 2.4e-5f;
-    [SerializeField] private float maxThreshold = 10f;
-
+    [SerializeField] private StarsLODLoader loader;
+    [SerializeField] private TMP_InputField starsLevelInput;
     [SerializeField] private TMP_InputField maxConcurrentLoadsInput;
 
     [Header("Dust Settings")]
@@ -25,55 +22,55 @@ public class SettingsMenu : MonoBehaviour
     private void Start()
     {
         if (loader == null)
-            loader = FindAnyObjectByType<GaiaMSLODLoader>();
+            loader = FindAnyObjectByType<StarsLODLoader>();
 
         if (dustSpriteRenderer == null)
             dustSpriteRenderer = FindAnyObjectByType<DustSpriteRenderer>();
 
         if (settingsCanvas == null ||
             loader == null ||
-            thresholdInput == null ||
+            !loader.IsReady ||
+            loader.AvailableLayerCount < 1 ||
+            starsLevelInput == null ||
             maxConcurrentLoadsInput == null ||
             dustSpriteRenderer == null ||
             maxDustSpritesInput == null)
         {
             Debug.LogError(
-                "SettingsMenu: A required Canvas, loader, or input field is missing."
+                "SettingsMenu: A required Canvas, ready StarsLODLoader, " +
+                "DustSpriteRenderer, or input field is missing."
             );
 
             enabled = false;
             return;
         }
 
-        minThreshold = Mathf.Max(minThreshold, 1e-8f);
-        maxThreshold = Mathf.Max(
-            maxThreshold,
-            minThreshold * 1.001f
+        starsLevelInput.contentType =
+            TMP_InputField.ContentType.IntegerNumber;
+
+        starsLevelInput.onEndEdit.AddListener(
+            OnStarsLevelInputEndEdit
         );
 
-        float threshold = Mathf.Clamp(
-            loader.SolidAngleThreshold,
-            minThreshold,
-            maxThreshold
+        maxConcurrentLoadsInput.contentType =
+            TMP_InputField.ContentType.IntegerNumber;
+
+        maxConcurrentLoadsInput.onEndEdit.AddListener(
+            OnMaxConcurrentLoadsInputEndEdit
         );
 
-        if (threshold != loader.SolidAngleThreshold)
-        {
-            loader.SetSolidAngleThreshold(threshold);
-            loader.CommitSolidAngleThreshold();
-        }
+        maxDustSpritesInput.contentType =
+            TMP_InputField.ContentType.IntegerNumber;
 
-        maxConcurrentLoadsInput.contentType =TMP_InputField.ContentType.IntegerNumber;
-        maxConcurrentLoadsInput.onEndEdit.AddListener(OnMaxConcurrentLoadsInputEndEdit);
-
-        maxDustSpritesInput.contentType = TMP_InputField.ContentType.IntegerNumber;
-        thresholdInput.onEndEdit.AddListener(OnThresholdInputEndEdit);
-        maxDustSpritesInput.onEndEdit.AddListener(OnMaxDustSpritesInputEndEdit);
+        maxDustSpritesInput.onEndEdit.AddListener(
+            OnMaxDustSpritesInputEndEdit
+        );
 
         RefreshInputs();
 
-        // The whole Canvas GameObject is activated/deactivated.
-        wasCanvasActive = settingsCanvas.gameObject.activeInHierarchy;
+        wasCanvasActive =
+            settingsCanvas.gameObject.activeInHierarchy;
+
         initialized = true;
     }
 
@@ -102,10 +99,10 @@ public class SettingsMenu : MonoBehaviour
 
     private void OnDestroy()
     {
-        if (thresholdInput != null)
+        if (starsLevelInput != null)
         {
-            thresholdInput.onEndEdit.RemoveListener(
-                OnThresholdInputEndEdit
+            starsLevelInput.onEndEdit.RemoveListener(
+                OnStarsLevelInputEndEdit
             );
         }
 
@@ -133,27 +130,17 @@ public class SettingsMenu : MonoBehaviour
             ApplyInputsAndSave();
     }
 
-    private void OnThresholdInputEndEdit(string input)
-    {
-        ApplyThresholdInputAndSave();
-    }
-
-    private void OnMaxDustSpritesInputEndEdit(string input)
-    {
-        ApplyMaxDustSpritesInputAndSave();
-    }
+    // ========================================================
+    // APPLY ALL SETTINGS
+    // ========================================================
 
     private void ApplyInputsAndSave()
     {
-        if (loader != null && thresholdInput != null)
-        {
-            ApplyThresholdInputAndSave();
-        }
+        if (loader != null && starsLevelInput != null)
+            ApplyStarsLevelInputAndSave();
 
         if (loader != null && maxConcurrentLoadsInput != null)
-        {
             ApplyMaxConcurrentLoadsInputAndSave();
-        }
 
         if (dustSpriteRenderer != null &&
             maxDustSpritesInput != null)
@@ -162,108 +149,69 @@ public class SettingsMenu : MonoBehaviour
         }
     }
 
-    private void ApplyThresholdInputAndSave()
+    // ========================================================
+    // STARS LEVEL
+    // ========================================================
+
+    private void OnStarsLevelInputEndEdit(string input)
     {
-        if (!TryParseThreshold(
-                thresholdInput.text,
-                out float threshold))
-        {
-            RefreshThresholdInput();
-            loader.CommitSolidAngleThreshold();
-            return;
-        }
-
-        threshold = Mathf.Clamp(
-            threshold,
-            minThreshold,
-            maxThreshold
-        );
-
-        loader.SetSolidAngleThreshold(threshold);
-        loader.CommitSolidAngleThreshold();
-
-        RefreshThresholdInput();
+        ApplyStarsLevelInputAndSave();
     }
 
-    private void ApplyMaxDustSpritesInputAndSave()
+    private void ApplyStarsLevelInputAndSave()
     {
+        if (loader == null || starsLevelInput == null)
+            return;
+
         if (!int.TryParse(
-                maxDustSpritesInput.text,
+                starsLevelInput.text,
                 NumberStyles.Integer,
                 CultureInfo.InvariantCulture,
-                out int count))
+                out int level))
         {
-            RefreshDustSpritesInput();
+            RefreshStarsLevelInput();
             return;
         }
 
-        count = Mathf.Clamp(
-            count,
-            1,
-            DustSpriteRenderer.MaxAllowedSprites
+        if (!loader.IsReady ||
+            loader.AvailableLayerCount < 1)
+        {
+            RefreshStarsLevelInput();
+            return;
+        }
+
+        level = Mathf.Clamp(
+            level,
+            0,
+            loader.AvailableLayerCount - 1
         );
 
-        dustSpriteRenderer.SetMaxSpritesToLoad(count);
+        if (!loader.SetLayerIndex(level))
+        {
+            RefreshStarsLevelInput();
+            return;
+        }
 
-        RefreshDustSpritesInput();
+        loader.CommitLayerIndex();
+
+        RefreshStarsLevelInput();
     }
 
-    private bool TryParseThreshold(
-        string input,
-        out float threshold)
+    private void RefreshStarsLevelInput()
     {
-        bool valid = float.TryParse(
-            input,
-            NumberStyles.Float,
-            CultureInfo.InvariantCulture,
-            out threshold
-        );
-
-        return valid &&
-               !float.IsNaN(threshold) &&
-               !float.IsInfinity(threshold);
-    }
-
-    private void RefreshInputs()
-    {
-        RefreshThresholdInput();
-        RefreshDustSpritesInput();
-        RefreshMaxConcurrentLoadsInput();
-    }
-
-    private void RefreshThresholdInput()
-    {
-        if (loader == null || thresholdInput == null)
+        if (loader == null || starsLevelInput == null)
             return;
 
-        float threshold = Mathf.Clamp(
-            loader.SolidAngleThreshold,
-            minThreshold,
-            maxThreshold
-        );
-
-        thresholdInput.SetTextWithoutNotify(
-            threshold.ToString(
-                "G6",
+        starsLevelInput.SetTextWithoutNotify(
+            loader.LayerIndex.ToString(
                 CultureInfo.InvariantCulture
             )
         );
     }
 
-    private void RefreshDustSpritesInput()
-    {
-        if (dustSpriteRenderer == null ||
-            maxDustSpritesInput == null)
-        {
-            return;
-        }
-
-        maxDustSpritesInput.SetTextWithoutNotify(
-            dustSpriteRenderer.MaxSpritesToLoad.ToString(
-                CultureInfo.InvariantCulture
-            )
-        );
-    }
+    // ========================================================
+    // CONCURRENT LOADS
+    // ========================================================
 
     private void OnMaxConcurrentLoadsInputEndEdit(string input)
     {
@@ -288,7 +236,7 @@ public class SettingsMenu : MonoBehaviour
         count = Mathf.Clamp(
             count,
             1,
-            GaiaMSLODLoader.MaxAllowedConcurrentLoads
+            StarsLODLoader.MaxAllowedConcurrentLoads
         );
 
         loader.SetMaxConcurrentLoads(count);
@@ -307,5 +255,69 @@ public class SettingsMenu : MonoBehaviour
                 CultureInfo.InvariantCulture
             )
         );
+    }
+
+    // ========================================================
+    // DUST
+    // ========================================================
+
+    private void OnMaxDustSpritesInputEndEdit(string input)
+    {
+        ApplyMaxDustSpritesInputAndSave();
+    }
+
+    private void ApplyMaxDustSpritesInputAndSave()
+    {
+        if (dustSpriteRenderer == null ||
+            maxDustSpritesInput == null)
+        {
+            return;
+        }
+
+        if (!int.TryParse(
+                maxDustSpritesInput.text,
+                NumberStyles.Integer,
+                CultureInfo.InvariantCulture,
+                out int count))
+        {
+            RefreshDustSpritesInput();
+            return;
+        }
+
+        count = Mathf.Clamp(
+            count,
+            1,
+            DustSpriteRenderer.MaxAllowedSprites
+        );
+
+        dustSpriteRenderer.SetMaxSpritesToLoad(count);
+
+        RefreshDustSpritesInput();
+    }
+
+    private void RefreshDustSpritesInput()
+    {
+        if (dustSpriteRenderer == null ||
+            maxDustSpritesInput == null)
+        {
+            return;
+        }
+
+        maxDustSpritesInput.SetTextWithoutNotify(
+            dustSpriteRenderer.MaxSpritesToLoad.ToString(
+                CultureInfo.InvariantCulture
+            )
+        );
+    }
+
+    // ========================================================
+    // REFRESH
+    // ========================================================
+
+    private void RefreshInputs()
+    {
+        RefreshStarsLevelInput();
+        RefreshMaxConcurrentLoadsInput();
+        RefreshDustSpritesInput();
     }
 }

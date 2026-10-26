@@ -1,13 +1,23 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public class GaiaMSLODBoundsVisualizer : MonoBehaviour
+public class StarsLODNodesVisualizer : MonoBehaviour
 {
+    // ========================================================
+    // REFERENCES
+    // ========================================================
+
     [Header("References")]
-    [Tooltip("Gaia MS-LOD loader providing the desired, loaded, and node metadata.")]
-    public GaiaMSLODLoader msLODLoader;
+
+    [Tooltip("Stars LOD loader providing desired, loaded, and node metadata.")]
+    public StarsLODLoader starsLODLoader;
+
+    // ========================================================
+    // DISPLAY
+    // ========================================================
 
     [Header("Display")]
+
     [Tooltip("Maximum number of desired-but-not-loaded nodes to draw.")]
     [Min(1)]
     public int maxDesiredNodesToDraw = 100;
@@ -16,69 +26,86 @@ public class GaiaMSLODBoundsVisualizer : MonoBehaviour
     [Min(1)]
     public int maxLoadedNodesToDraw = 100;
 
+    // ========================================================
+    // APPEARANCE
+    // ========================================================
+
     [Header("Appearance")]
-    [Tooltip("Width of the node bounding-box lines.")]
+
+    [Tooltip("Width of the node bounding-box lines, in world units.")]
     [Min(0.001f)]
     public float lineWidth = 0.2f;
 
     [Tooltip("Optional material used for the bounds.")]
     public Material baseMaterial;
 
+    [Tooltip("Color for desired nodes that are not loaded yet.")]
+    public Color desiredColor = Color.red;
+
+    [Tooltip("Color for nodes currently loaded into GPU buffers.")]
+    public Color loadedColor = Color.green;
+
+    // ========================================================
+    // INTERNAL STATE
+    // ========================================================
+
     private GameObject generatedRoot;
 
     private Material desiredMaterial;
     private Material loadedMaterial;
 
-
-    // --------------------------------------------------------
-    // Unity
-    // --------------------------------------------------------
+    // ========================================================
+    // UNITY
+    // ========================================================
 
     private void Start()
     {
-        if (msLODLoader == null)
+        FindLoader();
+    }
+
+    private void FindLoader()
+    {
+        if (starsLODLoader == null)
         {
-            msLODLoader =
-                FindAnyObjectByType<GaiaMSLODLoader>();
+            starsLODLoader =
+                FindAnyObjectByType<StarsLODLoader>();
         }
     }
 
+    // ========================================================
+    // TOGGLE REFRESH
+    // ========================================================
 
-    // --------------------------------------------------------
-    // Toggle refresh
-    // --------------------------------------------------------
+    [ContextMenu("Toggle Bounds")]
+    public void ToggleBounds()
+    {
+        RefreshBounds();
+    }
 
     public void RefreshBounds()
     {
-        // Already visible -> hide them.
+        // If bounds are already visible, toggle them off.
         if (generatedRoot != null)
         {
             ClearGeneratedObjects();
             return;
         }
 
-        // Not visible -> create them.
-        if (msLODLoader == null)
-        {
-            msLODLoader =
-                FindAnyObjectByType<GaiaMSLODLoader>();
-        }
+        FindLoader();
 
-        if (msLODLoader == null)
+        if (starsLODLoader == null)
         {
             Debug.LogWarning(
-                "GaiaMSLODBoundsVisualizer: " +
-                "GaiaMSLODLoader not found."
+                "StarsLODNodesVisualizer: StarsLODLoader not found."
             );
 
             return;
         }
 
-        if (!msLODLoader.IsReady)
+        if (!starsLODLoader.IsReady)
         {
             Debug.LogWarning(
-                "GaiaMSLODBoundsVisualizer: " +
-                "GaiaMSLODLoader is not ready yet."
+                "StarsLODNodesVisualizer: StarsLODLoader is not ready."
             );
 
             return;
@@ -87,68 +114,71 @@ public class GaiaMSLODBoundsVisualizer : MonoBehaviour
         BuildBounds();
     }
 
-    [ContextMenu("Toggle Bounds")]
-    public void ToggleBounds()
-    {
-        RefreshBounds();
-    }
-
-
-    // --------------------------------------------------------
-    // Build
-    // --------------------------------------------------------
+    // ========================================================
+    // BUILD
+    // ========================================================
 
     private void BuildBounds()
     {
         ClearGeneratedObjects();
 
-        generatedRoot =
-            new GameObject(
-                "Generated MSLOD Bounds"
-            );
-
-        // Keep everything in world space.
-        generatedRoot.transform.SetParent(
-            null,
-            true
+        generatedRoot = new GameObject(
+            "Generated Stars LOD Bounds"
         );
+
+        // Keep bounds at their absolute world coordinates.
+        generatedRoot.transform.SetParent(null, true);
 
         CreateMaterials();
 
+        if (desiredMaterial == null || loadedMaterial == null)
+        {
+            ClearGeneratedObjects();
+            return;
+        }
+
         // ----------------------------------------------------
-        // Get actual MS-LOD state.
+        // Get current loader state
         // ----------------------------------------------------
 
         IReadOnlyCollection<uint> desiredNodes =
-            msLODLoader.DesiredNodeIds;
+            starsLODLoader.DesiredNodeIds;
 
         IReadOnlyCollection<uint> loadedNodes =
-            msLODLoader.LoadedNodeIds;
+            starsLODLoader.LoadedNodeIds;
 
         HashSet<uint> loadedSet =
-            new HashSet<uint>(
-                loadedNodes
-            );
+            new HashSet<uint>(loadedNodes);
 
+        // Sort IDs to make visualization deterministic.
+        List<uint> sortedLoadedNodes =
+            new List<uint>(loadedNodes);
+
+        sortedLoadedNodes.Sort();
+
+        List<uint> sortedDesiredNodes =
+            new List<uint>(desiredNodes);
+
+        sortedDesiredNodes.Sort();
 
         // ----------------------------------------------------
-        // Draw loaded nodes first.
+        // Loaded nodes
         //
-        // Green = actually loaded.
+        // Green = loaded and ready for rendering.
         // ----------------------------------------------------
 
         int loadedDrawn = 0;
 
-        foreach (uint nodeId in loadedNodes)
+        foreach (uint nodeId in sortedLoadedNodes)
         {
             if (loadedDrawn >= maxLoadedNodesToDraw)
             {
                 break;
             }
 
-            if (!msLODLoader.TryGetNodeInfo(
+            if (!starsLODLoader.TryGetNodeInfo(
                     nodeId,
-                    out GaiaMSLODLoader.GaiaLODNodeInfo node))
+                    out StarsLODLoader.StarsLODNodeInfo node))
             {
                 continue;
             }
@@ -162,31 +192,30 @@ public class GaiaMSLODBoundsVisualizer : MonoBehaviour
             loadedDrawn++;
         }
 
-
         // ----------------------------------------------------
-        // Draw desired-but-not-loaded nodes.
+        // Desired but not loaded nodes
         //
-        // Red = desired but not loaded.
+        // Red = selected for loading, but not loaded yet.
         // ----------------------------------------------------
 
         int desiredDrawn = 0;
 
-        foreach (uint nodeId in desiredNodes)
+        foreach (uint nodeId in sortedDesiredNodes)
         {
             if (desiredDrawn >= maxDesiredNodesToDraw)
             {
                 break;
             }
 
-            // Already loaded, so display it only as green.
+            // Already drawn in green.
             if (loadedSet.Contains(nodeId))
             {
                 continue;
             }
 
-            if (!msLODLoader.TryGetNodeInfo(
+            if (!starsLODLoader.TryGetNodeInfo(
                     nodeId,
-                    out GaiaMSLODLoader.GaiaLODNodeInfo node))
+                    out StarsLODLoader.StarsLODNodeInfo node))
             {
                 continue;
             }
@@ -201,19 +230,19 @@ public class GaiaMSLODBoundsVisualizer : MonoBehaviour
         }
 
         Debug.Log(
-            $"GaiaMSLODBoundsVisualizer: " +
-            $"Displayed Loaded={loadedDrawn}/{loadedNodes.Count}, " +
-            $"Displayed Desired={desiredDrawn}/{desiredNodes.Count}"
+            $"StarsLODNodesVisualizer: " +
+            $"Layer={starsLODLoader.LayerIndex}, " +
+            $"Loaded={loadedDrawn}/{loadedNodes.Count}, " +
+            $"Desired={desiredDrawn}/{desiredNodes.Count}"
         );
     }
 
-
-    // --------------------------------------------------------
-    // Node bounds
-    // --------------------------------------------------------
+    // ========================================================
+    // NODE BOUNDS
+    // ========================================================
 
     private void CreateNodeBounds(
-        GaiaMSLODLoader.GaiaLODNodeInfo node,
+        StarsLODLoader.StarsLODNodeInfo node,
         Material material,
         string stateName)
     {
@@ -222,10 +251,9 @@ public class GaiaMSLODBoundsVisualizer : MonoBehaviour
             return;
         }
 
-        GameObject boundsObject =
-            new GameObject(
-                $"{stateName} Node {node.nodeId}"
-            );
+        GameObject boundsObject = new GameObject(
+            $"{stateName} Node {node.nodeId}"
+        );
 
         boundsObject.transform.SetParent(
             generatedRoot.transform,
@@ -238,12 +266,10 @@ public class GaiaMSLODBoundsVisualizer : MonoBehaviour
         line.useWorldSpace = true;
 
         Vector3 min =
-            node.center -
-            node.halfSize;
+            node.center - node.halfSize;
 
         Vector3 max =
-            node.center +
-            node.halfSize;
+            node.center + node.halfSize;
 
         Vector3[] corners =
         {
@@ -258,21 +284,26 @@ public class GaiaMSLODBoundsVisualizer : MonoBehaviour
             new Vector3(min.x, max.y, max.z)
         };
 
-        // 12 cube edges.
+        // Twelve cube edges, connected into one line path.
         Vector3[] path =
         {
+            // Bottom rectangle.
             corners[0],
             corners[1],
             corners[2],
             corners[3],
             corners[0],
 
+            // Connect to the top rectangle.
             corners[4],
+
+            // Top rectangle.
             corners[5],
             corners[6],
             corners[7],
             corners[4],
 
+            // Four vertical edges.
             corners[0],
             corners[1],
             corners[5],
@@ -282,109 +313,78 @@ public class GaiaMSLODBoundsVisualizer : MonoBehaviour
             corners[7]
         };
 
-        line.positionCount =
-            path.Length;
-
+        line.positionCount = path.Length;
         line.SetPositions(path);
 
-        line.startWidth =
-            lineWidth;
+        line.startWidth = lineWidth;
+        line.endWidth = lineWidth;
 
-        line.endWidth =
-            lineWidth;
-
-        line.startColor =
-            material.color;
-
-        line.endColor =
-            material.color;
+        line.startColor = material.color;
+        line.endColor = material.color;
 
         line.numCapVertices = 0;
         line.numCornerVertices = 0;
 
-        line.material =
-            material;
+        // Reuse the material shared by all bounds of this state.
+        line.sharedMaterial = material;
 
         line.sortingOrder = 0;
     }
 
-
-    // --------------------------------------------------------
-    // Materials
-    // --------------------------------------------------------
+    // ========================================================
+    // MATERIALS
+    // ========================================================
 
     private void CreateMaterials()
     {
-        desiredMaterial =
-            CreateMaterial(
-                Color.red
-            );
-
-        loadedMaterial =
-            CreateMaterial(
-                Color.green
-            );
+        desiredMaterial = CreateMaterial(desiredColor);
+        loadedMaterial = CreateMaterial(loadedColor);
     }
 
-    private Material CreateMaterial(
-        Color color)
+    private Material CreateMaterial(Color color)
     {
         Material material;
 
         if (baseMaterial != null)
         {
-            material =
-                new Material(
-                    baseMaterial
-                );
+            material = new Material(baseMaterial);
         }
         else
         {
-            Shader shader =
-                Shader.Find(
-                    "Sprites/Default"
-                );
+            Shader shader = Shader.Find("Sprites/Default");
 
             if (shader == null)
             {
-                shader =
-                    Shader.Find(
-                        "Universal Render Pipeline/Unlit"
-                    );
+                shader = Shader.Find(
+                    "Universal Render Pipeline/Unlit"
+                );
             }
 
             if (shader == null)
             {
-                shader =
-                    Shader.Find(
-                        "Unlit/Color"
-                    );
+                shader = Shader.Find("Unlit/Color");
             }
 
             if (shader == null)
             {
                 Debug.LogError(
-                    "GaiaMSLODBoundsVisualizer: " +
-                    "No suitable shader found."
+                    "StarsLODNodesVisualizer: No suitable shader found."
                 );
 
                 return null;
             }
 
-            material =
-                new Material(shader);
+            material = new Material(shader);
         }
 
-        material.color =
-            color;
+        material.color = color;
 
         return material;
     }
 
-
-    // --------------------------------------------------------
-    // Cleanup
-    // --------------------------------------------------------
+    // ========================================================
+    // PUBLIC CLEANUP
+    // ========================================================
 
     public void ClearBounds()
     {
@@ -401,9 +401,7 @@ public class GaiaMSLODBoundsVisualizer : MonoBehaviour
             }
             else
             {
-                DestroyImmediate(
-                    generatedRoot
-                );
+                DestroyImmediate(generatedRoot);
             }
 
             generatedRoot = null;
@@ -417,9 +415,7 @@ public class GaiaMSLODBoundsVisualizer : MonoBehaviour
             }
             else
             {
-                DestroyImmediate(
-                    desiredMaterial
-                );
+                DestroyImmediate(desiredMaterial);
             }
 
             desiredMaterial = null;
@@ -433,19 +429,16 @@ public class GaiaMSLODBoundsVisualizer : MonoBehaviour
             }
             else
             {
-                DestroyImmediate(
-                    loadedMaterial
-                );
+                DestroyImmediate(loadedMaterial);
             }
 
             loadedMaterial = null;
         }
     }
 
-
-    // --------------------------------------------------------
-    // Enable / Disable
-    // --------------------------------------------------------
+    // ========================================================
+    // ENABLE / DISABLE
+    // ========================================================
 
     private void OnEnable()
     {

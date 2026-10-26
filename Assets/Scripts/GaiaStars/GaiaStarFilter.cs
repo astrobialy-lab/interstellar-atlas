@@ -4,7 +4,7 @@ using UnityEngine;
 [System.Serializable]
 public struct GaiaStarFilterSettings
 {
-    public int displayStage;
+    public bool showStars;
 
     public bool useMagnitudeLimit;
     public float maxMagnitude;
@@ -31,10 +31,8 @@ public struct GaiaStarFilterSettings
         useEvolutionStageRange ||
         useTemperatureRange;
 
-    public bool IsNoStarsStage => displayStage == 5;
-
     public bool IsActive =>
-        IsNoStarsStage ||
+        !showStars ||
         useMagnitudeLimit ||
         HasAnyCriterion;
 
@@ -45,8 +43,8 @@ public struct GaiaStarFilterSettings
         int evolutionStage,
         float temperatureK)
     {
-        // Stage 5: display no stars.
-        if (displayStage == 5)
+        // If stars are disabled, reject every star.
+        if (!showStars)
             return false;
 
         // Optional apparent G-magnitude limit.
@@ -65,7 +63,9 @@ public struct GaiaStarFilterSettings
             if (!IsFinite(massSolar) ||
                 massSolar < minMassSolar ||
                 massSolar > maxMassSolar)
+            {
                 return false;
+            }
         }
 
         if (useAgeRange)
@@ -73,7 +73,9 @@ public struct GaiaStarFilterSettings
             if (!IsFinite(ageGyr) ||
                 ageGyr < minAgeGyr ||
                 ageGyr > maxAgeGyr)
+            {
                 return false;
+            }
         }
 
         if (useEvolutionStageRange)
@@ -81,7 +83,9 @@ public struct GaiaStarFilterSettings
             if (evolutionStage < 0 ||
                 evolutionStage < minEvolutionStage ||
                 evolutionStage > maxEvolutionStage)
+            {
                 return false;
+            }
         }
 
         if (useTemperatureRange)
@@ -89,7 +93,9 @@ public struct GaiaStarFilterSettings
             if (!IsFinite(temperatureK) ||
                 temperatureK < minTemperatureK ||
                 temperatureK > maxTemperatureK)
+            {
                 return false;
+            }
         }
 
         return true;
@@ -105,26 +111,32 @@ public struct GaiaStarFilterSettings
 public sealed class GaiaStarFilter : MonoBehaviour
 {
     [Header("Cluster Sprites")]
-    [SerializeField] private ClusterMarkerGenerator clusterMarkerGenerator;
+    [SerializeField]
+    private ClusterMarkerGenerator clusterMarkerGenerator;
 
     [Header("Settings")]
-    [SerializeField] private GaiaStarFilterSettings settings =
+    [SerializeField]
+    private GaiaStarFilterSettings settings =
         new GaiaStarFilterSettings
         {
-            displayStage = 4,
+            showStars = true,
 
             useMagnitudeLimit = false,
             maxMagnitude = 0.85f,
 
+            useMassRange = false,
             minMassSolar = 0f,
             maxMassSolar = 100f,
 
+            useAgeRange = false,
             minAgeGyr = 0f,
             maxAgeGyr = 13.5f,
 
+            useEvolutionStageRange = false,
             minEvolutionStage = 100,
             maxEvolutionStage = 1300,
 
+            useTemperatureRange = false,
             minTemperatureK = 0f,
             maxTemperatureK = 50000f
         };
@@ -140,8 +152,7 @@ public sealed class GaiaStarFilter : MonoBehaviour
         return settings;
     }
 
-    public void ApplySettings(
-        GaiaStarFilterSettings newSettings)
+    public void ApplySettings(GaiaStarFilterSettings newSettings)
     {
         NormalizeFloatRange(
             ref newSettings.minMassSolar,
@@ -165,17 +176,9 @@ public sealed class GaiaStarFilter : MonoBehaviour
             newSettings.maxEvolutionStage)
         {
             int temp = newSettings.minEvolutionStage;
-
             newSettings.minEvolutionStage =
                 newSettings.maxEvolutionStage;
-
             newSettings.maxEvolutionStage = temp;
-        }
-
-        if (newSettings.displayStage < 1 ||
-            newSettings.displayStage > 5)
-        {
-            newSettings.displayStage = 4;
         }
 
         if (float.IsNaN(newSettings.maxMagnitude) ||
@@ -184,17 +187,11 @@ public sealed class GaiaStarFilter : MonoBehaviour
             newSettings.maxMagnitude = 0.85f;
         }
 
-        // Allow a brightness filter to be enabled from the menu
-        // even when the current state is "no stars".
-        if (newSettings.displayStage == 5 &&
-            newSettings.useMagnitudeLimit)
-        {
-            newSettings.displayStage = 4;
-        }
-
         settings = newSettings;
+
         UpdateClusterSpriteVisibility();
 
+        // Synchronize the filter menu. This does not cycle brightness.
         BrightnessFilterChanged?.Invoke(
             settings.useMagnitudeLimit,
             settings.maxMagnitude);
@@ -231,69 +228,36 @@ public sealed class GaiaStarFilter : MonoBehaviour
         }
     }
 
-    public int DisplayStage => settings.displayStage;
+    public bool StarsVisible => settings.showStars;
 
-    public int CycleDisplayStage()
+    public void SetClustersOnly(bool enabled)
     {
-        // THESE VALUES WERE ADJUSTED FOR STARS PROCESSING SCRIPT THAT FILTERS FOR ALL STARS OVER MASS OF MASS OF 2.0 [SOLAR MASS]
-        // Cycle from most stars to fewest stars.
-        switch (settings.displayStage)
+        SetStarsVisible(!enabled);
+    }
+
+    public void SetStarsVisible(bool visible)
+    {
+        if (settings.showStars == visible)
         {
-            case 4:
-                settings.displayStage = 3;
-                settings.useMagnitudeLimit = true;
-                settings.maxMagnitude = 0.85f;
-                break;
-
-            case 3:
-                settings.displayStage = 2;
-                settings.useMagnitudeLimit = true;
-                settings.maxMagnitude = -0.2f;
-                break;
-
-            case 2:
-                settings.displayStage = 1;
-                settings.useMagnitudeLimit = true;
-                settings.maxMagnitude = -1.5f;
-                break;
-
-            case 1:
-                settings.displayStage = 5;
-                settings.useMagnitudeLimit = false;
-                break;
-
-            case 5:
-            default:
-                settings.displayStage = 4;
-                settings.useMagnitudeLimit = false;
-                break;
+            UpdateClusterSpriteVisibility();
+            return;
         }
 
-        UpdateClusterSpriteVisibility();
+        settings.showStars = visible;
 
-        BrightnessFilterChanged?.Invoke(settings.useMagnitudeLimit, settings.maxMagnitude);
+        UpdateClusterSpriteVisibility();
 
         unchecked
         {
             revision++;
         }
+    }
 
-        // THESE VALUES WERE ADJUSTED FOR STARS PROCESSING SCRIPT THAT FILTERS FOR ALL STARS OVER MASS OF MASS OF 2.0 [SOLAR MASS]
-        string description = settings.displayStage switch
-        {
-            1 => "G <= -1.5 (approximately 2%)",
-            2 => "G <= -0.2 (approximately 8%)",
-            3 => "G <= 0.85 (approximately 40%)",
-            4 => "All stars (100%)",
-            5 => "No stars (0%)",
-            _ => "Unknown"
-        };
-
-        Debug.Log(
-            $"GaiaStarFilter: Stage {settings.displayStage}/5 - " +
-            description);
-
-        return settings.displayStage;
+    private void Awake()
+    {
+        // Always start with stars visible.
+        // Preserve all magnitude and stellar-property filter settings.
+        settings.showStars = true;
     }
 
     private void Start()
@@ -307,29 +271,12 @@ public sealed class GaiaStarFilter : MonoBehaviour
         UpdateClusterSpriteVisibility();
     }
 
-    private void Awake()
-    {
-        // Always start with all stars visible.
-        if (settings.displayStage != 4 ||
-            settings.useMagnitudeLimit)
-        {
-            settings.displayStage = 4;
-            settings.useMagnitudeLimit = false;
-
-            unchecked
-            {
-                revision++;
-            }
-        }
-    }
-
     private void UpdateClusterSpriteVisibility()
     {
         if (clusterMarkerGenerator == null)
             return;
 
-        clusterMarkerGenerator.SetMarkersVisible(
-            settings.displayStage == 5
-        );
+        // Show clusters only when stars are disabled.
+        clusterMarkerGenerator.SetMarkersVisible(!settings.showStars);
     }
 }

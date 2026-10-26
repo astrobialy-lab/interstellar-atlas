@@ -3374,7 +3374,7 @@ MonoBehaviour:
     m_Bits: 4294967295
   orientation: {fileID: 1666570262}
   starFilter: {fileID: 586631270}
-  msLODBoundsVisualizer: {fileID: 618384818}
+  starsLODNodesVisualizer: {fileID: 618384818}
   dustSpriteRenderer: {fileID: 212480235}
 --- !u!114 &475100220
 MonoBehaviour:
@@ -3397,7 +3397,7 @@ MonoBehaviour:
   maxLookAngle: 89
   rollSpeed: 20
   starFilter: {fileID: 586631270}
-  msLODBoundsVisualizer: {fileID: 618384818}
+  starsLODNodesVisualizer: {fileID: 618384818}
   moveSpeed: 10
   speedChangeFactor: 2
   turnSpeed: 35
@@ -4067,8 +4067,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::GaiaMSLODLoader
   metadataDirectoryDataPath: Gaia/lod
+  layerIndex: 8
   targetCamera: {fileID: 330585545}
-  solidAngleThreshold: 0.1
   frustumCulling: 1
   clusterFilter: {fileID: 1069188329}
   starFilter: {fileID: 586631270}
@@ -4366,7 +4366,7 @@ GameObject:
   - component: {fileID: 618384819}
   - component: {fileID: 618384818}
   m_Layer: 0
-  m_Name: GaiaMSLODNodesVisualizer
+  m_Name: StarsLODNodesVisualizer
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -4384,11 +4384,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3bb98745f3d4ad74bb19d7696ba828f9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::GaiaMSLODBoundsVisualizer
-  msLODLoader: {fileID: 586631267}
+  starsLODLoader: {fileID: 586631267}
   maxDesiredNodesToDraw: 100000000
   maxLoadedNodesToDraw: 100000000
   lineWidth: 0.2
   baseMaterial: {fileID: 0}
+  desiredColor: {r: 1, g: 0, b: 0, a: 1}
+  loadedColor: {r: 0, g: 1, b: 0, a: 1}
 --- !u!4 &618384819
 Transform:
   m_ObjectHideFlags: 0
@@ -4632,7 +4634,7 @@ GameObject:
   - component: {fileID: 674296673}
   - component: {fileID: 674296674}
   m_Layer: 5
-  m_Name: StarsNodesAngle
+  m_Name: StarsNodesLevel
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -7478,7 +7480,7 @@ RectTransform:
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 0, y: 0}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 345, y: 50}
+  m_SizeDelta: {x: 450, y: 50}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1008035842
 MonoBehaviour:
@@ -12751,7 +12753,7 @@ RectTransform:
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 0, y: 0}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 190, y: 50}
+  m_SizeDelta: {x: 450, y: 50}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1876691200
 MonoBehaviour:
@@ -13851,9 +13853,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SettingsMenu
   settingsCanvas: {fileID: 958449500}
   loader: {fileID: 586631267}
-  thresholdInput: {fileID: 65604404}
-  minThreshold: 0.000024
-  maxThreshold: 10
+  starsLevelInput: {fileID: 65604404}
   maxConcurrentLoadsInput: {fileID: 1560409072}
   dustSpriteRenderer: {fileID: 212480235}
   maxDustSpritesInput: {fileID: 770019280}
@@ -14036,7 +14036,7 @@ RectTransform:
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 0, y: 0}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 345, y: 50}
+  m_SizeDelta: {x: 450, y: 50}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &2133695079
 MonoBehaviour:
@@ -14058,7 +14058,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: 'StarsNodesAngle (steradians):'
+  m_text: 'StarsLODLevel (stars = 100*2^level):'
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}

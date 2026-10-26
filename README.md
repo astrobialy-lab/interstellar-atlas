@@ -38,7 +38,7 @@ The project uses the following data:
 - **References:** Gaia Collaboration et al. (2016), Astronomy & Astrophysics, 595, A1; Gaia Collaboration et al. (2023), Astronomy & Astrophysics, 674, A1.
 
 The Gaia data license prohibits commercial use without separate authorization.
-For more information about the usage read `GAIA_README.md`.
+For more information about the usage read `STARS_README.md`.
 
 ## Open Cluster Catalogue
 

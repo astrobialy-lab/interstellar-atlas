@@ -24,7 +24,13 @@ public class VRPlayerController : MonoBehaviour
 
     [Header("Stars")]
     public GaiaStarFilter starFilter;
-    public GaiaMSLODBoundsVisualizer msLODBoundsVisualizer;
+    public StarsLODLoader starsLodLoader;
+
+    private static readonly int[] StarDisplayModes = { 8, 6, 4, 2, 0 };
+    private int starDisplayModePosition = 0;
+
+    [Header("Stars LOD Debug")]
+    public StarsLODNodesVisualizer starsLODNodesVisualizer;
 
     [Header("Movement")]
     public float moveSpeed = 1.25f;
@@ -75,12 +81,36 @@ public class VRPlayerController : MonoBehaviour
         if (starFilter == null)
             starFilter = FindAnyObjectByType<GaiaStarFilter>();
 
-        if (msLODBoundsVisualizer == null)
-            msLODBoundsVisualizer =
-                FindAnyObjectByType<GaiaMSLODBoundsVisualizer>();
+        if (starsLodLoader == null)
+            starsLodLoader = FindAnyObjectByType<StarsLODLoader>();
+
+        if (starsLODNodesVisualizer == null)
+            starsLODNodesVisualizer =
+                FindAnyObjectByType<StarsLODNodesVisualizer>();
 
         if (rightRayLine != null)
             rightRayLine.enabled = false;
+
+        // Start in the default mode: LOD layer 8.
+        starDisplayModePosition = 0;
+
+        if (starsLodLoader != null)
+        {
+            starsLodLoader.SetLayerIndex(8);
+        }
+        else
+        {
+            Debug.LogWarning("VRPlayerController: StarsLODLoader not found.");
+        }
+
+        if (starFilter != null)
+        {
+            starFilter.SetClustersOnly(false);
+        }
+        else
+        {
+            Debug.LogWarning("VRPlayerController: GaiaStarFilter not found.");
+        }
     }
 
     private void Update()
@@ -189,21 +219,53 @@ public class VRPlayerController : MonoBehaviour
             CommonUsages.gripButton,
             out rightGripPressed);
 
-        // Cycle only once per press.
+        // Cycle once per press, not continuously while holding.
         if (rightGripPressed && !previousRightGrip)
         {
-            if (starFilter != null)
-            {
-                starFilter.CycleDisplayStage();
-            }
-            else
-            {
-                Debug.LogWarning(
-                    "VRPlayerController: GaiaStarFilter not found.");
-            }
+            CycleStarDisplayMode();
         }
 
         previousRightGrip = rightGripPressed;
+    }
+
+    private void CycleStarDisplayMode()
+    {
+        if (starFilter == null)
+        {
+            Debug.LogWarning("VRPlayerController: GaiaStarFilter not found.");
+            return;
+        }
+
+        int nextPosition =
+            (starDisplayModePosition + 1) % StarDisplayModes.Length;
+
+        int nextMode = StarDisplayModes[nextPosition];
+
+        if (nextMode == 0)
+        {
+            // Hide stars and display cluster markers.
+            starFilter.SetClustersOnly(true);
+
+            Debug.Log("Star display mode: clusters only");
+        }
+        else
+        {
+            if (starsLodLoader == null)
+            {
+                Debug.LogWarning("VRPlayerController: StarsLODLoader not found.");
+                return;
+            }
+
+            // Select the requested prebuilt LOD layer.
+            starsLodLoader.SetLayerIndex(nextMode);
+
+            // Show stars again without modifying their filter settings.
+            starFilter.SetClustersOnly(false);
+
+            Debug.Log($"Star display mode: LOD layer {nextMode}");
+        }
+
+        starDisplayModePosition = nextPosition;
     }
 
     private void HandleRoll(InputDevice leftHand, InputDevice rightHand)
@@ -418,7 +480,7 @@ public class VRPlayerController : MonoBehaviour
         "Left Trigger: next dust color scheme",
         "Left Grip: cycle dust sprite transparency",
         "Right Trigger single-click / double-click: Select landmark / Display landmarks and orientation",
-        "Right Grip: cycle stars and clusters display stage",
+        "Right Grip: cycle star display (8 / 6 / 4 / 2 / clusters only)",
         "Left Menu Button: open menu / close any menu"
         });
     }
