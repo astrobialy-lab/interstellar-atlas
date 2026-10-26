@@ -2,10 +2,7 @@
 
 <img src="Images/preview1.png" width="600">
 
-<img src="Images/preview2.png" width="150">
-<img src="Images/preview3.png" width="150">
-<img src="Images/preview4.png" width="150">
-<img src="Images/preview5.png" width="150">
+<img src="Images/preview2.png" width="150"><img src="Images/preview4.png" width="150"><img src="Images/preview3.png" width="150"><img src="Images/preview5.png" width="150">
 
 ## Project Team and Acknowledgments
 
