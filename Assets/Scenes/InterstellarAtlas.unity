@@ -3374,6 +3374,7 @@ MonoBehaviour:
     m_Bits: 4294967295
   orientation: {fileID: 1666570262}
   starFilter: {fileID: 586631270}
+  starsLodLoader: {fileID: 586631267}
   starsLODNodesVisualizer: {fileID: 618384818}
   dustSpriteRenderer: {fileID: 212480235}
 --- !u!114 &475100220
@@ -3397,6 +3398,7 @@ MonoBehaviour:
   maxLookAngle: 89
   rollSpeed: 20
   starFilter: {fileID: 586631270}
+  starsLodLoader: {fileID: 586631267}
   starsLODNodesVisualizer: {fileID: 618384818}
   moveSpeed: 10
   speedChangeFactor: 2
@@ -4090,7 +4092,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::GaiaStarFilter
   clusterMarkerGenerator: {fileID: 1069188328}
   settings:
-    displayStage: 0
+    showStars: 1
     useMagnitudeLimit: 0
     maxMagnitude: 0
     useMassRange: 0
@@ -4387,7 +4389,7 @@ MonoBehaviour:
   starsLODLoader: {fileID: 586631267}
   maxDesiredNodesToDraw: 100000000
   maxLoadedNodesToDraw: 100000000
-  lineWidth: 0.2
+  lineWidth: 0.4
   baseMaterial: {fileID: 0}
   desiredColor: {r: 1, g: 0, b: 0, a: 1}
   loadedColor: {r: 0, g: 1, b: 0, a: 1}
@@ -17135,7 +17137,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 8736643050705109425, guid: 03b72dde25c979049b864b97fc8417f9, type: 3}
       propertyPath: m_text
-      value: Space Simulation
+      value: Interstellar Atlas
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []

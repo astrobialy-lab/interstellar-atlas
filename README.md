@@ -1,5 +1,13 @@
+# Interstellar Atlas
 
-# Project Team and Acknowledgments
+<img src="Images/preview1.png" width="600">
+
+<img src="Images/preview2.png" width="150">
+<img src="Images/preview3.png" width="150">
+<img src="Images/preview4.png" width="150">
+<img src="Images/preview5.png" width="150">
+
+## Project Team and Acknowledgments
 
 This project was developed within the **Star Formation and Interstellar Medium Laboratory** at the **Technion – Israel Institute of Technology**, under the scientific guidance and supervision of **Prof. Shmuel Bialy**.
 
@@ -11,16 +19,14 @@ The project evolved through the contributions of the following team members:
 
 We acknowledge the contributions of everyone involved in the development of the project and the scientific work that guided it.
 
----
-
-# Structure
+## Structure
 The scripts files are located under `Scripts/` folder; There are data download + processing python scripts, and installation to the VR headset scripts.
 
 This project uses third-party astronomical data and imagery. These materials are subject to their respective licenses and terms; they are not automatically covered by this project's MIT license.
 
 The project uses the following data:
 
-## Milky Way Background
+### Milky Way Background
 
 - **Title:** The Milky Way Panorama
 - **Credit:** ESO/S. Brunier
@@ -28,7 +34,7 @@ The project uses the following data:
 - **License:** Creative Commons Attribution 4.0 International (CC BY 4.0)
 - **License URL:** https://creativecommons.org/licenses/by/4.0/
 
-## Gaia DR3 Star Catalogue
+### Gaia DR3 Star Catalogue
 
 - **Credit:** European Space Agency (ESA), Gaia mission, and Gaia Data Processing and Analysis Consortium (DPAC)
 - **Source:** https://www.cosmos.esa.int/gaia
@@ -40,7 +46,7 @@ The project uses the following data:
 The Gaia data license prohibits commercial use without separate authorization.
 For more information about the usage read `STARS_README.md`.
 
-## Open Cluster Catalogue
+### Open Cluster Catalogue
 
 - **Authors:** Emily L. Hunt and Sabine Reffert (2024)
 - **Title:** Improving the open cluster census. III. Using cluster masses, radii, and dynamics to create a cleaned open cluster catalogue.
@@ -52,7 +58,7 @@ For more information about the usage read `STARS_README.md`.
 
 For more information about the usage read `CLUSTERS_README.md`.
 
-## Molecular Cloud Landmarks
+### Molecular Cloud Landmarks
 
 - **Authors:** Catherine Zucker et al. (2021).
 - **Title:** On the Three-Dimensional Structure of Local Molecular Clouds.
@@ -67,7 +73,7 @@ Selected molecular cloud data from Table 1 are used for
 in-game landmarks. Coordinate data have been adapted for
 the application's visualization and coordinate system.
 
-## Three-Dimensional Dust Map
+### Three-Dimensional Dust Map
 
 - **Authors:** Edenhofer, G. et al. (2024).
 - **Title:** A parsec-scale Galactic 3D dust map out to 1.25 kpc from the Sun.
