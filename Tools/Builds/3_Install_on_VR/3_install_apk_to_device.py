@@ -13,8 +13,8 @@ import time
 import uuid
 from pathlib import Path, PurePosixPath
 
-# Assumes this script is saved in <UnityProject>/Tools/Install/.
-PROJECT_DIR = Path(__file__).resolve().parents[2]
+# Assumes this script is saved in <UnityProject>/Tools/Builds/Install/.
+PROJECT_DIR = Path(__file__).resolve().parents[3]
 ADB = Path(
     r"C:\Program Files\Unity\Hub\Editor\6000.4.12f1\Editor\Data"
     r"\PlaybackEngines\AndroidPlayer\SDK\platform-tools\adb.exe"

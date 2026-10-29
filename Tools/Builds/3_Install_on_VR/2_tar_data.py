@@ -9,8 +9,8 @@ import tarfile
 import uuid
 from pathlib import Path, PurePosixPath
 
-# Assumes this script is saved in <UnityProject>/Tools/Install/.
-PROJECT_DIR = Path(__file__).resolve().parents[2]
+# Assumes this script is saved in <UnityProject>/Tools/Builds/Install/.
+PROJECT_DIR = Path(__file__).resolve().parents[3]
 DATA_DIR = PROJECT_DIR / "Data"
 ARCHIVE_PREFIX = "Data_QuestTransfer_"
 MANIFEST_PATH = PROJECT_DIR / "Data_QuestTransfer_manifest.json"

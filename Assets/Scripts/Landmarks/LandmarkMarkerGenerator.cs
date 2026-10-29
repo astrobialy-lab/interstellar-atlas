@@ -14,6 +14,7 @@ public class LandmarkMarkerGenerator : MonoBehaviour
     public GameObject markersRoot;
 
     [Header("Marker Prefabs")]
+    public GameObject pointMarkerPrefab;
     public GameObject cloudMarkerPrefab;
     public GameObject starMarkerPrefab;
     public GameObject nebulaMarkerPrefab;
@@ -132,8 +133,13 @@ public class LandmarkMarkerGenerator : MonoBehaviour
                 Quaternion.identity,
                 markersRoot.transform);
 
-            marker.transform.localScale = Vector3.one * markerScale;
+            marker.transform.localScale = Vector3.one * markerScale * (typeCode == "point" ? 50f : 1f);
             marker.name = $"{GetMarkerNamePrefix(typeCode)}_{record.Name}";
+
+            if (typeCode == "point")
+            {
+                ConfigurePointColor(marker, record.Name);
+            }
 
             ConfigureCollider(marker);
 
@@ -150,6 +156,24 @@ public class LandmarkMarkerGenerator : MonoBehaviour
         Debug.Log(
             $"LandmarkMarkerGenerator: Created {created:N0} landmark markers " +
             $"from {records.Count:N0} binary records.");
+    }
+
+    private void ConfigurePointColor(GameObject marker, string objectName)
+    {
+        Color color = string.Equals(
+            objectName,
+            "Sun",
+            StringComparison.OrdinalIgnoreCase)
+                ? Color.yellow
+                : Color.white;
+
+        SpriteRenderer[] renderers =
+            marker.GetComponentsInChildren<SpriteRenderer>(true);
+
+        foreach (SpriteRenderer spriteRenderer in renderers)
+        {
+            spriteRenderer.color = color;
+        }
     }
 
     private static string NormalizeTypeCode(string type)
@@ -224,6 +248,7 @@ public class LandmarkMarkerGenerator : MonoBehaviour
     {
         switch (typeCode)
         {
+            case "point": return pointMarkerPrefab;
             case "cloud": return cloudMarkerPrefab;
             case "star": return starMarkerPrefab;
             case "nebula": return nebulaMarkerPrefab;
@@ -237,6 +262,7 @@ public class LandmarkMarkerGenerator : MonoBehaviour
     {
         switch (typeCode)
         {
+            case "point": return "PointMarker";
             case "cloud": return "CloudMarker";
             case "star": return "StarMarker";
             case "nebula": return "NebulaMarker";

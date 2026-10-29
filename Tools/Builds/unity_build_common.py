@@ -3,6 +3,11 @@
 
 Keep this file beside build_windows.py, build_linux.py, build_macos.py,
 build_meta_quest.py, and build_all.py, in the Unity project root.
+
+Builds are produced in a staging directory. Only after Unity succeeds (and
+external Data has been copied, where applicable) is the staging directory
+swapped into the final platform directory. The previous successful build is
+kept intact if the new build fails.
 """
 from __future__ import annotations
 
@@ -10,8 +15,9 @@ import os
 import re
 import shutil
 import subprocess
+import time
 from pathlib import Path
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Union
 
 # Update this once if your Unity installation is in a different location.
 # Set to None to let the script search the standard Unity Hub installation path.
@@ -23,6 +29,8 @@ PROFILE_DIR = Path("Assets/Settings/Build Profiles")
 EDITOR_HELPER = Path("Assets/Editor/AutomatedProfileBuilder.cs")
 BUILD_DIR_NAME = "Builds"
 DATA_DIR_NAME = "Data"
+MAX_BUILD_ATTEMPTS = 3
+RETRY_DELAY_SECONDS = 5
 
 PROFILE_HINTS = {
     "windows": ("windows",),
@@ -212,6 +220,14 @@ def write_helper(project: Path) -> Path:
     return helper_path
 
 
+def remove_path(path: Path) -> None:
+    """Remove a file, symlink, or directory if it exists."""
+    if path.is_symlink() or path.is_file():
+        path.unlink()
+    elif path.is_dir():
+        shutil.rmtree(path)
+
+
 def copy_external_data(source: Path, destination: Path) -> bool:
     if not source.is_dir():
         print(f"WARNING: external Data folder not found; skipped: {source}")
@@ -225,6 +241,47 @@ def copy_external_data(source: Path, destination: Path) -> bool:
         ignore=shutil.ignore_patterns(".DS_Store", "Thumbs.db"),
     )
     return True
+
+
+def replace_build_directory(staging_dir: Path, output_dir: Path, backup_dir: Path) -> None:
+    """Install a completed staged build, rolling back if the swap fails."""
+    moved_old_build = False
+
+    # If both exist, output_dir is the current build and any backup is stale.
+    # If output_dir is missing, preserve backup_dir as a recovery copy.
+    if output_dir.exists() and backup_dir.exists():
+        remove_path(backup_dir)
+
+    if output_dir.exists():
+        output_dir.rename(backup_dir)
+        moved_old_build = True
+    elif backup_dir.exists():
+        # Recovery from a previous interrupted swap: the backup is the only
+        # remaining copy of the previous build, so keep it until commit works.
+        moved_old_build = True
+
+    try:
+        staging_dir.rename(output_dir)
+    except OSError:
+        if moved_old_build and backup_dir.exists() and not output_dir.exists():
+            try:
+                backup_dir.rename(output_dir)
+                print("Restored the previous build after the replacement failed.")
+            except OSError as restore_error:
+                print(
+                    "WARNING: could not automatically restore the previous build. "
+                    f"It may still be at: {backup_dir}\nDetails: {restore_error}"
+                )
+        raise
+
+    # The new build is now installed. Removing the backup is cleanup only;
+    # a cleanup error must not mark the successful replacement as failed.
+    if backup_dir.exists():
+        try:
+            remove_path(backup_dir)
+        except OSError as exc:
+            print(f"WARNING: new build installed, but old backup could not be removed: {exc}")
+            print(f"Old backup remains at: {backup_dir}")
 
 
 def build_target(
@@ -258,20 +315,37 @@ def build_target(
 
     product_name = read_product_name(project)
     output_folder = {"windows": "Windows", "linux": "Linux", "macos": "macOS", "quest": "Android"}[target]
-    output_dir = project / BUILD_DIR_NAME / output_folder
-    output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = {
-        "windows": output_dir / f"{product_name}.exe",
-        "linux": output_dir / f"{product_name}.x86_64",
-        "macos": output_dir / f"{product_name}.app",
-        "quest": output_dir / f"{product_name}.apk",
-    }[target]
+    builds_root = project / BUILD_DIR_NAME
+    output_dir = builds_root / output_folder
+    staging_dir = builds_root / f".{output_folder}.staging"
+    backup_dir = builds_root / f".{output_folder}.backup"
 
-    log_dir = project / BUILD_DIR_NAME / "_logs"
+    # Build paths inside staging_dir. The whole staging directory will become
+    # output_dir only after the player and any external Data have completed.
+    staged_output_path = {
+        "windows": staging_dir / f"{product_name}.exe",
+        "linux": staging_dir / f"{product_name}.x86_64",
+        "macos": staging_dir / f"{product_name}.app",
+        "quest": staging_dir / f"{product_name}.apk",
+    }[target]
+    final_output_path = output_dir / staged_output_path.name
+
+    log_dir = builds_root / "_logs"
     log_dir.mkdir(parents=True, exist_ok=True)
     log_path = log_dir / f"build_{target}.log"
-    if log_path.exists():
-        log_path.unlink()
+    log_path.unlink(missing_ok=True)
+
+    # Recover the old build if an earlier process was interrupted between its
+    # two directory renames. Do not remove the active output directory here.
+    try:
+        builds_root.mkdir(parents=True, exist_ok=True)
+        if not output_dir.exists() and backup_dir.exists():
+            backup_dir.rename(output_dir)
+            print(f"Recovered previous build from backup: {output_dir}")
+        remove_path(staging_dir)
+    except OSError as exc:
+        print(f"ERROR: could not prepare staging/backup directories: {exc}")
+        return 2
 
     try:
         write_helper(project)
@@ -282,7 +356,7 @@ def build_target(
     profile_relative = profile.relative_to(project).as_posix()
     env = os.environ.copy()
     env["UNITY_AUTOBUILD_PROFILE_PATH"] = profile_relative
-    env["UNITY_AUTOBUILD_OUTPUT_PATH"] = str(output_path.resolve())
+    env["UNITY_AUTOBUILD_OUTPUT_PATH"] = str(staged_output_path.resolve())
 
     command = [
         str(unity_exe),
@@ -296,25 +370,111 @@ def build_target(
 
     print("\n" + "=" * 72)
     print(f"Building {target.upper()}")
-    print(f"Unity:   {unity_exe}")
-    print(f"Profile: {profile_relative}")
-    print(f"Output:  {output_path}")
-    print(f"Log:     {log_path}")
+    print(f"Unity:          {unity_exe}")
+    print(f"Profile:        {profile_relative}")
+    print(f"Final output:   {final_output_path}")
+    print(f"Staging folder: {staging_dir}")
+    print(f"Log:            {log_path}")
+    print("The existing build will be kept unless the new build succeeds.")
     print("=" * 72)
 
     # Preserve the Editor's last-open scene setup across batch builds.
     scene_setup_path = project / "Library" / "LastSceneManagerSetup.txt"
     scene_setup_existed = scene_setup_path.is_file()
-    scene_setup_backup = (
-        scene_setup_path.read_bytes() if scene_setup_existed else None
-    )
+    scene_setup_backup = scene_setup_path.read_bytes() if scene_setup_existed else None
+
+    result: Optional[subprocess.CompletedProcess] = None
+    log_text = ""
+    launch_error: Optional[str] = None
 
     try:
-        result = subprocess.run(command, cwd=project, env=env, check=False)
-    except OSError as exc:
-        print(f"ERROR: could not launch Unity: {exc}")
-        return 2
+        for attempt in range(1, MAX_BUILD_ATTEMPTS + 1):
+            # Each retry gets a clean staging directory, so partial output from
+            # a crashed/failed attempt cannot contaminate the next attempt.
+            try:
+                remove_path(staging_dir)
+                staging_dir.mkdir(parents=True, exist_ok=True)
+            except OSError as exc:
+                launch_error = f"could not prepare staging directory: {exc}"
+                print(f"ERROR: {launch_error}")
+                break
+
+            attempt_log_path = log_dir / f"build_{target}_attempt{attempt}.log"
+            attempt_log_path.unlink(missing_ok=True)
+
+            attempt_command = command.copy()
+            log_index = attempt_command.index("-logFile") + 1
+            attempt_command[log_index] = str(attempt_log_path.resolve())
+
+            print(f"\nBuild attempt {attempt}/{MAX_BUILD_ATTEMPTS}")
+
+            try:
+                result = subprocess.run(
+                    attempt_command,
+                    cwd=project,
+                    env=env,
+                    check=False,
+                )
+            except OSError as exc:
+                launch_error = f"could not launch Unity: {exc}"
+                print(f"ERROR: {launch_error}")
+                break
+
+            log_text = (
+                attempt_log_path.read_text(encoding="utf-8", errors="replace")
+                if attempt_log_path.exists()
+                else ""
+            )
+
+            # Keep the stable log filename pointing to the latest attempt.
+            if attempt_log_path.is_file():
+                try:
+                    shutil.copy2(attempt_log_path, log_path)
+                except OSError as exc:
+                    print(f"WARNING: could not update summary log: {exc}")
+
+            reported_success = "AUTOMATED_BUILD_RESULT=SUCCEEDED" in log_text
+            reported_failure = "AUTOMATED_BUILD_RESULT=FAILED" in log_text
+
+            if result.returncode == 0 and reported_success:
+                break
+
+            # Avoid retrying normal C# compilation errors or an explicit build
+            # failure. Only retry an unexpected exit with no reported result.
+            compilation_error = bool(
+                re.search(
+                    r"\berror CS\d{4}\b|Scripts have compiler errors|Compilation failed",
+                    log_text,
+                    re.IGNORECASE,
+                )
+            )
+            log_lower = log_text.lower()
+            crash_detected = any(
+                marker in log_lower
+                for marker in (
+                    "getmanagerfromcontext:",
+                    "fatal error!",
+                    "crash!!!",
+                    "editor has crashed",
+                )
+            )
+            should_retry = (
+                attempt < MAX_BUILD_ATTEMPTS
+                and not reported_success
+                and not reported_failure
+                and not compilation_error
+                and (result.returncode != 0 or crash_detected)
+            )
+
+            if not should_retry:
+                break
+
+            print(f"Unity exited unexpectedly (exit code {result.returncode}).")
+            print(f"Retrying in {RETRY_DELAY_SECONDS} seconds...")
+            time.sleep(RETRY_DELAY_SECONDS)
+
     finally:
+        # Restore the last-open scene setup even if Unity crashes.
         try:
             if scene_setup_existed and scene_setup_backup is not None:
                 scene_setup_path.parent.mkdir(parents=True, exist_ok=True)
@@ -324,16 +484,55 @@ def build_target(
         except OSError as exc:
             print(f"WARNING: could not restore Editor scene state: {exc}")
 
-    log_text = log_path.read_text(encoding="utf-8", errors="replace") if log_path.exists() else ""
-    success = result.returncode == 0 and "AUTOMATED_BUILD_RESULT=SUCCEEDED" in log_text
+    success = (
+        launch_error is None
+        and result is not None
+        and result.returncode == 0
+        and "AUTOMATED_BUILD_RESULT=SUCCEEDED" in log_text
+    )
+
     if not success:
-        print(f"FAILED: {target}. Unity exit code: {result.returncode}")
+        # Remove incomplete output but leave the last successful build alone.
+        try:
+            remove_path(staging_dir)
+        except OSError as exc:
+            print(f"WARNING: could not remove failed staging folder: {exc}")
+            print(f"Partial build remains at: {staging_dir}")
+
+        if launch_error:
+            print(f"FAILED: {target}. {launch_error}")
+        else:
+            exit_code = result.returncode if result is not None else "unknown"
+            print(f"FAILED: {target}. Unity exit code: {exit_code}")
         print(f"Inspect the log: {log_path}")
-        if "AUTOMATED_BUILD_RESULT=FAILED" not in log_text and "AUTOMATED_BUILD_RESULT=SUCCEEDED" not in log_text:
-            print("The helper did not report a result. Check the log for C# errors, profile issues, or a Unity instance already using this project.")
+        print(f"Per-attempt logs: {log_dir / f'build_{target}_attempt*.log'}")
+
+        if (
+            "AUTOMATED_BUILD_RESULT=FAILED" not in log_text
+            and "AUTOMATED_BUILD_RESULT=SUCCEEDED" not in log_text
+        ):
+            print(
+                "Unity did not report a build result. Check the logs for a startup crash, "
+                "C# errors, or another Unity instance using this project."
+            )
+        return 1
+
+    # Complete all post-build work in the staging folder before replacing the
+    # existing build. If copying Data fails, the existing build is untouched.
+    try:
+        if copy_data_to_build and target in ("windows", "linux", "macos"):
+            copy_external_data(project / DATA_DIR_NAME, staging_dir / DATA_DIR_NAME)
+
+        replace_build_directory(staging_dir, output_dir, backup_dir)
+    except (OSError, shutil.Error) as exc:
+        print(f"ERROR: new build succeeded, but installation failed: {exc}")
+        print("The previous build has been preserved where possible.")
+        try:
+            remove_path(staging_dir)
+        except OSError:
+            pass
         return 1
 
     print(f"SUCCESS: {target} build completed.")
-    if copy_data_to_build and target in ("windows", "linux", "macos"):
-        copy_external_data(project / DATA_DIR_NAME, output_dir / DATA_DIR_NAME)
+    print(f"Installed build: {output_dir}")
     return 0

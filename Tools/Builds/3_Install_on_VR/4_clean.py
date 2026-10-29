@@ -1,6 +1,6 @@
 from pathlib import Path
 
-PROJECT_DIR = Path(__file__).resolve().parents[2]
+PROJECT_DIR = Path(__file__).resolve().parents[3]
 
 ARCHIVE_PREFIX = "Data_QuestTransfer_"
 MANIFEST_PATH = PROJECT_DIR / "Data_QuestTransfer_manifest.json"
