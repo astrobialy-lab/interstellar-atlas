@@ -79,3 +79,31 @@ the application's visualization and coordinate system.
 - **Dataset DOI:** https://doi.org/10.5281/zenodo.8187942
 - **Dataset license:** Creative Commons Attribution 4.0 International (CC BY 4.0).
 - **License URL:** https://creativecommons.org/licenses/by/4.0/
+
+
+### Galactic Coordinate System
+
+The simulation uses a **right-handed Galactic Cartesian coordinate system**, centered on the Sun `(0, 0, 0)`.
+
+**Galactic axes:**
+- +X: Galactic Center
+- +Y: Galactic longitude 90°
+- +Z: North Galactic Pole
+
+**Galactic → Unity conversion:**
+
+```text
+Unity X = Galactic X
+Unity Y = Galactic Z
+Unity Z = Galactic Y
+```
+
+**Unity → Galactic conversion (HUD):**
+
+```text
+Galactic X = Unity X
+Galactic Y = Unity Z
+Galactic Z = Unity Y
+```
+
+This conversion is applied consistently to positions and directions, ensuring that the Unity simulation and Galactic coordinate HUD use the same coordinate convention.

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 import gc
 import json
 import shutil
@@ -599,6 +600,125 @@ def build_one_layer(
         "max_depth_used": int(max(node["depth"] for node in nodes)),
     }
 
+# ============================================================
+# Windows filesystem retry handling
+# ============================================================
+
+RETRY_TIMEOUT_SECONDS = 180.0
+RETRY_INTERVAL_SECONDS = 2.0
+
+
+def retry_permission_errors(description, operation):
+    """Retry filesystem operations when Windows temporarily denies access."""
+    start_time = time.monotonic()
+    last_report = -10.0
+
+    while True:
+        try:
+            return operation()
+
+        except PermissionError as exc:
+            elapsed = time.monotonic() - start_time
+
+            if elapsed >= RETRY_TIMEOUT_SECONDS:
+                raise PermissionError(
+                    f"{description} remained blocked for "
+                    f"{RETRY_TIMEOUT_SECONDS:.0f} seconds.\n"
+                    "Close Unity and any Explorer windows accessing "
+                    "the Gaia data, then try again."
+                ) from exc
+
+            if elapsed - last_report >= 10.0:
+                print(
+                    f"[WAIT] {description} is temporarily blocked. "
+                    f"Retrying... ({elapsed:.0f}s elapsed)"
+                )
+                last_report = elapsed
+
+            time.sleep(
+                min(RETRY_INTERVAL_SECONDS, RETRY_TIMEOUT_SECONDS - elapsed)
+            )
+
+
+def remove_directory_with_retry(path: Path):
+    """Remove a directory, retrying if Windows temporarily locks its files."""
+
+    def remove():
+        if path.exists():
+            shutil.rmtree(path)
+
+    retry_permission_errors(
+        f"Deleting directory: {path}",
+        remove,
+    )
+
+
+def rename_directory_with_retry(source: Path, destination: Path):
+    """Rename a directory, retrying temporary Windows permission errors."""
+
+    retry_permission_errors(
+        f"Renaming {source.name} to {destination.name}",
+        lambda: source.rename(destination),
+    )
+
+
+def commit_build_output():
+    """Replace the existing LOD output while preserving rollback capability."""
+
+    if not BUILD_DIR.is_dir():
+        raise FileNotFoundError(
+            f"Completed build directory not found:\n{BUILD_DIR}"
+        )
+
+    # Remove an obsolete backup only if the current output still exists.
+    if BACKUP_DIR.exists() and OUTPUT_DIR.exists():
+        print("Removing obsolete previous backup...")
+        remove_directory_with_retry(BACKUP_DIR)
+
+    had_previous_output = OUTPUT_DIR.exists()
+
+    # Preserve the previous output before installing the new build.
+    if had_previous_output:
+        print("Moving current LOD output to backup...")
+        rename_directory_with_retry(OUTPUT_DIR, BACKUP_DIR)
+
+    try:
+        print("Installing new LOD output...")
+        rename_directory_with_retry(BUILD_DIR, OUTPUT_DIR)
+
+    except Exception:
+        # Restore the old output if installation failed.
+        if BACKUP_DIR.exists() and not OUTPUT_DIR.exists():
+            print("Installation failed. Restoring previous LOD output...")
+
+            try:
+                rename_directory_with_retry(BACKUP_DIR, OUTPUT_DIR)
+
+            except Exception as restore_error:
+                raise RuntimeError(
+                    "Could not install the new LOD build or restore "
+                    "the previous output.\n"
+                    f"New build preserved at: {BUILD_DIR}\n"
+                    f"Previous output preserved at: {BACKUP_DIR}\n"
+                    "Do not delete either directory."
+                ) from restore_error
+
+        raise
+
+    # The new output is installed successfully.
+    # Failure to delete the backup must not invalidate the new output.
+    if BACKUP_DIR.exists():
+        try:
+            print("Removing previous LOD backup...")
+            remove_directory_with_retry(BACKUP_DIR)
+
+        except PermissionError as exc:
+            print(
+                "[WARNING] New LOD output was installed successfully, "
+                "but the previous backup could not be deleted."
+            )
+            print(f"Backup remains at: {BACKUP_DIR}")
+            print(f"Reason: {exc}")
 
 # ============================================================
 # Main
@@ -634,9 +754,26 @@ def main():
     print(f"Maximum stars per leaf:   {MAX_STARS_PER_NODE:,}")
     print(f"Maximum octree depth:     {MAX_OCTREE_DEPTH}")
 
+    # If a previous run completed all layers and wrote its manifest,
+    # only retry the final installation. Do not rebuild or delete it.
+    if BUILD_DIR.exists() and (BUILD_DIR / "manifest.json").is_file():
+        print()
+        print("Found an already completed Gaia LOD build.")
+        print("Skipping regeneration and retrying final installation.")
+
+        commit_build_output()
+
+        print()
+        print("GAIA LOD BUILD COMPLETE")
+        print(f"Output: {OUTPUT_DIR}")
+        return
+
+    # Remove an incomplete previous build before starting a new one.
     if BUILD_DIR.exists():
-        shutil.rmtree(BUILD_DIR)
-    BUILD_DIR.mkdir(parents=True, exist_ok=True)
+        print("Removing incomplete previous build...")
+        remove_directory_with_retry(BUILD_DIR)
+
+    BUILD_DIR.mkdir(parents=True, exist_ok=False)
 
     # First pass finds the total valid-star count and common spatial cube.
     valid_total, invalid_total, root_min, root_size = scan_input(files)
@@ -678,22 +815,7 @@ def main():
         json.dump(manifest, output, indent=2)
 
     # Replace the old output only after every layer has built successfully.
-    if BACKUP_DIR.exists():
-        shutil.rmtree(BACKUP_DIR)
-
-    had_previous_output = OUTPUT_DIR.exists()
-    if had_previous_output:
-        OUTPUT_DIR.rename(BACKUP_DIR)
-
-    try:
-        BUILD_DIR.rename(OUTPUT_DIR)
-    except Exception:
-        if had_previous_output and BACKUP_DIR.exists() and not OUTPUT_DIR.exists():
-            BACKUP_DIR.rename(OUTPUT_DIR)
-        raise
-
-    if BACKUP_DIR.exists():
-        shutil.rmtree(BACKUP_DIR)
+    commit_build_output()
 
     print()
     print("============================================================")

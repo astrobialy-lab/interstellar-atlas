@@ -60,19 +60,6 @@ public class ClusterMarkerGenerator : MonoBehaviour
     [Min(0.001f)]
     public float fallbackColliderRadius = 0.05f;
 
-    [Header("Coordinate Mapping")]
-    [Tooltip(
-        "GalacticXYZ maps source (x,y,z) to Unity (x,z,y), " +
-        "where Unity Y is galactic north. Use UnityXYZ if the " +
-        "binary already contains Unity-space coordinates.")]
-    [SerializeField] private PositionCoordinateMode coordinateMode = PositionCoordinateMode.GalacticXYZ;
-
-    public enum PositionCoordinateMode
-    {
-        GalacticXYZ,
-        UnityXYZ
-    }
-
     private bool markersVisible = true;
 
     private void Start()
@@ -130,7 +117,11 @@ public class ClusterMarkerGenerator : MonoBehaviour
             ClusterDatabase.ClusterRecord record =
                 database.GetClusterAt(i);
 
-            Vector3 position = GetUnityPosition(record);
+            Vector3 position = new Vector3(
+                record.x,
+                record.y,
+                record.z
+            );
 
             GameObject marker = Instantiate(
                 clusterMarkerPrefab,
@@ -159,27 +150,6 @@ public class ClusterMarkerGenerator : MonoBehaviour
         Debug.Log(
             $"GaiaClusterMarkerGenerator: Created {created:N0} " +
             $"cluster markers from {database.ClusterCount:N0} records.");
-    }
-
-    private Vector3 GetUnityPosition(
-        ClusterDatabase.ClusterRecord record)
-    {
-        switch (coordinateMode)
-        {
-            case PositionCoordinateMode.GalacticXYZ:
-                // Galactic Z is vertical; Unity Y is vertical.
-                return new Vector3(
-                    record.x,
-                    record.z,
-                    record.y);
-
-            case PositionCoordinateMode.UnityXYZ:
-            default:
-                return new Vector3(
-                    record.x,
-                    record.y,
-                    record.z);
-        }
     }
 
     private void ConfigureClusterInfo(
@@ -270,10 +240,12 @@ public class ClusterMarkerGenerator : MonoBehaviour
 
         // Position
         description.AppendLine();
-        description.AppendLine("Galactic Cartesian coordinates (Sun-centered):");
+        description.AppendLine("Unity Cartesian coordinates (Sun-centered):");
         description.AppendLine($"  X: {FormatNumber(record.x)} pc");
         description.AppendLine($"  Y: {FormatNumber(record.y)} pc");
         description.AppendLine($"  Z: {FormatNumber(record.z)} pc");
+
+        description.AppendLine("  Galactic mapping: Unity X = Galactic X, Unity Y = Galactic Z, Unity Z = Galactic Y");
 
         // Distance and age
         AppendDistanceEstimates(description, record);

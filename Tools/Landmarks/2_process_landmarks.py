@@ -113,12 +113,14 @@ def convert(project_root: Path) -> tuple[Path, int]:
                     raise ValueError(f"CSV line {line_number}: landmark name is empty.")
 
                 # Input XYZ is standard Sun-centered Galactic Cartesian, pc.
-                # Output XYZ matches the Unity world axes (Unity Y is up):
-                # Unity X = Galactic X; Unity Y = Galactic Z; Unity Z = -Galactic Y.
+                # Output XYZ matches the Unity world axes:
+                # Unity X = Galactic X
+                # Unity Y = Galactic Z
+                # Unity Z = Galactic Y
                 gal_x = parse_float(row, "x_pc", line_number)
                 gal_y = parse_float(row, "y_pc", line_number)
                 gal_z = parse_float(row, "z_pc", line_number)
-                unity_x, unity_y, unity_z = gal_x, gal_z, -gal_y
+                unity_x, unity_y, unity_z = gal_x, gal_z, gal_y
 
                 name_bytes = encode_string(name, "name", 0xFFFF)
                 type_bytes = encode_string(landmark_type, "type", 0xFFFF)
@@ -157,7 +159,7 @@ def main() -> None:
     output_path, count = convert(root)
     print(f"Landmarks written: {count:,}")
     print(f"Output:            {output_path}")
-    print("Coordinates: Unity X=Galactic X, Unity Y=Galactic Z, Unity Z=-Galactic Y")
+    print("Coordinates: Unity X=Galactic X, Unity Y=Galactic Z, Unity Z=Galactic Y")
 
 
 if __name__ == "__main__":

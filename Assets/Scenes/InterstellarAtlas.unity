@@ -1187,7 +1187,7 @@ MonoBehaviour:
   opacity: 0.2
   targetCamera: {fileID: 330585545}
   customSpriteTexture: {fileID: 2800000, guid: 383a4b07d1e11f042b69e9098ce8b621, type: 3}
-  spriteSizeMultiplier: 1.4
+  spriteSizeMultiplier: 1.5
 --- !u!1 &223379401
 GameObject:
   m_ObjectHideFlags: 0

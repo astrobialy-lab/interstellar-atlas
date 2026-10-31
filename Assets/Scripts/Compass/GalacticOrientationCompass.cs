@@ -25,13 +25,8 @@ public class GalacticOrientationCompass : MonoBehaviour
     public float axisWidth = 0.012f;
 
     [Header("Axis Labels")]
-    [Tooltip("Font size of the X, Y and Z labels.")]
     public float labelFontSize = 28f;
-
-    [Tooltip("Distance of each label beyond its axis endpoint, in canvas units.")]
     public float labelOffset = 20f;
-
-    [Tooltip("Width and height of each label's text box.")]
     public Vector2 labelBoxSize = new Vector2(60f, 50f);
 
     [Header("Axis Colors")]
@@ -56,14 +51,19 @@ public class GalacticOrientationCompass : MonoBehaviour
 
     // Galactic simulation axes expressed in Unity world coordinates:
     // +Xgal = Unity +X
-    // +Ygal = Unity -Z
+    // +Ygal = Unity +Z
     // +Zgal = Unity +Y
     private readonly Vector3[] axisDirections =
     {
         Vector3.right,
-        Vector3.back,
+        Vector3.forward,
         Vector3.up
     };
+
+    // 0-2 = axis lines
+    // 3-5 = axis labels
+    private readonly int[] drawOrder = { 0, 1, 2, 3, 4, 5 };
+    private readonly float[] drawDepths = new float[6];
 
     private readonly string[] axisLabelTexts =
     {
@@ -74,7 +74,6 @@ public class GalacticOrientationCompass : MonoBehaviour
     private RectTransform compassRect;
 
     private Canvas uiCanvas;
-    private RectTransform canvasRect;
     private Camera viewerUnityCamera;
 
     private Texture2D whiteTexture;
@@ -118,8 +117,7 @@ public class GalacticOrientationCompass : MonoBehaviour
         if (viewerCamera == null ||
             viewerUnityCamera == null ||
             uiPanel == null ||
-            uiCanvas == null ||
-            canvasRect == null)
+            uiCanvas == null)
         {
             return;
         }
@@ -157,13 +155,7 @@ public class GalacticOrientationCompass : MonoBehaviour
         }
 
         if (uiPanel != null)
-        {
             uiCanvas = uiPanel.GetComponentInParent<Canvas>();
-
-            canvasRect = uiCanvas != null
-                ? uiCanvas.transform as RectTransform
-                : null;
-        }
     }
 
     private void BuildCompass()
@@ -176,8 +168,7 @@ public class GalacticOrientationCompass : MonoBehaviour
         if (viewerCamera == null ||
             viewerUnityCamera == null ||
             uiPanel == null ||
-            uiCanvas == null ||
-            canvasRect == null)
+            uiCanvas == null)
         {
             return;
         }
@@ -191,7 +182,6 @@ public class GalacticOrientationCompass : MonoBehaviour
             typeof(RectTransform)
         );
 
-        // Parent to the scaled Panel.
         compassAnchor.transform.SetParent(uiPanel, false);
 
         compassRect = compassAnchor.GetComponent<RectTransform>();
@@ -268,7 +258,7 @@ public class GalacticOrientationCompass : MonoBehaviour
         axisRects.Add(rect);
         axisImages.Add(image);
 
-        // Create the matching X, Y or Z label.
+        // Create the matching axis label.
         GameObject labelObject = new GameObject(
             axisName + " Label",
             typeof(RectTransform),
@@ -310,8 +300,8 @@ public class GalacticOrientationCompass : MonoBehaviour
         Vector3 anchorWorld =
             viewerCamera.TransformPoint(localPosition);
 
-        if (!TryWorldToCanvasLocal(
-            anchorWorld, out Vector2 anchorCanvas))
+        if (!TryWorldToPanelLocal(
+            anchorWorld, out Vector2 anchorPanel))
         {
             compassAnchor.SetActive(false);
             return;
@@ -319,7 +309,7 @@ public class GalacticOrientationCompass : MonoBehaviour
 
         compassAnchor.SetActive(true);
 
-        compassRect.anchoredPosition = anchorCanvas;
+        compassRect.anchoredPosition = anchorPanel;
 
         float scale = Mathf.Max(0f, compassScale);
 
@@ -329,17 +319,17 @@ public class GalacticOrientationCompass : MonoBehaviour
         float worldAxisWidth =
             Mathf.Max(0f, axisWidth) * scale;
 
-        float canvasWidth = 1f;
+        float panelWidth = 1f;
 
-        if (TryWorldToCanvasLocal(
+        if (TryWorldToPanelLocal(
             anchorWorld + viewerCamera.up * worldAxisWidth,
             out Vector2 widthPoint))
         {
-            canvasWidth =
-                Vector2.Distance(anchorCanvas, widthPoint);
+            panelWidth =
+                Vector2.Distance(anchorPanel, widthPoint);
         }
 
-        canvasWidth = Mathf.Max(0.1f, canvasWidth);
+        panelWidth = Mathf.Max(0.1f, panelWidth);
 
         for (int i = 0; i < axisImages.Count; i++)
         {
@@ -359,8 +349,20 @@ public class GalacticOrientationCompass : MonoBehaviour
                 anchorWorld +
                 axisDirections[i] * worldAxisLength;
 
-            if (!TryWorldToCanvasLocal(
-                endpointWorld, out Vector2 endpointCanvas))
+            // Calculate depth in camera space.
+            Vector3 midpointWorld =
+                (anchorWorld + endpointWorld) * 0.5f;
+
+            drawDepths[i] =
+                viewerUnityCamera.transform
+                .InverseTransformPoint(midpointWorld).z;
+
+            drawDepths[i + 3] =
+                viewerUnityCamera.transform
+                .InverseTransformPoint(endpointWorld).z;
+
+            if (!TryWorldToPanelLocal(
+                endpointWorld, out Vector2 endpointPanel))
             {
                 image.enabled = false;
                 label.enabled = false;
@@ -371,7 +373,7 @@ public class GalacticOrientationCompass : MonoBehaviour
             label.enabled = true;
 
             // Position and rotate the axis line.
-            Vector2 delta = endpointCanvas - anchorCanvas;
+            Vector2 delta = endpointPanel - anchorPanel;
 
             float length = delta.magnitude;
 
@@ -379,13 +381,11 @@ public class GalacticOrientationCompass : MonoBehaviour
                 Mathf.Atan2(delta.y, delta.x) * Mathf.Rad2Deg;
 
             rect.anchoredPosition = delta * 0.5f;
-            rect.sizeDelta = new Vector2(length, canvasWidth);
+            rect.sizeDelta = new Vector2(length, panelWidth);
             rect.localRotation =
                 Quaternion.Euler(0f, 0f, angle);
 
-            // Put the label slightly beyond the positive axis endpoint.
-            // The projected direction is used rather than Unity's
-            // direction labels, so the labels follow the simulation axes.
+            // Position the label beyond the axis endpoint.
             Vector2 projectedDirection =
                 delta.sqrMagnitude > 0.0001f
                     ? delta.normalized
@@ -396,23 +396,60 @@ public class GalacticOrientationCompass : MonoBehaviour
             labelRect.anchoredPosition =
                 delta + projectedDirection * offset;
 
-            // Keep the text upright as the viewer rotates.
+            // Keep text upright.
             labelRect.localRotation = Quaternion.identity;
 
             labelRect.sizeDelta = labelBoxSize;
             label.fontSize = labelFontSize;
         }
+
+        // Sort lines and labels according to camera-space depth.
+        ApplyCanvasDrawOrder();
     }
 
-    private bool TryWorldToCanvasLocal(
-        Vector3 worldPosition,
-        out Vector2 canvasPosition)
+    private void ApplyCanvasDrawOrder()
     {
-        canvasPosition = Vector2.zero;
+        // Reset order before sorting.
+        for (int i = 0; i < drawOrder.Length; i++)
+            drawOrder[i] = i;
+
+        // Sort all six objects together, farthest first.
+        for (int i = 0; i < drawOrder.Length - 1; i++)
+        {
+            for (int j = i + 1; j < drawOrder.Length; j++)
+            {
+                if (drawDepths[drawOrder[i]] <
+                    drawDepths[drawOrder[j]])
+                {
+                    int temp = drawOrder[i];
+                    drawOrder[i] = drawOrder[j];
+                    drawOrder[j] = temp;
+                }
+            }
+        }
+
+        // Apply the resulting Canvas sibling order.
+        for (int i = 0; i < drawOrder.Length; i++)
+        {
+            int index = drawOrder[i];
+
+            RectTransform rect = index < 3
+                ? axisRects[index]
+                : labelRects[index - 3];
+
+            rect.SetSiblingIndex(i);
+        }
+    }
+
+    private bool TryWorldToPanelLocal(
+        Vector3 worldPosition,
+        out Vector2 panelPosition)
+    {
+        panelPosition = Vector2.zero;
 
         if (viewerUnityCamera == null ||
             uiCanvas == null ||
-            canvasRect == null)
+            uiPanel == null)
         {
             return false;
         }
@@ -431,10 +468,10 @@ public class GalacticOrientationCompass : MonoBehaviour
                     : viewerUnityCamera);
 
         return RectTransformUtility.ScreenPointToLocalPointInRectangle(
-            canvasRect,
+            uiPanel,
             new Vector2(screenPosition.x, screenPosition.y),
             canvasCamera,
-            out canvasPosition
+            out panelPosition
         );
     }
 

@@ -8,10 +8,8 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 # Big stars filtering
 STAR_MIN_MASS_SOLAR = 2.0
 
-# Dust bounding box, centered on the Sun (Unity origin), in pc.
-BOX_HALF_X = 1010.0
-BOX_HALF_Y = 410.0
-BOX_HALF_Z = 1010.0
+# Maximum spherical distance from the Sun, in pc.
+MAX_DISTANCE_PC = 1250.0
 
 MAX_WORKERS = 20
 
@@ -147,7 +145,7 @@ def radec_distance_to_xyz(
     return (
         distance_pc * x_gal,
         distance_pc * z_gal,
-        -distance_pc * y_gal
+        distance_pc * y_gal
     )
 
 # ============================================================
@@ -257,6 +255,18 @@ def process_healpix(csv_file):
                     evolstage = safe_int(row["evolstage_flame"])
 
                     # ------------------------------------------------
+                    # Distance from the Sun filter
+                    # ------------------------------------------------
+
+                    if (
+                        not valid_number(distance)
+                        or distance <= 0
+                        or distance > MAX_DISTANCE_PC
+                    ):
+                        skipped += 1
+                        continue
+
+                    # ------------------------------------------------
                     # Massive-star filter
                     # ------------------------------------------------
 
@@ -303,18 +313,6 @@ def process_healpix(csv_file):
                         dec,
                         distance
                     )
-
-                    # ------------------------------------------------
-                    # Dust bounding-box filter
-                    # ------------------------------------------------
-
-                    if not (
-                        -BOX_HALF_X <= x <= BOX_HALF_X
-                        and -BOX_HALF_Y <= y <= BOX_HALF_Y
-                        and -BOX_HALF_Z <= z <= BOX_HALF_Z
-                    ):
-                        skipped += 1
-                        continue
 
                     # ------------------------------------------------
                     # GSP-Phot

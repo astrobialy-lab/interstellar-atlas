@@ -6,10 +6,8 @@ import struct
 
 import numpy as np
 
-# Dust bounding box, centered on the Sun (Unity origin), in pc.
-BOX_HALF_X = 1010.0
-BOX_HALF_Y = 410.0
-BOX_HALF_Z = 1010.0
+# Maximum spherical distance from the Sun, in pc.
+MAX_DISTANCE_PC = 1250.0
 
 # ============================================================
 # Paths
@@ -270,25 +268,17 @@ def galactic_to_unity_position(
     """
     Convert heliocentric Galactic coordinates into Unity positions.
 
-    Galactic longitude: degrees
-    Galactic latitude: degrees
-    Distance: parsecs
-
-    Unity:
-        +X = Galactic center direction
-        +Y = North Galactic Pole
-        +Z = opposite conventional Galactic Y
+    Galactic → Unity:
+        Unity X = Galactic X
+        Unity Y = Galactic Z
+        Unity Z = Galactic Y
 
     1 Unity unit = 1 pc
     """
 
     if not all(
         math.isfinite(value)
-        for value in (
-            glon_deg,
-            glat_deg,
-            distance_pc,
-        )
+        for value in (glon_deg, glat_deg, distance_pc)
     ):
         return math.nan, math.nan, math.nan
 
@@ -302,7 +292,7 @@ def galactic_to_unity_position(
 
     x = distance_pc * cos_b * math.cos(l)
     y = distance_pc * math.sin(b)
-    z = -distance_pc * cos_b * math.sin(l)
+    z = distance_pc * cos_b * math.sin(l)
 
     return x, y, z
 
@@ -485,24 +475,19 @@ def process_clusters():
             )
 
             # ------------------------------------------------
-            # Keep only clusters whose centers are inside
-            # the dust bounding box.
+            # Keep only clusters within distance from the Sun.
             # ------------------------------------------------
 
-            if not all(
-                math.isfinite(value)
-                for value in (
-                    x_unity,
-                    y_unity,
-                    z_unity,
-                )
+            if (
+                not math.isfinite(distance)
+                or distance < 0
+                or distance > MAX_DISTANCE_PC
             ):
                 continue
 
-            if (
-                abs(x_unity) > BOX_HALF_X
-                or abs(y_unity) > BOX_HALF_Y
-                or abs(z_unity) > BOX_HALF_Z
+            if not all(
+                math.isfinite(value)
+                for value in (x_unity, y_unity, z_unity)
             ):
                 continue
 

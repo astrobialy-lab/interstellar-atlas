@@ -17,7 +17,7 @@ LEVEL = 3
 NPIXELS = 12 * 4**LEVEL
 DIVISOR = 2 ** (59 - 2 * LEVEL)
 
-MAX_DISTANCE_PC = 1100.0
+MAX_DISTANCE_PC = 2000
 
 MAX_WORKERS = 3 # use 20 when gaia is out of maintanance
 

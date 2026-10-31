@@ -337,13 +337,13 @@ public class GalacticCoordinateHUD : MonoBehaviour
 
     private Vector3 UnityToGalactic(Vector3 unityVector)
     {
-        // Standard Galactic axes:
+        // Right-handed Galactic coordinates:
         // +X = Galactic center
         // +Y = Galactic rotation direction
-        // +Z = Galactic north
+        // +Z = North Galactic Pole
         return new Vector3(
             unityVector.x,
-            -unityVector.z,
+            unityVector.z,
             unityVector.y
         );
     }
