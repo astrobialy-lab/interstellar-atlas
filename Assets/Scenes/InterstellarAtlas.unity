@@ -1181,13 +1181,13 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::DustSpriteRenderer
   relativeDataPath: Dust/dust_sprites.bin
-  maxSpritesToLoad: 10000
+  maxSpritesToLoad: 20000
   spriteShader: {fileID: 4800000, guid: cf10ac3c3bd202b49b38400f53f2797c, type: 3}
   spriteTint: {r: 1, g: 1, b: 1, a: 1}
   opacity: 0.2
   targetCamera: {fileID: 330585545}
   customSpriteTexture: {fileID: 2800000, guid: 383a4b07d1e11f042b69e9098ce8b621, type: 3}
-  spriteSizeMultiplier: 1.5
+  spriteSizeMultiplier: 1.2
 --- !u!1 &223379401
 GameObject:
   m_ObjectHideFlags: 0
@@ -2631,7 +2631,7 @@ MonoBehaviour:
   nebulaMarkerPrefab: {fileID: 6192945478437891419, guid: 8864130be5c790645b1407ed3adc26c4, type: 3}
   clusterMarkerPrefab: {fileID: 6192945478437891419, guid: ec5c80618217a134f8afe3fa9925e28e, type: 3}
   associationMarkerPrefab: {fileID: 6192945478437891419, guid: 92e2f1cbd0c03b643a831323dda7ec78, type: 3}
-  markerScale: 0.1
+  markerScale: 0.3
   playerCamera: {fileID: 330585546}
   colliderSizeMultiplier: 1
   fallbackColliderRadius: 0.05
@@ -3450,7 +3450,7 @@ MonoBehaviour:
   rollSpeed: 60
   landmarkMarkerGenerator: {fileID: 376260066}
   markerPopup: {fileID: 1765479602}
-  selectionRayDistance: 50
+  selectionRayDistance: 500
   landmarkLayerMask:
     serializedVersion: 2
     m_Bits: 4294967295
@@ -3488,7 +3488,7 @@ MonoBehaviour:
   inputDeadzone: 0.15
   movementSmoothing: 4
   turnSmoothing: 4
-  selectionRayDistance: 50
+  selectionRayDistance: 500
   landmarkLayerMask:
     serializedVersion: 2
     m_Bits: 4294967295
@@ -7867,7 +7867,6 @@ MonoBehaviour:
   clusterFilter: {fileID: 1069188329}
   colliderSizeMultiplier: 1
   fallbackColliderRadius: 0.05
-  coordinateMode: 1
 --- !u!114 &1069188329
 MonoBehaviour:
   m_ObjectHideFlags: 0

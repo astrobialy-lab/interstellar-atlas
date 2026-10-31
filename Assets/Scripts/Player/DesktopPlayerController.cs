@@ -32,7 +32,8 @@ public class DesktopPlayerController : MonoBehaviour
     [Header("Stars LOD")]
     public StarsLODLoader starsLodLoader;
 
-    private static readonly int[] StarDisplayModes = { 8, 6, 4, 2, 0 };
+    private static readonly int[] StarDisplayModes = { 6, 4, 2, -1, -1 };
+
     private int starDisplayModePosition = 0;
 
     [Header("Stars LOD Debug")]
@@ -85,17 +86,17 @@ public class DesktopPlayerController : MonoBehaviour
                 FindAnyObjectByType<StarsLODNodesVisualizer>();
         }
 
-        // Start in the default display mode: layer 8.
+        // Start in the default display mode: layer 6
         starDisplayModePosition = 0;
 
         if (starFilter != null)
         {
-            starFilter.SetClustersOnly(false);
+            starFilter.SetDisplayVisibility(true, false);
         }
 
         if (starsLodLoader != null)
         {
-            starsLodLoader.SetLayerIndex(8);
+            starsLodLoader.SetLayerIndex(6);
         }
 
         Cursor.lockState = CursorLockMode.Locked;
@@ -381,36 +382,46 @@ public class DesktopPlayerController : MonoBehaviour
 
         int nextMode = StarDisplayModes[nextPosition];
 
-        if (nextMode == 0)
-        {
-            if (starFilter == null)
-            {
-                Debug.LogWarning("GaiaStarFilter not found.");
-                return;
-            }
+        bool showStars = nextMode != -1;
+        bool showClusters = nextPosition == 4;
 
-            starFilter.SetClustersOnly(true);
-            Debug.Log("Star display: clusters only");
+        if (starFilter == null)
+        {
+            Debug.LogWarning("DesktopPlayerController: GaiaStarFilter not found.");
+            return;
         }
-        else
+
+        // Only select a real LOD layer.
+        if (showStars)
         {
             if (starsLodLoader == null)
             {
-                Debug.LogWarning("StarsLODLoader not found.");
+                Debug.LogWarning("DesktopPlayerController: StarsLODLoader not found.");
                 return;
             }
 
-            starsLodLoader.SetLayerIndex(nextMode);
-
-            if (starFilter != null)
+            if (!starsLodLoader.SetLayerIndex(nextMode))
             {
-                starFilter.SetClustersOnly(false);
+                Debug.LogWarning(
+                    $"DesktopPlayerController: Could not select LOD layer {nextMode}."
+                );
+                return;
             }
-
-            Debug.Log($"Star display: LOD layer {nextMode}");
         }
 
+        starFilter.SetDisplayVisibility(
+            showStars,
+            showClusters
+        );
+
         starDisplayModePosition = nextPosition;
+
+        if (showStars)
+            Debug.Log($"Star display: LOD layer {nextMode}");
+        else if (showClusters)
+            Debug.Log("Star display: clusters only");
+        else
+            Debug.Log("Star display: no stars, no clusters");
     }
 
     private void TrySelectLandmark()
@@ -475,7 +486,7 @@ public class DesktopPlayerController : MonoBehaviour
         "= / -: increase / decrease speed",
         "3: cycle dust sprite transparency",
         "4: next dust color scheme",
-        "5: cycle star LOD level (8 / 6 / 4 / 2) / clusters",
+        "5: cycle star display (level: 6 / 4 / 2 / none / clusters only)",
         "6: show / hide landmarks and orientation",
         "7: select landmark",
         "8: toggle Stars LOD node bounds",

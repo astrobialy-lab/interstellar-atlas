@@ -314,7 +314,7 @@ def build_target(
         return 2
 
     product_name = read_product_name(project)
-    output_folder = {"windows": "Windows", "linux": "Linux", "macos": "macOS", "quest": "Android"}[target]
+    output_folder = {"windows": "Windows", "linux": "Linux", "macos": "macOS", "quest": "MetaQuest"}[target]
     builds_root = project / BUILD_DIR_NAME
     output_dir = builds_root / output_folder
     staging_dir = builds_root / f".{output_folder}.staging"

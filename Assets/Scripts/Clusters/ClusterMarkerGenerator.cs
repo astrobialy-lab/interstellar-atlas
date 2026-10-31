@@ -238,14 +238,12 @@ public class ClusterMarkerGenerator : MonoBehaviour
                 $"  Latitude: {FormatNumber(record.glat)} degrees");
         }
 
-        // Position
+        // Galactic Cartesian coordinates (Sun-centered)
         description.AppendLine();
-        description.AppendLine("Unity Cartesian coordinates (Sun-centered):");
+        description.AppendLine("Galactic Cartesian coordinates (Sun-centered):");
         description.AppendLine($"  X: {FormatNumber(record.x)} pc");
-        description.AppendLine($"  Y: {FormatNumber(record.y)} pc");
-        description.AppendLine($"  Z: {FormatNumber(record.z)} pc");
-
-        description.AppendLine("  Galactic mapping: Unity X = Galactic X, Unity Y = Galactic Z, Unity Z = Galactic Y");
+        description.AppendLine($"  Y: {FormatNumber(record.z)} pc");
+        description.AppendLine($"  Z: {FormatNumber(record.y)} pc");
 
         // Distance and age
         AppendDistanceEstimates(description, record);

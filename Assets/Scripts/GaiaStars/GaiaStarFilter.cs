@@ -141,9 +141,16 @@ public sealed class GaiaStarFilter : MonoBehaviour
             maxTemperatureK = 50000f
         };
 
+    // Cluster visibility is independent of star visibility.
+    private bool showClusters = false;
+
     private int revision;
 
     public int Revision => revision;
+
+    public bool StarsVisible => settings.showStars;
+
+    public bool ClustersVisible => showClusters;
 
     public event System.Action<bool, float> BrightnessFilterChanged;
 
@@ -176,8 +183,10 @@ public sealed class GaiaStarFilter : MonoBehaviour
             newSettings.maxEvolutionStage)
         {
             int temp = newSettings.minEvolutionStage;
+
             newSettings.minEvolutionStage =
                 newSettings.maxEvolutionStage;
+
             newSettings.maxEvolutionStage = temp;
         }
 
@@ -191,7 +200,6 @@ public sealed class GaiaStarFilter : MonoBehaviour
 
         UpdateClusterSpriteVisibility();
 
-        // Synchronize the filter menu. This does not cycle brightness.
         BrightnessFilterChanged?.Invoke(
             settings.useMagnitudeLimit,
             settings.maxMagnitude);
@@ -228,36 +236,69 @@ public sealed class GaiaStarFilter : MonoBehaviour
         }
     }
 
-    public bool StarsVisible => settings.showStars;
+    // ========================================================
+    // DISPLAY VISIBILITY
+    // ========================================================
 
-    public void SetClustersOnly(bool enabled)
+    public void SetDisplayVisibility(
+        bool starsVisible,
+        bool clustersVisible)
     {
-        SetStarsVisible(!enabled);
-    }
+        bool starsChanged =
+            settings.showStars != starsVisible;
 
-    public void SetStarsVisible(bool visible)
-    {
-        if (settings.showStars == visible)
+        bool clustersChanged =
+            showClusters != clustersVisible;
+
+        if (!starsChanged && !clustersChanged)
         {
             UpdateClusterSpriteVisibility();
             return;
         }
 
-        settings.showStars = visible;
+        settings.showStars = starsVisible;
+        showClusters = clustersVisible;
 
         UpdateClusterSpriteVisibility();
 
-        unchecked
+        // Only star visibility affects the star LOD loader.
+        // Changing cluster visibility alone does not reload stars.
+        if (starsChanged)
         {
-            revision++;
+            unchecked
+            {
+                revision++;
+            }
         }
     }
 
+    public void SetStarsVisible(bool visible)
+    {
+        SetDisplayVisibility(visible, showClusters);
+    }
+
+    public void SetClustersVisible(bool visible)
+    {
+        SetDisplayVisibility(settings.showStars, visible);
+    }
+
+    // Convenience method for the traditional clusters-only mode.
+    public void SetClustersOnly(bool enabled)
+    {
+        SetDisplayVisibility(
+            !enabled,
+            enabled
+        );
+    }
+
+    // ========================================================
+    // INITIALIZATION
+    // ========================================================
+
     private void Awake()
     {
-        // Always start with stars visible.
-        // Preserve all magnitude and stellar-property filter settings.
         settings.showStars = true;
+        showClusters = false;
     }
 
     private void Start()
@@ -274,9 +315,14 @@ public sealed class GaiaStarFilter : MonoBehaviour
     private void UpdateClusterSpriteVisibility()
     {
         if (clusterMarkerGenerator == null)
+        {
+            clusterMarkerGenerator =
+                FindAnyObjectByType<ClusterMarkerGenerator>();
+        }
+
+        if (clusterMarkerGenerator == null)
             return;
 
-        // Show clusters only when stars are disabled.
-        clusterMarkerGenerator.SetMarkersVisible(!settings.showStars);
+        clusterMarkerGenerator.SetMarkersVisible(showClusters);
     }
 }

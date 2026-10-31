@@ -315,6 +315,13 @@ public class StarsLODLoader : GaiaStarBufferProvider
 
         ProcessCompletedLoads();
 
+        // Do not stream stars when they are hidden.
+        // Completed background tasks have already been processed above.
+        if (starFilter == null || !starFilter.StarsVisible)
+        {
+            return;
+        }
+
         Transform cameraTransform =
             targetCamera.transform;
 
@@ -758,6 +765,8 @@ public class StarsLODLoader : GaiaStarBufferProvider
     public void UpdateSelection()
     {
         if (!isReady ||
+            starFilter == null ||
+            !starFilter.StarsVisible ||
             targetCamera == null ||
             nodes.Count == 0)
         {
@@ -1016,6 +1025,13 @@ public class StarsLODLoader : GaiaStarBufferProvider
             return;
         }
 
+        if (starFilter == null || !starFilter.StarsVisible)
+        {
+            desiredNodeIds.Clear();
+            InvalidateLoadedNodes();
+            return;
+        }
+
         UpdateSelection();
 
         List<uint> unload = new List<uint>();
@@ -1043,7 +1059,9 @@ public class StarsLODLoader : GaiaStarBufferProvider
 
     private void StartPendingLoads()
     {
-        if (!isReady)
+        if (!isReady ||
+            starFilter == null ||
+            !starFilter.StarsVisible)
         {
             return;
         }
@@ -1646,6 +1664,11 @@ public class StarsLODLoader : GaiaStarBufferProvider
         counts.Clear();
         fades.Clear();
 
+        if (starFilter == null || !starFilter.StarsVisible)
+        {
+            return;
+        }
+
         foreach (LoadedNode node in loadedNodes.Values)
         {
             if (node == null ||
@@ -1828,6 +1851,11 @@ public class StarsLODLoader : GaiaStarBufferProvider
             value < 0 ||
             value >= availableLayerCount)
         {
+            Debug.LogWarning(
+                $"StarsLODLoader: Invalid layer index {value}. " +
+                $"Available range: 0-{availableLayerCount - 1}."
+            );
+
             return false;
         }
 

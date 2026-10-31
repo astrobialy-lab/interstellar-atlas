@@ -14,7 +14,7 @@ public sealed class DustSpriteRenderer : MonoBehaviour
     [Header("Data")]
     [SerializeField] private string relativeDataPath = "Dust/dust_sprites.bin";
 
-    public const int MaxAllowedSprites = 20000;
+    public const int MaxAllowedSprites = 30000;
 
     private const int GeneratedSpriteCount = MaxAllowedSprites;
     private const string MaxSpritesPreferenceKey = "DustSpriteRenderer.MaxSpritesToLoad";

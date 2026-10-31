@@ -1,7 +1,8 @@
 ## custom
 
 # ignore data
-/DataRaw/
+/DataRaw/*
+!/DataRaw/Landmarks/
 /Data/
 /trash/
 Data_QuestTransfer_manifest.json

@@ -5,9 +5,9 @@ Place this script in Tools/Builds/ and run:
     python package_builds.py
 
 Outputs:
-    Builds/Packages/<Product>-Windows.zip
-    Builds/Packages/<Product>-macOS.zip
-    Builds/Packages/<Product>-Linux.tar.gz
+    Builds/Packages/<Product> Windows.zip
+    Builds/Packages/<Product> macOS.zip
+    Builds/Packages/<Product> Linux.tar.gz
 """
 from __future__ import annotations
 
@@ -133,7 +133,7 @@ def zip_build(source: Path, archive: Path, product: str, macos: bool = False) ->
                 mode = source_mode or 0o644
                 # Builds made on Windows don't carry Unix execute bits. Set them
                 # on macOS app executables so the main app binary remains runnable.
-                if macos and ".app/Contents/MacOS/" in ("/" + archive_name + "/"):
+                if macos and ".app/Contents/macOS/" in ("/" + archive_name + "/"):
                     mode |= 0o111
                 info.external_attr = (stat.S_IFREG | mode) << 16
                 with path.open("rb") as src, zf.open(info, "w", force_zip64=True) as dst:
@@ -190,11 +190,11 @@ def main() -> int:
     PACKAGE_ROOT.mkdir(parents=True, exist_ok=True)
     tasks = []
     if PACKAGE_WINDOWS:
-        tasks.append(("Windows", PACKAGE_ROOT / f"{name}-Windows.zip", "zip"))
+        tasks.append(("Windows", PACKAGE_ROOT / f"{name} Windows.zip", "zip"))
     if PACKAGE_MACOS:
-        tasks.append(("macOS", PACKAGE_ROOT / f"{name}-macOS.zip", "maczip"))
+        tasks.append(("macOS", PACKAGE_ROOT / f"{name} macOS.zip", "maczip"))
     if PACKAGE_LINUX:
-        tasks.append(("Linux", PACKAGE_ROOT / f"{name}-Linux.tar.gz", "tar"))
+        tasks.append(("Linux", PACKAGE_ROOT / f"{name} Linux.tar.gz", "tar"))
 
     if not tasks:
         print("Nothing to package: all PACKAGE_* switches are False.")

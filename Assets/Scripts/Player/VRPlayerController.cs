@@ -26,7 +26,7 @@ public class VRPlayerController : MonoBehaviour
     public GaiaStarFilter starFilter;
     public StarsLODLoader starsLodLoader;
 
-    private static readonly int[] StarDisplayModes = { 8, 6, 4, 2, 0 };
+    private static readonly int[] StarDisplayModes = { 6, 4, 2, -1, -1 };
     private int starDisplayModePosition = 0;
 
     [Header("Stars LOD Debug")]
@@ -91,12 +91,12 @@ public class VRPlayerController : MonoBehaviour
         if (rightRayLine != null)
             rightRayLine.enabled = false;
 
-        // Start in the default mode: LOD layer 8.
+        // Start in the default mode: LOD layer 6.
         starDisplayModePosition = 0;
 
         if (starsLodLoader != null)
         {
-            starsLodLoader.SetLayerIndex(8);
+            starsLodLoader.SetLayerIndex(6);
         }
         else
         {
@@ -105,7 +105,7 @@ public class VRPlayerController : MonoBehaviour
 
         if (starFilter != null)
         {
-            starFilter.SetClustersOnly(false);
+            starFilter.SetDisplayVisibility(true, false);
         }
         else
         {
@@ -230,25 +230,22 @@ public class VRPlayerController : MonoBehaviour
 
     private void CycleStarDisplayMode()
     {
+        int nextPosition =
+            (starDisplayModePosition + 1) % StarDisplayModes.Length;
+
+        int nextMode = StarDisplayModes[nextPosition];
+
+        bool showStars = nextMode != -1;
+        bool showClusters = nextPosition == 4;
+
         if (starFilter == null)
         {
             Debug.LogWarning("VRPlayerController: GaiaStarFilter not found.");
             return;
         }
 
-        int nextPosition =
-            (starDisplayModePosition + 1) % StarDisplayModes.Length;
-
-        int nextMode = StarDisplayModes[nextPosition];
-
-        if (nextMode == 0)
-        {
-            // Hide stars and display cluster markers.
-            starFilter.SetClustersOnly(true);
-
-            Debug.Log("Star display mode: clusters only");
-        }
-        else
+        // Only select a real LOD layer.
+        if (showStars)
         {
             if (starsLodLoader == null)
             {
@@ -256,16 +253,28 @@ public class VRPlayerController : MonoBehaviour
                 return;
             }
 
-            // Select the requested prebuilt LOD layer.
-            starsLodLoader.SetLayerIndex(nextMode);
-
-            // Show stars again without modifying their filter settings.
-            starFilter.SetClustersOnly(false);
-
-            Debug.Log($"Star display mode: LOD layer {nextMode}");
+            if (!starsLodLoader.SetLayerIndex(nextMode))
+            {
+                Debug.LogWarning(
+                    $"VRPlayerController: Could not select LOD layer {nextMode}."
+                );
+                return;
+            }
         }
 
+        starFilter.SetDisplayVisibility(
+            showStars,
+            showClusters
+        );
+
         starDisplayModePosition = nextPosition;
+
+        if (showStars)
+            Debug.Log($"Star display: LOD layer {nextMode}");
+        else if (showClusters)
+            Debug.Log("Star display: clusters only");
+        else
+            Debug.Log("Star display: no stars, no clusters");
     }
 
     private void HandleRoll(InputDevice leftHand, InputDevice rightHand)
@@ -480,7 +489,7 @@ public class VRPlayerController : MonoBehaviour
         "Left Trigger: next dust color scheme",
         "Left Grip: cycle dust sprite transparency",
         "Right Trigger single-click / double-click: Select landmark / Display landmarks and orientation",
-        "Right Grip: cycle star display (8 / 6 / 4 / 2 / clusters only)",
+        "Right Grip: cycle star display (level: 6 / 4 / 2 / none / clusters only)",
         "Left Menu Button: open menu / close any menu"
         });
     }

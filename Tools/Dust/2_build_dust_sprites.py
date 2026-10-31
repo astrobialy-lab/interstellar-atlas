@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-"""Build 20,000 spatial dust sprites directly from Edenhofer et al. HEALPix data.
+"""Build 30,000 spatial dust sprites directly from Edenhofer et al. HEALPix data.
 
 Input:
     DataRaw/Dust/Edenhofer2024/mean_and_std_healpix.fits
@@ -21,7 +21,7 @@ network access are required.
 Selection/visualization logic:
 - Calculate a global 95th-percentile threshold over finite map voxels.
 - Keep voxels at or above the threshold.
-- Select 20,000 candidate voxels.
+- Select 30,000 candidate voxels.
 - Account for the larger physical volume of HEALPix radial shells when
   allocating sprites between shells.
 - Rank selected extinction values and map their ranks through a clipped
@@ -57,7 +57,7 @@ OUTPUT_PATH = OUTPUT_DIR / "dust_sprites.bin"
 # Settings
 # ============================================================
 
-N_SPRITES = 20_000
+N_SPRITES = 30_000
 DENSITY_PERCENTILE = 95.0
 RANDOM_SEED = 123
 
@@ -693,7 +693,7 @@ def build_sprites(
 
     if replace:
         print(
-            "WARNING: fewer than 20,000 eligible cells; "
+            f"WARNING: fewer than {N_SPRITES:,} eligible cells; "
             "sampling with replacement, as in the original builder."
         )
 
