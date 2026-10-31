@@ -7,7 +7,6 @@
 - in the release update the installation guide files names
 
 - the landmarks have a range on their website, compare the ranges with the dust on the map
-- update the images on the github
 
 # BONUS:
 
