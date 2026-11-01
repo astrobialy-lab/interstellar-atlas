@@ -380,19 +380,6 @@ public class MenuController : MonoBehaviour
         "See CLUSTERS_README.md for catalogue usage and licensing information.",
         "",
 
-        // Molecular cloud landmarks.
-        "MOLECULAR CLOUD LANDMARKS",
-        "Selected data from Table 1, 'Skeletonization Results,' of Zucker et al. (2021) are used for in-game landmarks.",
-        "Article: On the Three-Dimensional Structure of Local Molecular Clouds.",
-        "Authors: Catherine Zucker et al. (2021).",
-        "Publication: The Astrophysical Journal, 919, 35 (2021).",
-        "Article DOI: https://doi.org/10.3847/1538-4357/ac1f96",
-        "Source: https://arxiv.org/abs/2109.09765",
-        "License: Creative Commons Attribution 4.0 International (CC BY 4.0), arXiv version.",
-        "License URL: https://creativecommons.org/licenses/by/4.0/",
-        "Changes: Selected coordinate data have been adapted for this application's visualization and coordinate system.",
-        "",
-
         // 3D dust map.
         "THREE-DIMENSIONAL DUST MAP",
         "Edenhofer, G. et al. (2024). A parsec-scale Galactic 3D dust map out to 1.25 kpc from the Sun.",
@@ -400,7 +387,74 @@ public class MenuController : MonoBehaviour
         "Article DOI: https://doi.org/10.1051/0004-6361/202347628",
         "Dataset DOI: https://doi.org/10.5281/zenodo.8187942",
         "Dataset license: Creative Commons Attribution 4.0 International (CC BY 4.0)",
-        "License URL: https://creativecommons.org/licenses/by/4.0/"
+        "License URL: https://creativecommons.org/licenses/by/4.0/",
+        "",
+
+        // Astronomical landmarks.
+        "ASTRONOMICAL LANDMARKS",
+        "Landmark positions, classifications, and descriptive information are compiled from the following astronomical databases, catalogues, and publications.",
+
+        // SIMBAD.
+        "SIMBAD ASTRONOMICAL DATABASE",
+        "Maintained by the Centre de Donnees astronomiques de Strasbourg (CDS).",
+        "Website: https://simbad.cds.unistra.fr/simbad/",
+        "Used for: Object identification, coordinates, classifications, spectral types, and available distance and parallax measurements.",
+        "Reference: Wenger et al. (2000), The SIMBAD astronomical database, Astronomy and Astrophysics Supplement Series, 143, 9.",
+        "DOI: https://doi.org/10.1051/aas:2000332",
+        "License: Open Data Commons Open Database License (ODbL).",
+        "License URL: https://opendatacommons.org/licenses/odbl/1-0/",
+        "Acknowledgement: This application has made use of the SIMBAD database, operated at CDS, Strasbourg, France.",
+
+        // Open star clusters.
+        "OPEN STAR CLUSTER LANDMARKS",
+        "Authors: Emily L. Hunt and Sabine Reffert (2024).",
+        "Title: Improving the open cluster census III. Using cluster masses, radii, and dynamics to create a cleaned open cluster catalogue.",
+        "Publication: Astronomy & Astrophysics, 686, A42 (2024).",
+        "Article DOI: https://doi.org/10.1051/0004-6361/202348662",
+        "VizieR Catalogue: https://cdsarc.cds.unistra.fr/viz-bin/cat/J/A+A/686/A42",
+        "VizieR Catalogue DOI: https://doi.org/10.26093/cds/vizier.36860042",
+        "Used for: Open cluster identification, coordinates, and median distance estimates.",
+        "Article License: Creative Commons Attribution 4.0 International (CC BY 4.0).",
+        "License URL: https://creativecommons.org/licenses/by/4.0/",
+
+        // Molecular clouds: Zucker et al.
+        "MOLECULAR CLOUD LANDMARKS — ZUCKER ET AL. (2021)",
+        "Authors: Catherine Zucker, Alyssa Goodman, Joao Alves, Shmuel Bialy, Eric W. Koch, Joshua S. Speagle, Michael M. Foley, Douglas Finkbeiner, Reimar Leike, Torsten Ensslin, Joshua E. G. Peek, and Gordian Edenhofer.",
+        "Title: On the Three-Dimensional Structure of Local Molecular Clouds.",
+        "Publication: The Astrophysical Journal, 919, 35 (2021).",
+        "Article DOI: https://doi.org/10.3847/1538-4357/ac1f96",
+        "arXiv: https://arxiv.org/abs/2109.09765",
+        "Data used: Table 1, 'Skeletonization Results'.",
+        "Used for: Selected molecular cloud median Galactic coordinates and heliocentric distances.",
+        "License: Creative Commons Attribution 4.0 International (CC BY 4.0), arXiv version.",
+        "License URL: https://creativecommons.org/licenses/by/4.0/",
+
+        // Molecular clouds: Schlafly et al.
+        "MOLECULAR CLOUD DISTANCES — SCHLAFLY ET AL. (2014)",
+        "Authors: E. F. Schlafly et al. (2014).",
+        "Title: A Large Catalog of Accurate Distances to Molecular Clouds from PS1 Photometry.",
+        "Publication: The Astrophysical Journal, 786, 29 (2014).",
+        "Article DOI: https://doi.org/10.1088/0004-637X/786/1/29",
+        "Catalogue Website: https://e.schlaf.ly/distances/",
+        "FITS Catalogue: https://e.schlaf.ly/distances/fitscatalog.html",
+        "Used for: Selected molecular cloud sightlines, Galactic coordinates, and distance estimates.",
+        "License: No separate data license is stated on the catalogue website.",
+
+        // Descriptive information.
+        "DESCRIPTIVE TEXT — WIKIPEDIA",
+        "Source: https://www.wikipedia.org/",
+        "API: https://www.mediawiki.org/wiki/API:Main_page",
+        "Used for: Short excerpts from selected astronomical article introductions.",
+        "License: Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0), generally applicable to Wikipedia article text.",
+        "License URL: https://creativecommons.org/licenses/by-sa/4.0/",
+
+        // Application processing.
+        "COORDINATE PROCESSING AND VISUALIZATION",
+        "Catalogue coordinates and distance measurements are converted into heliocentric Galactic Cartesian coordinates.",
+        "Unity coordinate mapping: Unity X = Galactic X, Unity Y = Galactic Z, Unity Z = Galactic Y.",
+        "Extended astronomical objects are represented by individual approximate position markers; these markers do not reproduce their complete physical extent or three-dimensional structure.",
+        "The Sun, Galactic Center, and Local Bubble use explicitly defined application reference or visualization anchors.",
+        "All catalogue-derived positions and descriptions have been adapted for use in Interstellar Atlas."
     });
 
         OpenInfoMenu("Credits", credits);

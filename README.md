@@ -2,7 +2,7 @@
 
 <img src="Docs/Images/preview1.png" width="600">
 
-<img src="Docs/Images/preview2.png" width="150"><img src="Docs/Images/preview4.png" width="150"><img src="Docs/Images/preview3.png" width="150"><img src="Docs/Images/preview5.png" width="150">
+<img src="Docs/Images/preview2.png" width="150"><img src="Docs/Images/preview3.png" width="150"><img src="Docs/Images/preview4.png" width="150"><img src="Docs/Images/preview5.png" width="150">
 
 ## Usage
 
@@ -27,12 +27,12 @@ This project uses third-party astronomical data and imagery. These materials are
 
 The project uses the following data:
 - Milky Way Background
-- Gaia DR3 Star Catalogue. For more information about the usage read `Docs/STARS_README.md`
-- Open Cluster Catalogue. For more information about the usage read `Docs/CLUSTERS_README.md`
-- Molecular Cloud Landmarks
+- Gaia DR3 Star Catalogue. For more information about the usage read [STARS_README](Docs/STARS_README.md)
+- Open Cluster Catalogue. For more information about the usage read [CLUSTERS_README](Docs/CLUSTERS_README.md)
 - Three-Dimensional Dust Map
+- Molecular Cloud Landmarks
 
-The credits for the Datasource can be found at `Docs/CREDITS.md`
+The credits for the Datasource can be found at [CREDITS](Docs/CREDITS.md)
 
 ## Galactic Coordinate System In Unity
 

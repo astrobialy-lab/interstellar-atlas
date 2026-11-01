@@ -15,7 +15,7 @@ VERSION = 1
 HEADER = struct.Struct("<8sII")
 RECORD_HEADER = struct.Struct("<HHHIfff")
 
-INPUT_RELATIVE = Path("DataRaw") / "Landmarks" / "local_neighborhood_landmarks.csv"
+INPUT_RELATIVE = Path("DataRaw") / "Landmarks" / "landmarks.csv"
 OUTPUT_RELATIVE = Path("Data") / "Landmarks" / "landmarks.bin"
 
 REQUIRED_COLUMNS = (

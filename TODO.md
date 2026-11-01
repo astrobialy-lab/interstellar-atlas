@@ -4,7 +4,7 @@
 
 - check the requirements to publish the app.
 - add release on git for my version with + Data folder + apk + windows + mac + linux.
-- in the release update the installation guide files names
+- change in docs file paths ro hyperlink
 
 - the landmarks have a range on their website, compare the ranges with the dust on the map
 
