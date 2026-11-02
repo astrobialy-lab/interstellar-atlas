@@ -3,10 +3,7 @@
 - redownload whole gaia data. there is a missing block
 
 - check the requirements to publish the app.
-- add release on git for my version with + Data folder + apk + windows + mac + linux.
-- change in docs file paths ro hyperlink
-
-- the landmarks have a range on their website, compare the ranges with the dust on the map
+- add release on git for my version.
 
 # BONUS:
 

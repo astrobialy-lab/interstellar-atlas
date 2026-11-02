@@ -132,8 +132,8 @@ def zip_build(source: Path, archive: Path, product: str, macos: bool = False) ->
             else:
                 mode = source_mode or 0o644
                 # Builds made on Windows don't carry Unix execute bits. Set them
-                # on macOS app executables so the main app binary remains runnable.
-                if macos and ".app/Contents/macOS/" in ("/" + archive_name + "/"):
+                # on MacOS app executables so the main app binary remains runnable.
+                if macos and ".app/Contents/MacOS/" in ("/" + archive_name + "/"):
                     mode |= 0o111
                 info.external_attr = (stat.S_IFREG | mode) << 16
                 with path.open("rb") as src, zf.open(info, "w", force_zip64=True) as dst:
