@@ -36,14 +36,8 @@ public static class DataPath
             Debug.LogError("DataPath: " + e);
             return null;
         }
-#elif UNITY_STANDALONE_OSX
-    return Path.GetFullPath(
-        Path.Combine(Application.dataPath, "..", "..", "Data")
-    );
-#elif UNITY_STANDALONE_WIN || UNITY_STANDALONE_LINUX
-    return Path.GetFullPath(
-        Path.Combine(Application.dataPath, "..", "Data")
-    );
+#elif UNITY_STANDALONE_OSX || UNITY_STANDALONE_WIN || UNITY_STANDALONE_LINUX
+    return Path.GetFullPath(Application.streamingAssetsPath);
 #else
     return Path.Combine(Application.persistentDataPath, "Data");
 #endif

@@ -28,9 +28,8 @@ DEFAULT_UNITY_EXE_PATH: Optional[Path] = Path(
 PROFILE_DIR = Path("Assets/Settings/Build Profiles")
 EDITOR_HELPER = Path("Assets/Editor/AutomatedProfileBuilder.cs")
 BUILD_DIR_NAME = "Builds"
-DATA_DIR_NAME = "Data"
-MAX_BUILD_ATTEMPTS = 3
-RETRY_DELAY_SECONDS = 5
+MAX_BUILD_ATTEMPTS = 5
+RETRY_DELAY_SECONDS = 10
 
 PROFILE_HINTS = {
     "windows": ("windows",),
@@ -357,6 +356,7 @@ def build_target(
     env = os.environ.copy()
     env["UNITY_AUTOBUILD_PROFILE_PATH"] = profile_relative
     env["UNITY_AUTOBUILD_OUTPUT_PATH"] = str(staged_output_path.resolve())
+    env["UNITY_AUTOBUILD_COPY_DATA"] = ("1" if copy_data_to_build else "0")
 
     command = [
         str(unity_exe),
@@ -520,9 +520,6 @@ def build_target(
     # Complete all post-build work in the staging folder before replacing the
     # existing build. If copying Data fails, the existing build is untouched.
     try:
-        if copy_data_to_build and target in ("windows", "linux", "macos"):
-            copy_external_data(project / DATA_DIR_NAME, staging_dir / DATA_DIR_NAME)
-
         replace_build_directory(staging_dir, output_dir, backup_dir)
     except (OSError, shutil.Error) as exc:
         print(f"ERROR: new build succeeded, but installation failed: {exc}")
