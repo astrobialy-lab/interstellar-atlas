@@ -61,8 +61,8 @@ N_SPRITES = 30_000
 DENSITY_PERCENTILE = 95.0
 RANDOM_SEED = 123
 
-ALPHA_MIN = 0.03
-ALPHA_MAX = 0.65
+ALPHA_MIN = 0.7
+ALPHA_MAX = 1.0
 GAUSS_CLIP = 2.5
 
 # HEALPix pixel position jitter. This preserves the small random offset used

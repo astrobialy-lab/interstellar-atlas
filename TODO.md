@@ -3,7 +3,6 @@
 - redownload whole gaia data. there is a missing block
 
 - check the requirements to publish the app.
-- add release on git for my version.
 
 # BONUS:
 
