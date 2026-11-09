@@ -33,7 +33,7 @@ DATA_ROOT = PROJECT_ROOT / "Data"
 PACKAGE_WINDOWS = True
 PACKAGE_MACOS = True
 PACKAGE_LINUX = True
-PACKAGE_META_QUEST = True
+PACKAGE_META_QUEST = False
 PACKAGE_DATA = True
 
 # Compression level: 1 is faster/larger; 9 is slower/smaller.

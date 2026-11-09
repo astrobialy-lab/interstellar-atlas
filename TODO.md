@@ -4,6 +4,10 @@
 
 - check the requirements to publish the app.
 
+- set the app version to 2.1 (apk version), and on the meta webstie as well + add release 2.1 on github
+
+- increase sprite size? cuz when its 10,000 sprites it looks ugly (or set 30,000 as default)
+
 # BONUS:
 
 - add auto brightness feature: when getting close to a bright star the whole screen is white, it blinds the player.
