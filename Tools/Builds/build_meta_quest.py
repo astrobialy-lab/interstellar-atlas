@@ -8,7 +8,7 @@ PROJECT_ROOT: Optional[Path] = Path(__file__).resolve().parents[2]
 # None = automatically find a Quest profile, falling back to an Android profile.
 PROFILE_PATH: Optional[Path] = None
 # Quest data is not copied by this script; keep using your existing data-install process.
-COPY_DATA_TO_BUILD = False
+COPY_DATA_TO_BUILD = True
 # Optional per-script Unity.exe override. None uses DEFAULT_UNITY_EXE_PATH in unity_build_common.py.
 UNITY_EXE_PATH: Optional[Path] = None
 

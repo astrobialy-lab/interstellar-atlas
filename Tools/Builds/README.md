@@ -4,7 +4,7 @@ The windows, mac and linux you can run their execution file straight in the fold
 upload to github everything thats created upder Builds/Packages/
 
 To upload the new apk to VR store run step 3 to sign the apk (you need to have file interstellar-atlas.keystore above your project folder, and its password).
-The upload new build + Data into OBB to the store: https://developers.meta.com/vr/manage/applications/1433856436473137/release-channels/1789563205641054/
+The upload new build to the store: https://developers.meta.com/vr/manage/applications/1433856436473137/release-channels/1789563205641054/
 
 
 

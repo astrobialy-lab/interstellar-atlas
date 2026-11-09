@@ -13,12 +13,13 @@ public sealed class ProjectDataBuildProcessor : BuildPlayerProcessor
     {
         BuildTarget target = context.BuildPlayerOptions.target;
 
-        bool isDesktop =
+        bool isSupported =
             target == BuildTarget.StandaloneWindows64 ||
             target == BuildTarget.StandaloneLinux64 ||
-            target == BuildTarget.StandaloneOSX;
+            target == BuildTarget.StandaloneOSX ||
+            target == BuildTarget.Android;
 
-        if (!isDesktop)
+        if (!isSupported)
             return;
 
         if (Environment.GetEnvironmentVariable(
@@ -38,7 +39,7 @@ public sealed class ProjectDataBuildProcessor : BuildPlayerProcessor
             );
         }
 
-        // Add each top-level directory/file directly to StreamingAssets.
+        // Include the contents of Data directly in StreamingAssets.
         foreach (string entry in Directory.EnumerateFileSystemEntries(sourceData))
         {
             string destinationName = Path.GetFileName(entry);

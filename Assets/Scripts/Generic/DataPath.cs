@@ -1,4 +1,4 @@
-using System;
+
 using System.IO;
 using UnityEngine;
 
@@ -13,33 +13,11 @@ public static class DataPath
             Path.Combine(Application.dataPath, "..", "Data")
         );
 #elif UNITY_ANDROID
-        try
-        {
-            using (var unityPlayer =
-                   new AndroidJavaClass("com.unity3d.player.UnityPlayer"))
-            using (var activity =
-                   unityPlayer.GetStatic<AndroidJavaObject>("currentActivity"))
-            using (var obbDirectory =
-                   activity.Call<AndroidJavaObject>("getObbDir"))
-            {
-                string obbRoot =
-                    obbDirectory.Call<string>("getAbsolutePath");
-
-                if (string.IsNullOrEmpty(obbRoot))
-                    throw new IOException("OBB path is empty.");
-
-                return Path.Combine(obbRoot, "Data");
-            }
-        }
-        catch (Exception e)
-        {
-            Debug.LogError("DataPath: " + e);
-            return null;
-        }
+        return Application.streamingAssetsPath;
 #elif UNITY_STANDALONE_OSX || UNITY_STANDALONE_WIN || UNITY_STANDALONE_LINUX
-    return Path.GetFullPath(Application.streamingAssetsPath);
+        return Application.streamingAssetsPath;
 #else
-    return Path.Combine(Application.persistentDataPath, "Data");
+        return Path.Combine(Application.persistentDataPath, "Data");
 #endif
     }
 }
