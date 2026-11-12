@@ -29,7 +29,7 @@ from typing import Optional, Tuple
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 # The unsigned/debug-signed APK produced by your Unity build script.
-INPUT_APK = PROJECT_ROOT / "Builds" / "MetaQuest" / "Interstellar Atlas.apk"
+INPUT_APK = PROJECT_ROOT / "Builds" / "Android" / "Interstellar Atlas.apk"
 
 # Keep this OUTSIDE your Git repository / Unity project.
 KEYSTORE_PATH = PROJECT_ROOT.parent / "interstellar-atlas.keystore"
@@ -52,15 +52,13 @@ REQUIRE_V2_VERIFICATION = True
 # PASSWORD HANDLING
 # =============================================================================
 
-# By default, passwords are requested with hidden terminal input.
-# For automated builds, you can set these environment variables instead:
+# By default, the password is requested once with hidden terminal input.
+# For automated builds, you can set:
 #   META_ANDROID_KEYSTORE_PASSWORD
-#   META_ANDROID_KEY_PASSWORD
 #
 # Do NOT put passwords directly in this script or commit them to Git.
 
 KEYSTORE_PASSWORD_ENV = "META_ANDROID_KEYSTORE_PASSWORD"
-KEY_PASSWORD_ENV = "META_ANDROID_KEY_PASSWORD"
 
 
 # =============================================================================
@@ -180,23 +178,15 @@ def run_tool(
 
 
 def get_passwords() -> Tuple[str, str]:
-    store_password = os.environ.get(KEYSTORE_PASSWORD_ENV)
+    password = os.environ.get(KEYSTORE_PASSWORD_ENV)
 
-    if store_password is None:
-        store_password = getpass.getpass("Keystore password: ")
+    if password is None:
+        password = getpass.getpass("Keystore / key password: ")
 
-    if not store_password:
-        raise ValueError("Keystore password cannot be empty.")
+    if not password:
+        raise ValueError("Password cannot be empty.")
 
-    key_password = os.environ.get(KEY_PASSWORD_ENV)
-
-    if key_password is None:
-        entered = getpass.getpass(
-            "Key password (press Enter if same as keystore): "
-        )
-        key_password = entered if entered else store_password
-
-    return store_password, key_password
+    return password, password
 
 
 def main() -> int:

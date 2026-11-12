@@ -1,4 +1,3 @@
-
 using System;
 using System.IO;
 using UnityEditor;
@@ -13,17 +12,26 @@ public sealed class ProjectDataBuildProcessor : BuildPlayerProcessor
     {
         BuildTarget target = context.BuildPlayerOptions.target;
 
-        bool isSupported =
+        // Quest data is delivered separately by Meta Required Asset Files.
+        // Do not copy the project's Data folder into the Android APK.
+        if (target == BuildTarget.Android)
+        {
+            Debug.Log(
+                "[ProjectDataBuildProcessor] Skipping Data for Android; " +
+                "Quest data is delivered separately through Required Asset Files."
+            );
+            return;
+        }
+
+        bool isSupportedDesktop =
             target == BuildTarget.StandaloneWindows64 ||
             target == BuildTarget.StandaloneLinux64 ||
-            target == BuildTarget.StandaloneOSX ||
-            target == BuildTarget.Android;
+            target == BuildTarget.StandaloneOSX;
 
-        if (!isSupported)
+        if (!isSupportedDesktop)
             return;
 
-        if (Environment.GetEnvironmentVariable(
-                "UNITY_AUTOBUILD_COPY_DATA") == "0")
+        if (Environment.GetEnvironmentVariable("UNITY_AUTOBUILD_COPY_DATA") == "0")
             return;
 
         string projectRoot = Path.GetFullPath(
@@ -39,7 +47,7 @@ public sealed class ProjectDataBuildProcessor : BuildPlayerProcessor
             );
         }
 
-        // Include the contents of Data directly in StreamingAssets.
+        // Include the contents of Data directly in StreamingAssets on desktop.
         foreach (string entry in Directory.EnumerateFileSystemEntries(sourceData))
         {
             string destinationName = Path.GetFileName(entry);

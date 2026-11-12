@@ -1,4 +1,3 @@
-
 using System.IO;
 using UnityEngine;
 
@@ -13,7 +12,9 @@ public static class DataPath
             Path.Combine(Application.dataPath, "..", "Data")
         );
 #elif UNITY_ANDROID
-        return Application.streamingAssetsPath;
+        // DataInstaller extracts the Store-delivered TAR files here before
+        // the main simulation scene is loaded.
+        return Path.Combine(Application.persistentDataPath, "Data");
 #elif UNITY_STANDALONE_OSX || UNITY_STANDALONE_WIN || UNITY_STANDALONE_LINUX
         return Application.streamingAssetsPath;
 #else

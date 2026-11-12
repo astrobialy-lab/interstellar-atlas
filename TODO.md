@@ -8,6 +8,13 @@
 
 - increase sprite size? cuz when its 10,000 sprites it looks ugly (or set 30,000 as default)
 
+- create the tar files inside Builds, and fix the .gitignore
+
+- update the permission and application usage on the meta website
+- upload the .keystore file to the usb, and put the file code inside the box
+
+- make a loading screen on the scene that unpacks the tar files (or at least write "extracting data" or something)
+
 # BONUS:
 
 - add auto brightness feature: when getting close to a bright star the whole screen is white, it blinds the player.

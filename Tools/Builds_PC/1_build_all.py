@@ -11,7 +11,6 @@ BUILD_SCRIPTS = [
     "build_windows.py",
     "build_linux.py",
     "build_macos.py",
-    "build_meta_quest.py",
 ]
 # False means continue to the remaining platforms if one build fails.
 STOP_AFTER_FIRST_FAILURE = False
