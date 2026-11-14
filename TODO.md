@@ -1,7 +1,5 @@
 # TODO:
 
-- make a loading screen on the scene that unpacks the tar files (or at least write "extracting data" or something)
-
 - redownload gaia
 
 # BONUS:
