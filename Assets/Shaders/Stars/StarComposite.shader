@@ -1,4 +1,4 @@
-Shader "Hidden/GaiaStarComposite"
+Shader "Hidden/StarComposite"
 {
     SubShader
     {
@@ -9,7 +9,7 @@ Shader "Hidden/GaiaStarComposite"
 
         Pass
         {
-            Name "GaiaStarBufferToHDR"
+            Name "StarBufferToHDR"
 
             Blend One Zero
             ZTest Always

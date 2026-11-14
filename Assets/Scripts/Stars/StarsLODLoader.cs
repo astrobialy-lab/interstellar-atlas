@@ -5,7 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using UnityEngine;
 
-public class StarsLODLoader : GaiaStarBufferProvider
+public class StarsLODLoader : StarBufferProvider
 {
     // ========================================================
     // LOD DATA
@@ -14,7 +14,7 @@ public class StarsLODLoader : GaiaStarBufferProvider
     [Header("LOD Data")]
 
     [SerializeField]
-    private string metadataDirectoryDataPath = "Gaia/lod";
+    private string metadataDirectoryDataPath = "Stars/lod";
 
     [SerializeField]
     [Min(0)]
@@ -59,7 +59,7 @@ public class StarsLODLoader : GaiaStarBufferProvider
     [Header("Star Property Filtering")]
 
     [SerializeField]
-    private GaiaStarFilter starFilter;
+    private StarFilter starFilter;
 
     // ========================================================
     // STREAMING
@@ -266,13 +266,13 @@ public class StarsLODLoader : GaiaStarBufferProvider
 
         if (starFilter == null)
         {
-            starFilter = GetComponent<GaiaStarFilter>();
+            starFilter = GetComponent<StarFilter>();
         }
 
         if (starFilter == null)
         {
             starFilter =
-                FindAnyObjectByType<GaiaStarFilter>();
+                FindAnyObjectByType<StarFilter>();
         }
 
         observedClusterFilterRevision =
@@ -987,7 +987,7 @@ public class StarsLODLoader : GaiaStarBufferProvider
         return settings;
     }
 
-    private GaiaStarFilterSettings GetCurrentStarFilterSettings()
+    private StarFilterSettings GetCurrentStarFilterSettings()
     {
         if (starFilter == null)
         {
@@ -1108,7 +1108,7 @@ public class StarsLODLoader : GaiaStarBufferProvider
         GaiaClusterFilterSettings clusterSettings =
             GetCurrentFilterSettings();
 
-        GaiaStarFilterSettings starSettings =
+        StarFilterSettings starSettings =
             GetCurrentStarFilterSettings();
 
         int filterRevision = activeFilterRevision;
@@ -1132,7 +1132,7 @@ public class StarsLODLoader : GaiaStarBufferProvider
     private NodeLoadResult ReadNodeFromDisk(
         uint nodeId,
         GaiaClusterFilterSettings filterSettings,
-        GaiaStarFilterSettings starFilterSettings,
+        StarFilterSettings starFilterSettings,
         int filterRevision)
     {
         NodeLoadResult result = new NodeLoadResult
@@ -1164,7 +1164,7 @@ public class StarsLODLoader : GaiaStarBufferProvider
             if (!starFilterSettings.showStars)
             {
                 result.success = true;
-                result.stars = Array.Empty<GaiaStarGPU>();
+                result.stars = Array.Empty<StarGPU>();
                 return result;
             }
 
@@ -1172,7 +1172,7 @@ public class StarsLODLoader : GaiaStarBufferProvider
             if (starCount == 0)
             {
                 result.success = true;
-                result.stars = Array.Empty<GaiaStarGPU>();
+                result.stars = Array.Empty<StarGPU>();
                 return result;
             }
 
@@ -1279,8 +1279,8 @@ public class StarsLODLoader : GaiaStarBufferProvider
 
             if (!useAnyFilter)
             {
-                GaiaStarGPU[] stars =
-                    new GaiaStarGPU[(int)starCount];
+                StarGPU[] stars =
+                    new StarGPU[(int)starCount];
 
                 using (MemoryStream stream =
                     new MemoryStream(particleData))
@@ -1302,8 +1302,8 @@ public class StarsLODLoader : GaiaStarBufferProvider
             // Filtered path
             // ------------------------------------------------
 
-            List<GaiaStarGPU> filteredStars =
-                new List<GaiaStarGPU>((int)starCount);
+            List<StarGPU> filteredStars =
+                new List<StarGPU>((int)starCount);
 
             using (MemoryStream particleStream =
                 new MemoryStream(particleData))
@@ -1317,9 +1317,9 @@ public class StarsLODLoader : GaiaStarBufferProvider
             {
                 for (int i = 0; i < (int)starCount; i++)
                 {
-                    GaiaStarGPU star = ReadStar(
+                    StarGPU star = ReadStar(
                         particleReader,
-                        out GaiaStarProperties properties
+                        out StarProperties properties
                     );
 
                     bool keep = true;
@@ -1377,9 +1377,9 @@ public class StarsLODLoader : GaiaStarBufferProvider
     // DISK STAR READING
     // ========================================================
 
-    private static GaiaStarGPU ReadStar(
+    private static StarGPU ReadStar(
         BinaryReader reader,
-        out GaiaStarProperties properties)
+        out StarProperties properties)
     {
         Vector3 position = new Vector3(
             reader.ReadSingle(),
@@ -1395,7 +1395,7 @@ public class StarsLODLoader : GaiaStarBufferProvider
         float ageGyr = reader.ReadSingle();
         int evolutionStage = reader.ReadInt32();
 
-        properties = new GaiaStarProperties
+        properties = new StarProperties
         {
             temperatureK = temperatureK,
             massSolar = massSolar,
@@ -1403,7 +1403,7 @@ public class StarsLODLoader : GaiaStarBufferProvider
             evolutionStage = evolutionStage
         };
 
-        return new GaiaStarGPU
+        return new StarGPU
         {
             position = position,
             magnitude = magnitude,
@@ -1411,7 +1411,7 @@ public class StarsLODLoader : GaiaStarBufferProvider
         };
     }
 
-    private static GaiaStarGPU ReadStarForGpu(BinaryReader reader)
+    private static StarGPU ReadStarForGpu(BinaryReader reader)
     {
         Vector3 position = new Vector3(
             reader.ReadSingle(),
@@ -1425,7 +1425,7 @@ public class StarsLODLoader : GaiaStarBufferProvider
         // Skip Teff, mass, age and evolution stage.
         reader.BaseStream.Seek(16, SeekOrigin.Current);
 
-        return new GaiaStarGPU
+        return new StarGPU
         {
             position = position,
             magnitude = magnitude,
@@ -1764,7 +1764,7 @@ public class StarsLODLoader : GaiaStarBufferProvider
 
         public uint nodeId;
 
-        public GaiaStarGPU[] stars;
+        public StarGPU[] stars;
 
         public Bounds drawBounds;
 
@@ -1800,14 +1800,14 @@ public class StarsLODLoader : GaiaStarBufferProvider
     // PUBLIC GPU STAR FORMAT
     // ========================================================
 
-    public struct GaiaStarGPU
+    public struct StarGPU
     {
         public Vector3 position;
         public float magnitude;
         public float bpRp;
     }
 
-    private struct GaiaStarProperties
+    private struct StarProperties
     {
         public float temperatureK;
         public float massSolar;

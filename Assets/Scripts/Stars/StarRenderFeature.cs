@@ -6,7 +6,7 @@ using UnityEngine.Rendering.RenderGraphModule;
 using UnityEngine.Rendering.RenderGraphModule.Util;
 using UnityEngine.Rendering.Universal;
 
-public class GaiaStarRenderFeature : ScriptableRendererFeature
+public class StarRenderFeature : ScriptableRendererFeature
 {
     [SerializeField] private Shader compositeShader;
     [SerializeField] private Shader glareShader;
@@ -16,20 +16,20 @@ public class GaiaStarRenderFeature : ScriptableRendererFeature
     // is intentionally disabled; the dust sprite renderer remains independent.
     public static bool RealisticExtinctionModeActive => false;
 
-    private GaiaStarRasterizer rasterizer;
+    private StarRasterizer rasterizer;
     private DustSpriteRenderer dustSpriteRenderer;
-    private GaiaStarRenderPass renderPass;
+    private StarRenderPass renderPass;
 
     public override void Create()
     {
         if (compositeShader == null)
-            compositeShader = Shader.Find("Hidden/GaiaStarComposite");
+            compositeShader = Shader.Find("Hidden/StarComposite");
         if (glareShader == null)
-            glareShader = Shader.Find("Custom/GaiaStarGlare");
+            glareShader = Shader.Find("Custom/StarGlare");
         if (finalCompositeShader == null)
             finalCompositeShader = Shader.Find("Hidden/SpaceSkyComposite");
 
-        renderPass = new GaiaStarRenderPass(
+        renderPass = new StarRenderPass(
             compositeShader, glareShader, finalCompositeShader, rasterizer);
         renderPass.renderPassEvent = RenderPassEvent.BeforeRenderingTransparents;
     }
@@ -44,7 +44,7 @@ public class GaiaStarRenderFeature : ScriptableRendererFeature
             return;
 
         // Keep the separate billboard appearance layer active. It does not apply
-        // extinction to Gaia stars.
+        // extinction to stars.
         if (dustSpriteRenderer == null)
             dustSpriteRenderer = Object.FindAnyObjectByType<DustSpriteRenderer>();
 
@@ -56,7 +56,7 @@ public class GaiaStarRenderFeature : ScriptableRendererFeature
 
         if (rasterizer == null)
         {
-            rasterizer = Object.FindAnyObjectByType<GaiaStarRasterizer>();
+            rasterizer = Object.FindAnyObjectByType<StarRasterizer>();
             renderPass.SetRasterizer(rasterizer);
         }
 
@@ -75,14 +75,14 @@ public class GaiaStarRenderFeature : ScriptableRendererFeature
         }
     }
 
-    private sealed class GaiaStarRenderPass : ScriptableRenderPass
+    private sealed class StarRenderPass : ScriptableRenderPass
     {
         private const int PyramidLevels = 5;
 
         private Material starCompositeMaterial;
         private Material glareMaterial;
         private Material finalCompositeMaterial;
-        private GaiaStarRasterizer rasterizer;
+        private StarRasterizer rasterizer;
         private GraphicsBuffer starLuminance;
         private GraphicsBuffer starColorLuminance;
         private int bufferWidth;
@@ -128,11 +128,11 @@ public class GaiaStarRenderFeature : ScriptableRendererFeature
         private static readonly int EyePosition1ID = Shader.PropertyToID("_EyePosition1");
         private static readonly int DustExtinctionValidID = Shader.PropertyToID("_DustExtinctionValid");
 
-        public GaiaStarRenderPass(
+        public StarRenderPass(
             Shader compositeShader,
             Shader glareShader,
             Shader finalCompositeShader,
-            GaiaStarRasterizer rasterizer)
+            StarRasterizer rasterizer)
         {
             // Camera-color sampling must use a readable intermediate texture.
             requiresIntermediateTexture = true;
@@ -155,7 +155,7 @@ public class GaiaStarRenderFeature : ScriptableRendererFeature
             }
         }
 
-        public void SetRasterizer(GaiaStarRasterizer value) => rasterizer = value;
+        public void SetRasterizer(StarRasterizer value) => rasterizer = value;
 
         public override void RecordRenderGraph(RenderGraph renderGraph, ContextContainer frameData)
         {
@@ -241,7 +241,7 @@ public class GaiaStarRenderFeature : ScriptableRendererFeature
             }
 
             using (var builder = renderGraph.AddComputePass<ComputePassData>(
-                "Gaia Star Rasterization", out ComputePassData computeData))
+                "Star Rasterization", out ComputePassData computeData))
             {
                 computeData.computeShader = rasterizer.RasterizerCompute;
                 computeData.clearKernel = rasterizer.ClearKernel;
@@ -274,10 +274,10 @@ public class GaiaStarRenderFeature : ScriptableRendererFeature
             }
 
             TextureHandle starHDR = CreateHDRTexture(
-                renderGraph, cameraData.cameraTargetDescriptor, width, height, "Gaia Star HDR");
+                renderGraph, cameraData.cameraTargetDescriptor, width, height, "Star HDR");
 
             using (var builder = renderGraph.AddRasterRenderPass<StarBufferPassData>(
-                "Gaia Star Buffer To HDR", out StarBufferPassData data))
+                "Star Buffer To HDR", out StarBufferPassData data))
             {
                 data.material = starCompositeMaterial;
                 data.luminanceBuffer = starLuminance;
@@ -307,8 +307,8 @@ public class GaiaStarRenderFeature : ScriptableRendererFeature
             }
 
             TextureHandle brightStars = CreateHDRTexture(
-                renderGraph, cameraData.cameraTargetDescriptor, width, height, "Gaia Bright Stars");
-            AddBlitPass(renderGraph, glareMaterial, starHDR, brightStars, 1, "Gaia Glare Prefilter");
+                renderGraph, cameraData.cameraTargetDescriptor, width, height, "Bright Stars");
+            AddBlitPass(renderGraph, glareMaterial, starHDR, brightStars, 1, "Glare Prefilter");
 
             TextureHandle currentSource = brightStars;
             for (int level = 0; level < PyramidLevels; level++)
@@ -319,17 +319,17 @@ public class GaiaStarRenderFeature : ScriptableRendererFeature
 
                 TextureHandle levelTexture = CreateHDRTexture(
                     renderGraph, cameraData.cameraTargetDescriptor,
-                    levelWidth, levelHeight, $"Gaia Glare Level {level}");
+                    levelWidth, levelHeight, $"Glare Level {level}");
                 TextureHandle horizontalTexture = CreateHDRTexture(
                     renderGraph, cameraData.cameraTargetDescriptor,
-                    levelWidth, levelHeight, $"Gaia Glare Horizontal {level}");
+                    levelWidth, levelHeight, $"Glare Horizontal {level}");
 
                 AddBlitPass(renderGraph, glareMaterial, currentSource, levelTexture, 1,
-                    $"Gaia Glare Downsample {level}");
+                    $"Glare Downsample {level}");
                 AddBlitPass(renderGraph, glareMaterial, levelTexture, horizontalTexture, 2,
-                    $"Gaia Glare Horizontal {level}");
+                    $"Glare Horizontal {level}");
                 AddBlitPass(renderGraph, glareMaterial, horizontalTexture, levelTexture, 3,
-                    $"Gaia Glare Vertical {level}");
+                    $"Glare Vertical {level}");
 
                 int glareID = level == 0 ? Glare0ID :
                     level == 1 ? Glare1ID :
@@ -337,15 +337,15 @@ public class GaiaStarRenderFeature : ScriptableRendererFeature
                     level == 3 ? Glare3ID : Glare4ID;
 
                 ExportGlobalTexture(renderGraph, levelTexture, glareID,
-                    $"Gaia Export Glare Level {level}");
+                    $"Export Glare Level {level}");
                 currentSource = levelTexture;
             }
 
             TextureHandle finalTarget = CreateSameTexture(
-                renderGraph, cameraData.cameraTargetDescriptor, "Gaia Final Color");
+                renderGraph, cameraData.cameraTargetDescriptor, "Final Color");
 
             using (var builder = renderGraph.AddRasterRenderPass<FinalCompositePassData>(
-                "Gaia Stars Final Composite", out FinalCompositePassData data))
+                "Stars Final Composite", out FinalCompositePassData data))
             {
                 data.material = finalCompositeMaterial;
                 data.cameraColor = activeCameraColor;
@@ -533,7 +533,7 @@ public class GaiaStarRenderFeature : ScriptableRendererFeature
             long pixelCountLong = (long)width * height * eyeCount;
             if (pixelCountLong <= 0 || pixelCountLong > int.MaxValue)
             {
-                Debug.LogError($"GaiaStarRenderPass: Invalid pixel count: {pixelCountLong}");
+                Debug.LogError($"StarRenderPass: Invalid pixel count: {pixelCountLong}");
                 return false;
             }
 
@@ -547,7 +547,7 @@ public class GaiaStarRenderFeature : ScriptableRendererFeature
             }
             catch (System.Exception exception)
             {
-                Debug.LogError($"GaiaStarRenderPass: Failed to allocate GPU buffers.\n{exception}");
+                Debug.LogError($"StarRenderPass: Failed to allocate GPU buffers.\n{exception}");
                 ReleaseBuffers();
                 return false;
             }

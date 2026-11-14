@@ -25,7 +25,7 @@ public class MenuController : MonoBehaviour
 
     [Header("Other Menus")]
     public FastTravelMenu fastTravelMenu;
-    public GaiaStarFilterMenu starFilterMenu;
+    public StarFilterMenu starFilterMenu;
     public ClusterFilterMenu clusterFilterMenu;
     public MarkerPopup markerPopup;
 
@@ -367,6 +367,22 @@ public class MenuController : MonoBehaviour
         "License: CC BY-NC 3.0 IGO",
         "License URL: https://creativecommons.org/licenses/by-nc/3.0/igo/",
         "Commercial use requires separate authorization. See GAIA_README.md.",
+        "Cross-match table: gaiadr3.hipparcos2_best_neighbour (Gaia DR3 Archive).",
+        "Used to identify Hipparcos-2 stars with corresponding Gaia DR3 sources.",
+        "",
+
+        // Hipparcos New Reduction.
+        "HIPPARCOS STAR CATALOGUE",
+        "Catalogue: Hipparcos, the New Reduction (van Leeuwen, 2007).",
+        "Credit: ESA Hipparcos mission; new astrometric reduction by Floor van Leeuwen.",
+        "Source: CDS/VizieR I/311",
+        "Catalogue URL: https://cdsarc.cds.unistra.fr/viz-bin/cat/I/311",
+        "Publication: van Leeuwen, F. (2007). Validation of the new Hipparcos reduction.",
+        "Publication: Astronomy & Astrophysics, 474, 653–664.",
+        "Article DOI: https://doi.org/10.1051/0004-6361:20078357",
+        "VizieR acknowledgement: This research has made use of the VizieR catalogue access tool, CDS, Strasbourg, France.",
+        "VizieR DOI: https://doi.org/10.26093/cds/vizier",
+        "License: Consult the catalogue documentation and CDS terms before redistribution.",
         "",
 
         // Open cluster catalogue.

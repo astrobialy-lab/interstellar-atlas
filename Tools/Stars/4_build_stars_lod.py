@@ -16,15 +16,15 @@ import numpy as np
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
-# Processed Gaia records created by the Gaia processing script.
-INPUT_DIR = PROJECT_ROOT / "DataRaw" / "Gaia" / "processed"
+# Processed stars records created by the stars processing script.
+INPUT_DIR = PROJECT_ROOT / "DataRaw" / "Stars" / "processed"
 
 # Installed/runtime data directory.
-OUTPUT_DIR = PROJECT_ROOT / "Data" / "Gaia" / "lod"
+OUTPUT_DIR = PROJECT_ROOT / "Data" / "Stars" / "lod"
 
 # Build into a separate directory and replace OUTPUT_DIR only on success.
-BUILD_DIR = PROJECT_ROOT / "Data" / "Gaia" / "lod_building"
-BACKUP_DIR = PROJECT_ROOT / "Data" / "Gaia" / "lod_previous"
+BUILD_DIR = PROJECT_ROOT / "Data" / "Stars" / "lod_building"
+BACKUP_DIR = PROJECT_ROOT / "Data" / "Stars" / "lod_previous"
 
 
 # ============================================================
@@ -744,7 +744,7 @@ def main():
         raise RuntimeError(f"No .bin files found in:\n{INPUT_DIR}")
 
     print("============================================================")
-    print("GAIA BRIGHTNESS-BASED LOD BUILDER")
+    print("STAR BRIGHTNESS-BASED LOD BUILDER")
     print("============================================================")
     print(f"Input:                    {INPUT_DIR}")
     print(f"Output:                   {OUTPUT_DIR}")
@@ -758,13 +758,13 @@ def main():
     # only retry the final installation. Do not rebuild or delete it.
     if BUILD_DIR.exists() and (BUILD_DIR / "manifest.json").is_file():
         print()
-        print("Found an already completed Gaia LOD build.")
+        print("Found an already completed stars LOD build.")
         print("Skipping regeneration and retrying final installation.")
 
         commit_build_output()
 
         print()
-        print("GAIA LOD BUILD COMPLETE")
+        print("STARS LOD BUILD COMPLETE")
         print(f"Output: {OUTPUT_DIR}")
         return
 

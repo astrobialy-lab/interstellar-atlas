@@ -23,7 +23,7 @@ public class VRPlayerController : MonoBehaviour
     public float rollSpeed = 20f;
 
     [Header("Stars")]
-    public GaiaStarFilter starFilter;
+    public StarFilter starFilter;
     public StarsLODLoader starsLodLoader;
 
     private static readonly int[] StarDisplayModes = { 6, 4, 2, -1, -1 };
@@ -79,7 +79,7 @@ public class VRPlayerController : MonoBehaviour
             dustSpriteRenderer = FindAnyObjectByType<DustSpriteRenderer>();
 
         if (starFilter == null)
-            starFilter = FindAnyObjectByType<GaiaStarFilter>();
+            starFilter = FindAnyObjectByType<StarFilter>();
 
         if (starsLodLoader == null)
             starsLodLoader = FindAnyObjectByType<StarsLODLoader>();

@@ -3974,7 +3974,7 @@ GameObject:
   - component: {fileID: 586631270}
   - component: {fileID: 586631266}
   m_Layer: 0
-  m_Name: GaiaStars
+  m_Name: Stars
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -4027,7 +4027,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 36dd962b2be45994d9ae240c4877bba4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::GaiaMSLODLoader
-  metadataDirectoryDataPath: Gaia/lod
+  metadataDirectoryDataPath: Stars/lod
   layerIndex: 8
   targetCamera: {fileID: 330585545}
   frustumCulling: 1

@@ -27,7 +27,7 @@ public class DesktopPlayerController : MonoBehaviour
     public GameObject orientation;
 
     [Header("Star Display")]
-    public GaiaStarFilter starFilter;
+    public StarFilter starFilter;
 
     [Header("Stars LOD")]
     public StarsLODLoader starsLodLoader;
@@ -62,7 +62,7 @@ public class DesktopPlayerController : MonoBehaviour
 
         if (starFilter == null)
         {
-            starFilter = FindAnyObjectByType<GaiaStarFilter>();
+            starFilter = FindAnyObjectByType<StarFilter>();
         }
 
         if (starsLodLoader == null)

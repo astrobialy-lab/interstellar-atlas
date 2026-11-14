@@ -4,7 +4,6 @@
 /DataRaw/
 /Data/
 /trash/
-Data_QuestTransfer_manifest.json
 
 # pernosnal
 .vscode/
@@ -13,14 +12,10 @@ Data_QuestTransfer_manifest.json
 *_BackUpThisFolder_ButDontShipItWithYourGame/
 *_BurstDebugInformation_DoNotShip/
 
-*.tar
-*.tar.part
-*.tgz
-*.gz
-
 # ignore the builds
 /Builds/
 /build/
+
 
 ## Default for unity project
 

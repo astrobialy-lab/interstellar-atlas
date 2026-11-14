@@ -18,8 +18,9 @@ NPIXELS = 12 * 4**LEVEL
 DIVISOR = 2 ** (59 - 2 * LEVEL)
 
 MAX_DISTANCE_PC = 2000
+MIN_PARALLAX_MAS = 1000.0 / MAX_DISTANCE_PC
 
-MAX_WORKERS = 10 # use 20 when gaia is out of maintanance
+MAX_WORKERS = 1
 
 def download_healpix(healpix):
 
@@ -101,20 +102,18 @@ def download_healpix(healpix):
 
     FROM gaiadr3.gaia_source AS g
 
-    JOIN gaiadr3.astrophysical_parameters AS ap
+    LEFT OUTER JOIN gaiadr3.astrophysical_parameters AS ap
         ON g.source_id = ap.source_id
 
     WHERE
         g.source_id >= {source_id_min}
         AND g.source_id < {source_id_max}
 
-        AND ap.distance_gspphot <= {MAX_DISTANCE_PC}
+        AND g.parallax IS NOT NULL
+        AND g.parallax >= {MIN_PARALLAX_MAS}
+        
         AND g.ra IS NOT NULL
         AND g.dec IS NOT NULL
-
-        AND ap.mg_gspphot IS NOT NULL
-        AND g.bp_rp IS NOT NULL
-        AND ap.ebpminrp_gspphot IS NOT NULL
     """
 
     # ---------------------------------------------------------

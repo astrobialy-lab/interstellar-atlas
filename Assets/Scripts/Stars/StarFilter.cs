@@ -2,7 +2,7 @@
 using UnityEngine;
 
 [System.Serializable]
-public struct GaiaStarFilterSettings
+public struct StarFilterSettings
 {
     public bool showStars;
 
@@ -108,7 +108,7 @@ public struct GaiaStarFilterSettings
     }
 }
 
-public sealed class GaiaStarFilter : MonoBehaviour
+public sealed class StarFilter : MonoBehaviour
 {
     [Header("Cluster Sprites")]
     [SerializeField]
@@ -116,8 +116,8 @@ public sealed class GaiaStarFilter : MonoBehaviour
 
     [Header("Settings")]
     [SerializeField]
-    private GaiaStarFilterSettings settings =
-        new GaiaStarFilterSettings
+    private StarFilterSettings settings =
+        new StarFilterSettings
         {
             showStars = true,
 
@@ -154,12 +154,12 @@ public sealed class GaiaStarFilter : MonoBehaviour
 
     public event System.Action<bool, float> BrightnessFilterChanged;
 
-    public GaiaStarFilterSettings CreateSnapshot()
+    public StarFilterSettings CreateSnapshot()
     {
         return settings;
     }
 
-    public void ApplySettings(GaiaStarFilterSettings newSettings)
+    public void ApplySettings(StarFilterSettings newSettings)
     {
         NormalizeFloatRange(
             ref newSettings.minMassSolar,

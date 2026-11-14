@@ -1,14 +1,14 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public class GaiaStarRasterizer : MonoBehaviour
+public class StarRasterizer : MonoBehaviour
 {
     [Header("References")]
     [SerializeField]
     private ComputeShader rasterizerCompute;
 
     [SerializeField]
-    private GaiaStarBufferProvider starLoader;
+    private StarBufferProvider starLoader;
 
     [Header("Brightness")]
     [SerializeField]
@@ -38,7 +38,7 @@ public class GaiaStarRasterizer : MonoBehaviour
         }
     }
 
-    public GaiaStarBufferProvider StarLoader
+    public StarBufferProvider StarLoader
     {
         get
         {
@@ -115,7 +115,7 @@ public class GaiaStarRasterizer : MonoBehaviour
         if (rasterizerCompute == null)
         {
             Debug.LogError(
-                "GaiaStarRasterizer: No ComputeShader assigned."
+                "StarRasterizer: No ComputeShader assigned."
             );
 
             enabled = false;
@@ -125,7 +125,7 @@ public class GaiaStarRasterizer : MonoBehaviour
         if (!SystemInfo.supportsComputeShaders)
         {
             Debug.LogError(
-                "GaiaStarRasterizer: This platform does not support compute shaders."
+                "StarRasterizer: This platform does not support compute shaders."
             );
 
             enabled = false;
@@ -141,13 +141,13 @@ public class GaiaStarRasterizer : MonoBehaviour
         if (starLoader == null)
         {
             starLoader =
-                GetComponent<GaiaStarBufferProvider>();
+                GetComponent<StarBufferProvider>();
         }
 
         if (starLoader == null)
         {
             Debug.LogError(
-                "GaiaStarRasterizer: No GaiaStarLoader found."
+                "StarRasterizer: No StarLoader found."
             );
 
             enabled = false;

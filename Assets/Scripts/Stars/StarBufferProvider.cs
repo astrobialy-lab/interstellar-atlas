@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public abstract class GaiaStarBufferProvider : MonoBehaviour
+public abstract class StarBufferProvider : MonoBehaviour
 {
     public abstract void GetLoadedStarBuffers(
         List<GraphicsBuffer> buffers,

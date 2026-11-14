@@ -4,10 +4,10 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-public class GaiaStarFilterMenu : MonoBehaviour
+public class StarFilterMenu : MonoBehaviour
 {
     [Header("Filter")]
-    public GaiaStarFilter starFilter;
+    public StarFilter starFilter;
 
     [Header("Brightness (apparent G magnitude)")]
     public Toggle brightnessToggle;
@@ -106,11 +106,11 @@ public class GaiaStarFilterMenu : MonoBehaviour
         if (starFilter == null)
         {
             Debug.LogError(
-                "GaiaStarFilterMenu: Star Filter is not assigned.");
+                "StarFilterMenu: Star Filter is not assigned.");
             return;
         }
 
-        GaiaStarFilterSettings settings = starFilter.CreateSnapshot();
+        StarFilterSettings settings = starFilter.CreateSnapshot();
 
         HandleBrightnessFilterChanged(settings.useMagnitudeLimit, settings.maxMagnitude);
 
@@ -170,11 +170,11 @@ public class GaiaStarFilterMenu : MonoBehaviour
         if (starFilter == null)
         {
             Debug.LogError(
-                "GaiaStarFilterMenu: Star Filter is not assigned.");
+                "StarFilterMenu: Star Filter is not assigned.");
             return;
         }
 
-        GaiaStarFilterSettings settings =
+        StarFilterSettings settings =
             starFilter.CreateSnapshot();
 
         if (massToggle != null)
