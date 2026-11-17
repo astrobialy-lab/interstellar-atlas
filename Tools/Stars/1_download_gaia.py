@@ -6,10 +6,8 @@ import os
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
-RAW_DIR = PROJECT_ROOT / "DataRaw" / "Gaia3" / "downloaded" # TODO change to folder "Gaia" instead of "Gaia3"
+RAW_DIR = PROJECT_ROOT / "DataRaw" / "Gaia" / "downloaded"
 RAW_DIR.mkdir(parents=True, exist_ok=True)
-
-CREDENTIALS_FILE = PROJECT_ROOT.parent / "gaia_credentials.txt"
 
 # HEALPix partition level used to split the Gaia data into manageable files.
 # The level doesn't matter because the data is split by cubes later.
@@ -20,7 +18,7 @@ DIVISOR = 2 ** (59 - 2 * LEVEL)
 MAX_DISTANCE_PC = 2000
 MIN_PARALLAX_MAS = 1000.0 / MAX_DISTANCE_PC
 
-MAX_WORKERS = 1
+MAX_WORKERS = 1 # Can use upto 5 workers per user
 
 def download_healpix(healpix):
 
@@ -174,13 +172,6 @@ def download_healpix(healpix):
         # Keep the .part file so you can see that this partition
         # did NOT finish successfully.
         raise
-
-
-# -------------------------------------------------------------
-# Login
-# -------------------------------------------------------------
-
-Gaia.login(credentials_file=str(CREDENTIALS_FILE))
 
 
 # -------------------------------------------------------------

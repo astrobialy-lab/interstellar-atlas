@@ -40,7 +40,7 @@ PACKAGE_DATA = True
 COMPRESSION_LEVEL = 6
 
 IGNORED_NAMES = {".DS_Store", "Thumbs.db", "desktop.ini"}
-REQUIRED_DATA_FOLDERS = ("Gaia", "Dust", "Clusters", "Landmarks")
+REQUIRED_DATA_FOLDERS = ("Stars", "Dust", "Clusters", "Landmarks")
 
 
 def product_name() -> str:

@@ -639,7 +639,6 @@ def process_gaia_healpix(csv_file):
                     bp_rp = safe_float(row.get("bp_rp"))
                     ebp_rp = safe_float(row.get("ebpminrp_gspphot"))
 
-                    distance = safe_float(row.get("distance_gspphot"))
                     ag = safe_float(row.get("ag_gspphot"))
 
                     # Mass is optional and is no longer used for filtering.
@@ -677,11 +676,12 @@ def process_gaia_healpix(csv_file):
                             if valid_number(ag):
                                 absolute_g_mag -= ag
 
-                    # Prefer GSP-Phot distance; fall back to inverse parallax.
-                    if not valid_number(distance) or distance <= 0:
+                    # Calculate distance exclusively from Gaia parallax (mas).
+                    if not valid_number(parallax) or parallax <= 0:
+                        skip_star()
+                        continue
 
-                        if valid_number(parallax) and parallax > 0:
-                            distance = 1000.0 / parallax
+                    distance = 1000.0 / parallax
 
                     if not valid_number(distance) or distance <= 0:
                         skip_star()
