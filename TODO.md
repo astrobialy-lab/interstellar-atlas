@@ -4,6 +4,7 @@
 - add labels above landmarks
 - check whether the controller is the one that selects the landmark or screen, if controller then draw a line.
 - decrease the axis size for pc
+- on loading scene make the background black
 - check messages on slack
 
 # BONUS:

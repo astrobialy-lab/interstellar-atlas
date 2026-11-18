@@ -2,6 +2,7 @@
 using UnityEngine;
 using UnityEngine.XR;
 using UnityEngine.XR.Management;
+using UnityEngine.XR.Interaction.Toolkit.Interactors.Visuals;
 
 public class VRPlayerController : MonoBehaviour
 {
@@ -42,9 +43,18 @@ public class VRPlayerController : MonoBehaviour
     public float turnSmoothing = 4.0f;
 
     [Header("Raycast Selection")]
-    public float selectionRayDistance = 50.0f;
+    public float selectionRayDistance = 500.0f;
     public LayerMask landmarkLayerMask = ~0;
     public LineRenderer rightRayLine;
+
+    [Header("Landmark Mode Ray")]
+    [SerializeField] private CurveVisualController rightCurveVisual;
+
+    private bool landmarksModeActive = false;
+    private bool originalCurveVisualEnabled;
+    private bool rayModeInitialized = false;
+    private LineRenderer nativeRightRayLine;
+    private bool originalNativeRayLineEnabled;
 
     [Header("Dust")]
     public DustSpriteRenderer dustSpriteRenderer;
@@ -75,6 +85,46 @@ public class VRPlayerController : MonoBehaviour
             return;
         }
 
+        // Save the original XR pointer and its Line Renderer.
+        if (rightCurveVisual != null)
+        {
+            originalCurveVisualEnabled = rightCurveVisual.enabled;
+
+            // This is the Line Renderer used by the native XR pointer.
+            nativeRightRayLine = rightCurveVisual.lineRenderer;
+
+            if (nativeRightRayLine == null)
+                nativeRightRayLine = rightCurveVisual.GetComponent<LineRenderer>();
+
+            if (nativeRightRayLine != null)
+                originalNativeRayLineEnabled = nativeRightRayLine.enabled;
+            else
+                Debug.LogWarning("Native Near-Far Line Renderer not found.");
+        }
+        else
+        {
+            Debug.LogWarning("Right Curve Visual Controller not assigned.");
+        }
+
+        // Initialize our separate LandmarkSelectionLine renderer.
+        if (rightRayLine != null)
+        {
+            if (rightRayLine == nativeRightRayLine)
+            {
+                Debug.LogError(
+                    "Right Ray Line must be the NEW LandmarkSelectionLine renderer, " +
+                    "not the Line Renderer used by the Near-Far pointer.");
+            }
+
+            rightRayLine.useWorldSpace = true;
+            rightRayLine.positionCount = 2;
+            rightRayLine.enabled = false;
+        }
+        else
+        {
+            Debug.LogWarning("Landmark Selection Line Renderer not assigned.");
+        }
+
         if (dustSpriteRenderer == null)
             dustSpriteRenderer = FindAnyObjectByType<DustSpriteRenderer>();
 
@@ -87,9 +137,6 @@ public class VRPlayerController : MonoBehaviour
         if (starsLODNodesVisualizer == null)
             starsLODNodesVisualizer =
                 FindAnyObjectByType<StarsLODNodesVisualizer>();
-
-        if (rightRayLine != null)
-            rightRayLine.enabled = false;
 
         // Start in the default mode: LOD layer 6.
         starDisplayModePosition = 0;
@@ -111,6 +158,9 @@ public class VRPlayerController : MonoBehaviour
         {
             Debug.LogWarning("VRPlayerController: GaiaStarFilter not found.");
         }
+
+        rayModeInitialized = true;
+        SetRightLandmarkRayMode(landmarksModeActive);
     }
 
     private void Update()
@@ -209,6 +259,71 @@ public class VRPlayerController : MonoBehaviour
         HandleSpeedControls(leftHand);
         HandleDustRenderingControls(leftHand);
         HandleRightTriggerGestures(rightHand);
+    }
+
+    private void LateUpdate()
+    {
+        if (!landmarksModeActive ||
+            rightRayLine == null ||
+            rightControllerTransform == null)
+            return;
+
+        // Follow the tracked right controller every frame.
+        Vector3 origin = rightControllerTransform.position;
+        Vector3 direction = rightControllerTransform.forward;
+
+        rightRayLine.SetPosition(0, origin);
+        rightRayLine.SetPosition(
+            1,
+            origin + direction * selectionRayDistance);
+    }
+
+    private void OnDisable()
+    {
+        if (!rayModeInitialized)
+            return;
+
+        // Restore the original XR pointer.
+        SetRightLandmarkRayMode(false);
+    }
+
+    private void OnEnable()
+    {
+        if (!rayModeInitialized)
+            return;
+
+        // Restore the appropriate pointer for the current mode.
+        SetRightLandmarkRayMode(landmarksModeActive);
+    }
+
+    private void SetRightLandmarkRayMode(bool enabled)
+    {
+        if (enabled)
+        {
+            // Stop the native XR visual from controlling its own renderer.
+            if (rightCurveVisual != null)
+                rightCurveVisual.enabled = false;
+
+            if (nativeRightRayLine != null)
+                nativeRightRayLine.enabled = false;
+
+            // Show our independent straight line.
+            if (rightRayLine != null)
+                rightRayLine.enabled = true;
+        }
+        else
+        {
+            // Hide our custom line.
+            if (rightRayLine != null)
+                rightRayLine.enabled = false;
+
+            // Restore the original XR pointer.
+            if (rightCurveVisual != null)
+                rightCurveVisual.enabled = originalCurveVisualEnabled;
+
+            if (nativeRightRayLine != null)
+                nativeRightRayLine.enabled = originalNativeRayLineEnabled;
+        }
     }
 
     private void HandleStarDisplayControl(InputDevice rightHand)
@@ -422,38 +537,36 @@ public class VRPlayerController : MonoBehaviour
 
     private void ToggleLandmarksAndOrientation()
     {
+        landmarksModeActive = !landmarksModeActive;
+
         if (landmarkMarkerGenerator != null)
             landmarkMarkerGenerator.ToggleMarkers();
 
         if (orientation != null)
             orientation.SetActive(!orientation.activeSelf);
+
+        SetRightLandmarkRayMode(landmarksModeActive);
     }
 
     private void TrySelectLandmark()
     {
         if (rightControllerTransform == null)
         {
-            Debug.LogWarning(
-                "Right Controller Transform has not been assigned.");
+            Debug.LogWarning("Right Controller Transform has not been assigned.");
             return;
         }
 
+        // Use the same position and direction as the visible Landmark line.
         Vector3 rayOrigin = rightControllerTransform.position;
         Vector3 rayDirection = rightControllerTransform.forward;
 
-        if (rightRayLine != null)
-        {
-            rightRayLine.enabled = true;
-            rightRayLine.useWorldSpace = true;
-            rightRayLine.positionCount = 2;
-            rightRayLine.SetPosition(0, rayOrigin);
-            rightRayLine.SetPosition(
-                1, rayOrigin + rayDirection * selectionRayDistance);
-        }
-
         Ray ray = new Ray(rayOrigin, rayDirection);
 
-        if (Physics.Raycast(ray, out RaycastHit hit, selectionRayDistance))
+        if (Physics.Raycast(
+            ray,
+            out RaycastHit hit,
+            selectionRayDistance,
+            landmarkLayerMask))
         {
             MarkerInfo info =
                 hit.collider.GetComponentInParent<MarkerInfo>();
