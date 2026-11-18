@@ -193,6 +193,37 @@ LANDMARK_GROUPS: dict[str, list[str]] = {
 }
 
 
+
+# BEGIN REQUESTED LANDMARK PATCH: candidate names
+# These are appended after the original shortlist so existing display names
+# and catalogue entries remain unchanged.
+for _landmark_name in ["NGC 1980"]:
+    if _landmark_name not in LANDMARK_GROUPS["Open and embedded star clusters"]:
+        LANDMARK_GROUPS["Open and embedded star clusters"].append(_landmark_name)
+
+for _landmark_name in [
+    "Polaris Flare",
+    "Vela C",
+    "Upper Scorpius Association",
+    "Upper Centaurus-Lupus Association",
+    "Lower Centaurus-Crux Association",
+    "Per-Tau Shell",
+]:
+    if _landmark_name not in LANDMARK_GROUPS["Molecular clouds, associations and ISM structures"]:
+        LANDMARK_GROUPS["Molecular clouds, associations and ISM structures"].append(_landmark_name)
+
+LANDMARK_GROUPS.setdefault("Stars", [])
+for _landmark_name in [
+    "ζ Ophiuchi",
+    "HD 147889",
+    "ε Persei",
+    "λ Orionis A (Meissa)",
+    "θ¹ Orionis C",
+]:
+    if _landmark_name not in LANDMARK_GROUPS["Stars"]:
+        LANDMARK_GROUPS["Stars"].append(_landmark_name)
+# END REQUESTED LANDMARK PATCH: candidate names
+
 # Query alternatives for compound/display names that SIMBAD may not resolve
 # verbatim. The first successful SIMBAD result is used.
 SIMBAD_ALIASES: dict[str, list[str]] = {
@@ -296,6 +327,29 @@ SIMBAD_ALIASES.update({
 })
 
 
+
+# BEGIN REQUESTED LANDMARK PATCH: SIMBAD aliases
+SIMBAD_ALIASES.update({
+    "NGC 1980": ["NGC 1980", "LBN 977", "OCl 529.0", "Lower Sword"],
+    "Polaris Flare": ["Polaris Flare", "NAME Polaris Flare"],
+    "Vela C": ["Vela C", "Vela-C Molecular Cloud", "VMR C"],
+    "Upper Scorpius Association": ["Upper Scorpius", "Upper Sco", "NAME Upper Scorpius"],
+    "Upper Centaurus-Lupus Association": [
+        "Upper Centaurus Lupus", "Upper Centaurus-Lupus", "UCL"
+    ],
+    "Lower Centaurus-Crux Association": [
+        "Lower Centaurus Crux", "Lower Centaurus-Crux", "LCC"
+    ],
+    "Orion OB1 Association": ["Orion OB1", "Ori OB1"],
+    "ζ Ophiuchi": ["zet Oph", "Zeta Ophiuchi", "HD 149757"],
+    "HD 147889": ["HD 147889"],
+    "ε Persei": ["eps Per", "Epsilon Persei", "HD 24760"],
+    "λ Orionis A (Meissa)": ["HD 36861", "lam Ori", "Meissa"],
+    "θ¹ Orionis C": ["HD 37022", "tet01 Ori C", "Theta1 Orionis C"],
+    "Per-Tau Shell": ["Per-Tau Shell", "Perseus-Taurus Shell"],
+})
+# END REQUESTED LANDMARK PATCH: SIMBAD aliases
+
 # Hunt & Reffert catalogue matching aliases. These are used only against its
 # AllNames/Name columns; they do not force the output location.
 CLUSTER_CATALOG_ALIASES: dict[str, list[str]] = {
@@ -327,6 +381,11 @@ CLUSTER_CATALOG_ALIASES: dict[str, list[str]] = {
     "Ptolemy's Cluster (M7)": ["M7", "NGC 6475"],
 }
 
+
+
+# BEGIN REQUESTED LANDMARK PATCH: NGC 1980 cluster alias
+CLUSTER_CATALOG_ALIASES["NGC 1980"] = ["NGC 1980", "LBN 977", "OCl 529.0"]
+# END REQUESTED LANDMARK PATCH: NGC 1980 cluster alias
 
 # Schlafly major-cloud FITS table has multiple sightlines for some regions.
 # We combine the matching sightlines in Cartesian space to obtain a single
@@ -458,6 +517,27 @@ ORIGINAL_TYPE_OVERRIDES: dict[str, str] = {
     "Local Bubble / Local Chimney": "Cavity in the ISM",
 }
 
+
+# BEGIN REQUESTED LANDMARK PATCH: display types
+ORIGINAL_TYPE_OVERRIDES.update({
+    "NGC 1980": "Open star cluster",
+    "Polaris Flare": "Molecular cloud complex",
+    "Vela C": "Molecular cloud",
+    "Upper Scorpius Association": "OB stellar association",
+    "Upper Centaurus-Lupus Association": "OB stellar association",
+    "Lower Centaurus-Crux Association": "OB stellar association",
+    "Orion OB1 Association": "OB stellar association",
+    "Per-Tau Shell": "Interstellar dust and gas shell",
+    "ζ Ophiuchi": "O-type runaway star",
+    "HD 147889": "B2V star",
+    "ε Persei": "B-type variable star",
+    "λ Orionis A (Meissa)": "O-type multiple star",
+    "θ¹ Orionis C": "O-type spectroscopic binary",
+    "North America Nebula (NGC 7000)": "Emission nebula / H II region",
+    "Pelican Nebula (IC 5070)": "Emission nebula / H II region",
+})
+# END REQUESTED LANDMARK PATCH: display types
+
 # Sun and Galactic Center are reference points, not ordinary nearby candidates.
 # The Galactic Center is deliberately exempt from MAX_DISTANCE_PC because the
 # user explicitly wants it retained as a map reference (about 8.2 kpc away).
@@ -520,6 +600,208 @@ class Location:
     spectral_type: str = ""
     source_detail: str = ""
 
+
+
+# BEGIN REQUESTED LANDMARK PATCH: vetted manual location fallbacks
+# These entries deliberately bypass online name resolution for the requested
+# landmarks. They preserve one representative marker per extended structure.
+#
+# Distances are heliocentric. Galactic l,b values are in degrees.
+# The Per-Tau Shell's published Cartesian XYZ is retained directly.
+#
+# Notes on uncertainties:
+# - Polaris Flare has conflicting published distance estimates; 390 pc is the
+#   Schlafly et al. (2014) stellar-extinction estimate, not a consensus value.
+# - Orion OB1 and the OB-association subgroup positions are representative
+#   visualization points for extended populations, not physical point centres.
+# - North America and Pelican are separate sky positions in the same W80
+#   complex and therefore share the same adopted 800 +/- 40 pc distance.
+PUBLISHED_LANDMARK_LOCATIONS: dict[str, dict[str, Any]] = {
+    "Coalsack Nebula": {
+        "l_deg": 298.6, "b_deg": -0.97, "distance_pc": 187.0,
+        "source": "3D Galactic molecular-cloud reconstruction",
+        "source_detail": (
+            "Mass-weighted Coalsack centroid at l=298.6 deg, b=-0.97 deg, "
+            "d=187 pc. The reconstructed cloud spans approximately 141-212 pc "
+            "with its density peak near 158 pc."
+        ),
+    },
+    "Polaris Flare": {
+        "l_deg": 124.9976, "b_deg": 30.4912, "distance_pc": 390.0,
+        "source": "Schlafly et al. (2014)",
+        "source_detail": (
+            "SIMBAD representative Galactic position; adopted distance "
+            "390 +/- 34 pc from the stellar-extinction estimate of Schlafly "
+            "et al. (2014). Published estimates differ substantially "
+            "(including 125 +/- 25 pc and 205 +/- 62 pc), so this distance "
+            "should be treated as uncertain."
+        ),
+    },
+    "North America Nebula (NGC 7000)": {
+        "l_deg": 85.5012, "b_deg": -0.9846, "distance_pc": 800.0,
+        "source": "Zucker et al. (2020), Gaia DR2",
+        "source_detail": (
+            "SIMBAD representative position for NGC 7000; adopted W80 "
+            "North America-Pelican complex distance 800 +/- 40 pc from "
+            "the Gaia DR2 estimate reported by Zucker et al. (2020)."
+        ),
+    },
+    "Pelican Nebula (IC 5070)": {
+        "l_deg": 84.6314, "b_deg": 0.1021, "distance_pc": 800.0,
+        "source": "Zucker et al. (2020), Gaia DR2",
+        "source_detail": (
+            "SIMBAD representative position for IC 5070; adopted W80 "
+            "North America-Pelican complex distance 800 +/- 40 pc from "
+            "the Gaia DR2 estimate reported by Zucker et al. (2020)."
+        ),
+    },
+    "Vela C": {
+        "l_deg": 264.4344, "b_deg": 1.4774, "distance_pc": 905.0,
+        "source": "Zucker et al. (2020), Gaia DR2",
+        "source_detail": (
+            "SIMBAD representative Galactic position; adopted mean distance "
+            "905 +/- 45 pc from the Gaia DR2 stellar-parallax estimate "
+            "reported by Zucker et al. (2020)."
+        ),
+    },
+    "NGC 1980": {
+        "l_deg": 209.5125, "b_deg": -19.6326,
+        "distance_pc": 1000.0 / 2.586,
+        "source": "SIMBAD / Gaia parallax",
+        "source_detail": (
+            "SIMBAD J2000 Galactic position; distance calculated as the "
+            "inverse of the listed parallax 2.586 mas (Gaia-based catalogue "
+            "measurement)."
+        ),
+    },
+    "Upper Scorpius Association": {
+        "l_deg": 351.5, "b_deg": 20.0, "distance_pc": 143.0,
+        "source": "Wright & Mamajek (2018)",
+        "source_detail": (
+            "Representative Upper Scorpius subgroup position; adopted mean "
+            "distance 143 +/- 6 pc."
+        ),
+    },
+    "Upper Centaurus-Lupus Association": {
+        "l_deg": 331.0, "b_deg": 12.5, "distance_pc": 136.0,
+        "source": "Wright & Mamajek (2018)",
+        "source_detail": (
+            "Representative Upper Centaurus-Lupus subgroup position; "
+            "adopted mean distance 136 +/- 5 pc."
+        ),
+    },
+    "Lower Centaurus-Crux Association": {
+        "l_deg": 298.5, "b_deg": 5.5, "distance_pc": 115.0,
+        "source": "Wright & Mamajek (2018)",
+        "source_detail": (
+            "Representative Lower Centaurus-Crux subgroup position; "
+            "adopted mean distance 115 +/- 4 pc."
+        ),
+    },
+    "Orion OB1 Association": {
+        "l_deg": 207.0, "b_deg": -18.7, "distance_pc": 380.0,
+        "source": "Zari et al. (2017), representative Orion OB1 position",
+        "source_detail": (
+            "Approximate representative position for the extended Orion OB1 "
+            "association, centred on its subgroups near l=207 deg, b=-18.7 deg. "
+            "Adopted characteristic distance approximately 380 pc; the "
+            "association spans a substantial depth along the line of sight."
+        ),
+    },
+    "ζ Ophiuchi": {
+        "l_deg": 6.2812427854, "b_deg": 23.5877347594,
+        "distance_pc": 1000.0 / 7.4088,
+        "source": "SIMBAD / Gaia-based parallax",
+        "source_detail": (
+            "SIMBAD J2000 Galactic position; inverse of the listed parallax "
+            "7.4088 mas."
+        ),
+    },
+    "HD 147889": {
+        "l_deg": 352.8573479946, "b_deg": 17.0435772219,
+        "distance_pc": 1000.0 / 7.3337,
+        "source": "SIMBAD / Gaia-based parallax",
+        "source_detail": (
+            "SIMBAD J2000 Galactic position; inverse of the listed parallax "
+            "7.3337 mas."
+        ),
+    },
+    "ε Persei": {
+        "l_deg": 157.3538268945, "b_deg": -10.0884513926,
+        "distance_pc": 1000.0 / 5.3316,
+        "source": "SIMBAD / Gaia-based parallax",
+        "source_detail": (
+            "SIMBAD J2000 Galactic position; inverse of the listed parallax "
+            "5.3316 mas."
+        ),
+    },
+    "λ Orionis A (Meissa)": {
+        "l_deg": 195.0518878578, "b_deg": -11.9950613571,
+        "distance_pc": 1000.0 / 2.5936,
+        "source": "SIMBAD / Gaia-based parallax",
+        "source_detail": (
+            "SIMBAD J2000 Galactic position for HD 36861; inverse of the "
+            "listed parallax 2.5936 mas."
+        ),
+    },
+    "θ¹ Orionis C": {
+        "l_deg": 209.0107538539, "b_deg": -19.3840477838,
+        "distance_pc": 1000.0 / 2.5014,
+        "source": "SIMBAD / Gaia-based parallax",
+        "source_detail": (
+            "SIMBAD J2000 Galactic position for HD 37022; inverse of the "
+            "listed parallax 2.5014 mas."
+        ),
+    },
+    "Per-Tau Shell": {
+        "l_deg": 161.1, "b_deg": -22.7, "distance_pc": 218.0,
+        "xyz_pc": (-190.0, 65.0, -84.0),
+        "source": "Bialy et al. (2021), Table 1",
+        "source_detail": (
+            "Published Per-Tau Shell centre from Bialy et al. (2021), "
+            "Table 1: heliocentric Galactic l=161.1 deg, b=-22.7 deg, "
+            "d=218 pc and Cartesian XYZ=(-190, 65, -84) pc. Published "
+            "Cartesian coordinates are used directly."
+        ),
+    },
+    "Lambda Orionis Ring": {
+        "l_deg": 194.3, "b_deg": -14.6, "distance_pc": 386.0,
+        "source": "Zucker et al. (2021), Table 1",
+        "source_detail": (
+            "Published median Galactic coordinates and heliocentric distance "
+            "for the Lambda Orionis cloud/ring: l=194.3 deg, b=-14.6 deg, "
+            "d=386 pc."
+        ),
+    },
+}
+
+
+def published_location_override(display_name: str) -> Location | None:
+    'Return a vetted location for a requested landmark without a live lookup.'
+    data = PUBLISHED_LANDMARK_LOCATIONS.get(display_name)
+    if data is None:
+        return None
+
+    distance = float(data["distance_pc"])
+    l_deg = float(data["l_deg"])
+    b_deg = float(data["b_deg"])
+
+    if "xyz_pc" in data:
+        x, y, z = (float(value) for value in data["xyz_pc"])
+    else:
+        x, y, z = xyz_from_lb(l_deg, b_deg, distance)
+
+    return Location(
+        x_pc=x,
+        y_pc=y,
+        z_pc=z,
+        distance_pc=distance,
+        gal_l_deg=l_deg,
+        gal_b_deg=b_deg,
+        source=data["source"],
+        source_detail=data["source_detail"],
+    )
+# END REQUESTED LANDMARK PATCH: vetted manual location fallbacks
 
 def make_session() -> requests.Session:
     session = requests.Session()
@@ -1347,8 +1629,13 @@ def main() -> int:
             print("    Included using the documented origin anchor (not a distance measurement).")
             continue
 
+        # 0. Explicit published locations for the requested landmarks.
+        # These take priority so these names are not skipped when an online
+        # catalogue lookup fails or has no distance attached.
+        location = published_location_override(name)
+
         # 1. Open clusters: Hunt & Reffert 2024.
-        if group_name == "Open and embedded star clusters":
+        if location is None and group_name == "Open and embedded star clusters":
             location = cluster_catalogue.query(name)
 
         # 2. Molecular clouds: Zucker et al. 2021, Table 1.

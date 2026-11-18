@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
+using TMPro;
 
 public class LandmarkMarkerGenerator : MonoBehaviour
 {
@@ -40,10 +41,25 @@ public class LandmarkMarkerGenerator : MonoBehaviour
 
     [Header("Nearby Star Separation")]
     [Tooltip("Stars closer than this distance to the origin are nudged outward.")]
-    public float nearbyStarThreshold = 0.5f;
+    public float nearbyStarThreshold = 0f;
 
     [Tooltip("Extra distance added to nearby star markers so they do not overlap the Sun.")]
-    public float nearbyStarOffset = 0.35f;
+    public float nearbyStarOffset = 0f;
+
+    [Header("Landmark Name Labels")]
+    public bool showNameLabels = true;
+    public TMP_FontAsset labelFont;
+
+    [Tooltip("Controls the text size.")]
+    public float labelFontSize = 36f;
+
+    [Tooltip("World-space scale of the label, independent of marker scale.")]
+    public float labelScale = 0.2f;
+
+    [Tooltip("Vertical distance above the marker, in world units.")]
+    public float labelVerticalOffset = 0.1f;
+
+    private readonly List<Transform> nameLabels = new List<Transform>();
 
     private bool markersVisible = true;
 
@@ -62,6 +78,21 @@ public class LandmarkMarkerGenerator : MonoBehaviour
             playerCamera = Camera.main.transform;
 
         LoadBinaryAndGenerateMarkers();
+    }
+
+    private void LateUpdate()
+    {
+        if (playerCamera == null)
+            return;
+
+        foreach (Transform label in nameLabels)
+        {
+            if (label == null)
+                continue;
+
+            Vector3 direction = playerCamera.position - label.position;
+            label.rotation = Quaternion.LookRotation(direction, Vector3.up) * Quaternion.Euler(0f, 180f, 0f);
+        }
     }
 
     private void LoadBinaryAndGenerateMarkers()
@@ -150,12 +181,72 @@ public class LandmarkMarkerGenerator : MonoBehaviour
                 record.ShortDescription,
                 record.ParagraphDescription);
 
+            if (showNameLabels)
+            {
+                CreateNameLabel(marker, record.Name);
+            }
+
             created++;
         }
 
         Debug.Log(
             $"LandmarkMarkerGenerator: Created {created:N0} landmark markers " +
             $"from {records.Count:N0} binary records.");
+    }
+
+    private void CreateNameLabel(GameObject marker, string landmarkName)
+    {
+        GameObject labelObject = new GameObject("NameLabel");
+
+        TextMeshPro label = labelObject.AddComponent<TextMeshPro>();
+
+        label.text = landmarkName;
+        label.font = labelFont;
+        label.fontSize = labelFontSize;
+        label.alignment = TextAlignmentOptions.Center;
+        label.color = Color.white;
+        label.textWrappingMode = TextWrappingModes.NoWrap;
+        label.overflowMode = TextOverflowModes.Overflow;
+
+        // Give the text enough room to display longer names.
+        label.rectTransform.sizeDelta = new Vector2(100f, 10f);
+
+        // Find the marker's rendered bounds.
+        Renderer[] renderers = marker.GetComponentsInChildren<Renderer>(true);
+
+        Bounds bounds = new Bounds(marker.transform.position, Vector3.zero);
+        bool hasBounds = false;
+
+        foreach (Renderer renderer in renderers)
+        {
+            if (!hasBounds)
+            {
+                bounds = renderer.bounds;
+                hasBounds = true;
+            }
+            else
+            {
+                bounds.Encapsulate(renderer.bounds);
+            }
+        }
+
+        // Position the label above the marker.
+        labelObject.transform.position =
+            bounds.center + Vector3.up * (bounds.extents.y + labelVerticalOffset);
+
+        // Parent it to the marker so it follows the marker.
+        labelObject.transform.SetParent(marker.transform, true);
+
+        // Compensate for marker scaling so the text keeps its own size.
+        Vector3 parentScale = marker.transform.lossyScale;
+
+        labelObject.transform.localScale = new Vector3(
+            labelScale / Mathf.Max(Mathf.Abs(parentScale.x), 0.0001f),
+            labelScale / Mathf.Max(Mathf.Abs(parentScale.y), 0.0001f),
+            labelScale / Mathf.Max(Mathf.Abs(parentScale.z), 0.0001f)
+        );
+
+        nameLabels.Add(labelObject.transform);
     }
 
     private void ConfigurePointColor(GameObject marker, string objectName)
@@ -187,6 +278,10 @@ public class LandmarkMarkerGenerator : MonoBehaviour
         if (value.Contains("association"))
             return "association";
 
+        // Must come before star detection.
+        if (value.Contains("cluster"))
+            return "cluster";
+
         if (value == "star" ||
             value.Contains(" star") ||
             value.EndsWith("star") ||
@@ -194,20 +289,21 @@ public class LandmarkMarkerGenerator : MonoBehaviour
             value.Contains("white dwarf") ||
             value.Contains("stellar") ||
             value.Contains("binary"))
-        {
             return "star";
-        }
 
         if (value.Contains("nebula") ||
             value.Contains("h ii") ||
-            value.Contains("hii region"))
+            value.Contains("hii region") ||
+            value.Contains("supernova remnant") ||
+            value.Contains("snr"))
             return "nebula";
 
-        if (value.Contains("cloud"))
+        if (value.Contains("cloud") ||
+            value.Contains("interstellar matter") ||
+            value.Contains("interstellar") ||
+            value.Contains("shell") ||
+            value.Contains("ism structure"))
             return "cloud";
-
-        if (value.Contains("cluster"))
-            return "cluster";
 
         return value;
     }

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.XR;
 
 public class GalacticOrientationCompass : MonoBehaviour
 {
@@ -17,8 +18,11 @@ public class GalacticOrientationCompass : MonoBehaviour
     [Tooltip("Position relative to the viewer camera.")]
     public Vector3 localPosition = new Vector3(0f, 0f, 1.0f);
 
-    [Tooltip("Overall size of the compass.")]
-    public float compassScale = 0.3f;
+    [Tooltip("Overall compass size in VR.")]
+    public float compassScaleVR = 2f;
+
+    [Tooltip("Overall compass size on PC.")]
+    public float compassScalePC = 0.3f;
 
     [Header("Axis Appearance")]
     public float axisLength = 0.16f;
@@ -311,7 +315,7 @@ public class GalacticOrientationCompass : MonoBehaviour
 
         compassRect.anchoredPosition = anchorPanel;
 
-        float scale = Mathf.Max(0f, compassScale);
+        float scale = XRSettings.isDeviceActive ? compassScaleVR : compassScalePC;
 
         float worldAxisLength =
             Mathf.Max(0f, axisLength) * scale;
@@ -391,7 +395,7 @@ public class GalacticOrientationCompass : MonoBehaviour
                     ? delta.normalized
                     : Vector2.up;
 
-            float offset = Mathf.Max(0f, labelOffset);
+            float offset = labelOffset * scale;
 
             labelRect.anchoredPosition =
                 delta + projectedDirection * offset;
@@ -399,8 +403,8 @@ public class GalacticOrientationCompass : MonoBehaviour
             // Keep text upright.
             labelRect.localRotation = Quaternion.identity;
 
-            labelRect.sizeDelta = labelBoxSize;
-            label.fontSize = labelFontSize;
+            labelRect.sizeDelta = labelBoxSize * scale;
+            label.fontSize = labelFontSize * scale;
         }
 
         // Sort lines and labels according to camera-space depth.

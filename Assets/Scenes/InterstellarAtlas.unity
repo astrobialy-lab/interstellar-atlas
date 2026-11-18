@@ -2587,8 +2587,13 @@ MonoBehaviour:
   playerCamera: {fileID: 330585546}
   colliderSizeMultiplier: 1
   fallbackColliderRadius: 0.05
-  nearbyStarThreshold: 0.5
-  nearbyStarOffset: 0.35
+  nearbyStarThreshold: 0
+  nearbyStarOffset: 0
+  showNameLabels: 1
+  labelFont: {fileID: 0}
+  labelFontSize: 36
+  labelScale: 0.6
+  labelVerticalOffset: 1
 --- !u!1 &384392377
 GameObject:
   m_ObjectHideFlags: 0
@@ -3141,6 +3146,91 @@ MonoBehaviour:
   m_ChildScaleWidth: 0
   m_ChildScaleHeight: 0
   m_ReverseArrangement: 0
+--- !u!1 &440670760
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 440670761}
+  - component: {fileID: 440670762}
+  m_Layer: 0
+  m_Name: GalacticStructureVisualizer
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &440670761
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 440670760}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 2109148597}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &440670762
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 440670760}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5b75388c08690a44d8520d85fea1162c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::GalacticStructureVisualizer
+  showStructures: 1
+  followLandmarkVisibility: 1
+  landmarkMarkerGenerator: {fileID: 376260066}
+  landmarksVisibilitySource: {fileID: 0}
+  viewerCamera: {fileID: 0}
+  labelFont: {fileID: 0}
+  labelFontSize: 80
+  labelOffsetAboveStructurePc: 10
+  showPerTauLabel: 1
+  perTauLabelText: Per-Tau Shell
+  showTauRingLabel: 1
+  tauRingLabelText: Tau Ring
+  showRadcliffeLabel: 1
+  radcliffeLabelText: Radcliffe Wave
+  showPerTauShell: 1
+  perTauColor: {r: 0.12, g: 0.88, b: 0.64, a: 1}
+  perTauLineWidthPc: 0.45
+  perTauLongitudeCount: 12
+  perTauLatitudeRingCount: 8
+  perTauSegmentsPerLine: 64
+  perTauRadialVariationPc: 4
+  showIllustrativePerTauGaps: 0
+  perTauMissingPatches: []
+  showTauRing: 1
+  tauRingColor: {r: 1, g: 0.72, b: 0.18, a: 1}
+  tauRingLineWidthPc: 0.55
+  tauRingSegments: 128
+  tauRingSemiMajorAxisPc: 39
+  tauRingSemiMinorAxisPc: 26
+  showRadcliffeWave: 1
+  radcliffeColor: {r: 1, g: 0.27, b: 0.22, a: 1}
+  radcliffeLineWidthPc: 0.65
+  radcliffeSamples: 512
+  radcliffeAnchor0: {x: -910, y: -860, z: -30}
+  radcliffeAnchor1: {x: -270, y: -20, z: -10}
+  radcliffeAnchor2: {x: 290, y: 1400, z: 30}
+  radcliffeAmplitudePc: 160
+  radcliffePeriodPc: 3560
+  radcliffePhaseRadians: 2.89
+  radcliffeGamma: 0.5
+  radcliffeDelta: 6.68
 --- !u!1 &441673507
 GameObject:
   m_ObjectHideFlags: 0
@@ -11241,7 +11331,8 @@ MonoBehaviour:
   viewerCamera: {fileID: 330585546}
   uiPanel: {fileID: 1606889566}
   localPosition: {x: 0, y: 0, z: 1}
-  compassScale: 2
+  compassScaleVR: 2
+  compassScalePC: 0.5
   axisLength: 0.16
   axisWidth: 0.012
   labelFontSize: 28
@@ -13987,7 +14078,8 @@ Transform:
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 1
-  m_Children: []
+  m_Children:
+  - {fileID: 440670761}
   m_Father: {fileID: 376260064}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &2129236293

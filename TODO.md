@@ -1,13 +1,8 @@
 # TODO:
 
-- maybe increase marker hitbox: hard to click on landmark in vr
-- add labels above landmarks
-- check whether the controller is the one that selects the landmark or screen, if controller then draw a line.
-- decrease the axis size for pc
-- on loading scene make the background black
-- check messages on slack
-
 # BONUS:
+
+- in fast travel list, alight whole text to left, and also display an icon near each name of the same landmark color
 
 - add auto brightness feature: when getting close to a bright star the whole screen is white, it blinds the player.
   make the brightness automatically adjust
